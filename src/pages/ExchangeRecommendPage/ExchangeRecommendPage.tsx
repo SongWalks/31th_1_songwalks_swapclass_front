@@ -181,6 +181,7 @@ const ExchangeRecommendPage = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
+      <div className="[&>*]:!border-none">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <Header
@@ -200,6 +201,7 @@ const ExchangeRecommendPage = () => {
             />
           }
         />
+        </div>
 
         <Tabs
           tabs={tabs}
