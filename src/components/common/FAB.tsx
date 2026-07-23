@@ -20,7 +20,7 @@ export const FAB = ({
     <button
       onClick={onClick}
       className={`
-        absolute bottom-28 right-4 z-40 
+        absolute bottom-28 right-8 z-40 
         flex items-center justify-center gap-1.5
         bg-brand-lightBlue text-white font-bold
         

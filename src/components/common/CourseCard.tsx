@@ -1,4 +1,3 @@
-// src/components/common/CourseCard.tsx
 import React from 'react';
 
 interface CourseCardProps {
@@ -9,7 +8,7 @@ interface CourseCardProps {
   leftNode?: React.ReactNode;
   rightNode?: React.ReactNode;
   className?: string;
-  onClick?: () => void; // 💡 1. 여기에 onClick 타입을 추가합니다.
+  onClick?: () => void;
 }
 
 export const CourseCard = ({
@@ -20,10 +19,9 @@ export const CourseCard = ({
   leftNode,
   rightNode,
   className = '',
-  onClick, // 💡 2. props로 onClick을 받습니다.
+  onClick,
 }: CourseCardProps) => {
   return (
-    // 💡 3. 최상위 div에 onClick을 달아주고, 클릭 가능할 땐 마우스 커서를 포인터로 바꿔줍니다.
     <div
       onClick={onClick}
       className={`flex items-start p-4 bg-white rounded-xl border border-gray-200 ${
@@ -37,9 +35,9 @@ export const CourseCard = ({
       <div className="flex flex-col flex-1 gap-1.5">
         <h4 className="font-bold text-gray-900 text-[15px]">{title}</h4>
 
-        {/* 교수, 시간 정보가 있을 때만 렌더링 */}
+        {/* 교수, 시간 정보가 있을 때만 렌더링 (팀원 요청 스타일 반영됨) */}
         {(professor || time) && (
-          <div className="text-xs text-gray-500 leading-tight">
+          <div className="text-neutral-500 text-sm font-light font-['Pretendard'] leading-5 whitespace-nowrap">
             {professor && <p>교수 : {professor}</p>}
             {time && <p>시간 : {time}</p>}
           </div>
