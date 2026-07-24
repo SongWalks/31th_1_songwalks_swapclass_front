@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface ModalProps {
   isOpen: boolean; // 모달 열림/닫힘 상태
@@ -17,11 +17,22 @@ export const Modal = ({
   children,
   footer,
 }: ModalProps) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     // 전체 화면을 덮는 래퍼 (RootLayout 영역에 딱 맞춰집니다)
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
       {/* 1. 어두운 반투명 배경 (클릭 시 onClose 실행) */}
       <div
         className="absolute inset-0 bg-black/40 transition-opacity"
