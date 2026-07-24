@@ -6,7 +6,6 @@ import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
 // --- 2. 페이지 불러오기 ---
-// 💡 마이페이지 컴포넌트를 정상적으로 임포트해 줍니다! (폴더 경로명이 소문자/대문자일 수 있으니 확인해 주세요)
 import Mypage from '../pages/Mypage/Mypage';
 import PasswordChangepage from '../pages/Mypage/PasswordChangepage';
 import MyPostpage from '../pages/Mypage/MyPostpage';
@@ -14,6 +13,11 @@ import LikeListPage from '@/pages/Mypage/LikeListPage';
 import GraduationPage from '@/pages/Mypage/GraduationPage';
 import MyLoungePostsPage from '@/pages/Mypage/MyLoungePostsPage';
 import MyBookmarkPage from '@/pages/Mypage/MyBookmarkPage';
+import GraduationAddPage from '@/pages/Mypage/GraduationAddPage';
+import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
+import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
+
+// import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
 
 import { TestButton } from '../pages/TestButton';
 import { TestHeader } from '../pages/TestHeader';
@@ -43,7 +47,11 @@ export const router = createBrowserRouter([
               { path: 'posts', element: <MyPostpage /> },
               { path: 'likes', element: <LikeListPage /> },
               { path: 'lounge', element: <MyLoungePostsPage /> },
-              { path: 'bookmarks', element: <MyBookmarkPage /> }, // 추가된 경로
+              { path: 'bookmarks', element: <MyBookmarkPage /> },
+              // { path: 'recommend', element: <ExchangeRecommendPage /> },
+
+              // 💡 ExchangeRequestPage는 DefaultLayout에 유지 (/my/request)
+              { path: 'request', element: <ExchangeRequestPage /> },
             ],
           },
           { path: '/test-input', element: <TestInput /> },
@@ -59,12 +67,22 @@ export const router = createBrowserRouter([
       },
       {
         // ==========================================
-        // 💡 2번 그룹: 하단 바 없이 전체 화면을 쓰는 화면들
+        // 💡 2번 그룹: 하단 네비게이션이 없는 전체 화면(FullScreen) 화면들
         // ==========================================
         element: <FullScreenLayout />,
         children: [
-          { path: '/my/graduation', element: <GraduationPage /> },
-          // 상세페이지 등은 여기에 등록됩니다.
+          {
+            path: '/my/graduation',
+            children: [
+              { index: true, element: <GraduationPage /> },
+              { path: 'add', element: <GraduationAddPage /> },
+            ],
+          },
+          {
+            // 💡 뚱땅뚱땅 수정할 부분: :proposalId 파라미터 추가!
+            path: '/proposal/:proposalId',
+            element: <ExchangeRequestSpecific />,
+          },
         ],
       },
     ],
