@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ICONS } from '@/constants/icons'; //
+import { ICONS } from '@/constants/icons';
 
 import Header from '@/components/layout/Header';
+import { Avatar } from '@/components/common/Avatar';
 import { IconButton } from '@/components/common/IconButton';
 import { Modal } from '@/components/common/Modal';
 import postIcon from '@/assets/icons/post_icon.svg';
@@ -15,6 +16,15 @@ import lockIcon from '@/assets/icons/lock_icon.svg';
 import logoutIcon from '@/assets/icons/logout_icon.svg';
 import deleteIcon from '@/assets/icons/delete_icon.svg';
 import finalAlertIcon from '@/assets/icons/final_alert.svg';
+import movementIcon from '@/assets/icons/movement.svg';
+
+// 💡 API 통신 함수들 임포트
+import {
+  getUserProfile,
+  updateNotification,
+  deleteAccount,
+  type UserProfile,
+} from '@/api/mypageApi';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -22,16 +32,19 @@ interface MenuItem {
   description: string;
   fontSizeClass: string;
   badge?: string | number;
-  onClick?: () => void; // 💡 각 메뉴별 클릭 이벤트 추가
+  onClick?: () => void;
 }
 
 const MyPage = () => {
   const navigate = useNavigate();
-  const userEmail = 'su*******@sookmyung.ac.kr';
 
   // 상태 관리
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAlertOn, setIsAlertOn] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  // 💡 뱃지 상태 관리 (나중에 API 응답 값으로 업데이트 해주세요!)
+  const [hasNewRecommend, setHasNewRecommend] = useState<boolean>(false); // 추천 매칭함 new 여부
+  const [requestCount, setRequestCount] = useState<number>(0); // 요청함 알림 개수
 
   // 탈퇴 모달 2가지를 제어하기 위한 상태
   const [isWithdrawBlockModalOpen, setIsWithdrawBlockModalOpen] =
@@ -40,10 +53,71 @@ const MyPage = () => {
     useState(false); // 최종 확인 모달
 
   // 🛠️ 테스트용 변수 (백엔드 연동 전까지 화면 확인용)
-  // true로 두면 왼쪽 시안(교환 중 알림)이 먼저 뜨고, 파란 버튼을 누르면 오른쪽 시안이 뜹니다.
   const hasOngoingExchange = true;
 
-  // 1. 교환 활동 섹션
+  // 1. 내 정보 불러오기 API 연동
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getUserProfile();
+        if (res.success) {
+          setProfile(res.data);
+          setIsAlertOn(res.data.notificationEnabled);
+
+          // TODO: 여기에 뱃지 알림 관련 API를 호출해서 상태를 업데이트하세요!
+          // setHasNewRecommend(서버응답.hasNew);
+          // setRequestCount(서버응답.requestCount);
+        }
+      } catch (error) {
+        console.error('내 프로필 정보 조회 실패:', error);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  // 2. 알림 설정 토글 API 연동
+  const handleToggleNotification = async () => {
+    const nextState = !isAlertOn;
+    // UI 즉각 반영 (Optimistic Update)
+    setIsAlertOn(nextState);
+    try {
+      const res = await updateNotification(nextState);
+      if (!res.success) {
+        // 실패 시 원래 상태로 복구
+        setIsAlertOn(!nextState);
+      }
+    } catch (error) {
+      console.error('알림 설정 변경 실패:', error);
+      setIsAlertOn(!nextState); // 에러 시 복구
+    }
+  };
+
+  // 3. 회원 탈퇴 API 연동
+  const handleWithdraw = async () => {
+    try {
+      const res = await deleteAccount();
+      if (res.success) {
+        alert('회원 탈퇴가 정상적으로 처리되었습니다.');
+        // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
+        navigate('/home'); // 탈퇴 후 로그인 화면으로 이동
+      }
+    } catch (error) {
+      console.error('회원 탈퇴 실패:', error);
+      alert('회원 탈퇴 처리 중 오류가 발생했습니다.');
+    } finally {
+      setIsWithdrawConfirmModalOpen(false);
+    }
+  };
+
+  // 로그아웃 처리
+  const handleLogout = () => {
+    if (window.confirm('정말 로그아웃 하시겠습니까?')) {
+      // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
+      navigate('/home');
+    }
+  };
+
+  // 교환 활동 섹션
   const exchangeMenus: MenuItem[] = [
     {
       icon: (
@@ -65,14 +139,18 @@ const MyPage = () => {
       title: '교환 추천 매칭함',
       description: '나에게 맞는 교환 게시글 추천',
       fontSizeClass: 'text-[15px]',
-      badge: 'new',
+      // 💡 새로운 추천이 있을 때만 'new' 뱃지 표시
+      badge: hasNewRecommend ? 'new' : undefined,
+      onClick: () => navigate('/my/recommend'),
     },
     {
       icon: <img src={chatIcon} alt="교환 요청함" className="w-5 h-[19px]" />,
       title: '교환 요청함',
       description: '받은 요청 및 보낸 요청',
       fontSizeClass: 'text-[15px]',
-      badge: 3,
+      // 💡 요청이 1개 이상일 때만 숫자 뱃지 표시
+      badge: requestCount > 0 ? requestCount : undefined,
+      onClick: () => navigate('/my/request'),
     },
     {
       icon: <img src={likeIcon} alt="찜 목록" className="w-5 h-5" />,
@@ -96,7 +174,7 @@ const MyPage = () => {
     },
   ];
 
-  // 2. 라운지 섹션 메뉴
+  // 라운지 섹션 메뉴
   const loungeMenus: MenuItem[] = [
     {
       icon: <img src={postIcon} alt="내 라운지 게시글" className="size-5" />,
@@ -116,7 +194,7 @@ const MyPage = () => {
     },
   ];
 
-  // 3. 계정 설정 전용 비밀번호 메뉴 사양
+  // 계정 설정 전용 비밀번호 메뉴 사양
   const passwordMenuIcon = (
     <img src={lockIcon} alt="비밀번호 변경" className="w-6 h-6" />
   );
@@ -129,7 +207,7 @@ const MyPage = () => {
   ) => (
     <div
       key={index}
-      onClick={onClick} // 💡 추가된 부분: 메뉴 클릭 시 실행
+      onClick={onClick}
       className={`flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors ${
         isLast ? '' : 'border-b border-gray-100'
       }`}
@@ -163,19 +241,7 @@ const MyPage = () => {
             {item.badge}
           </span>
         )}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          className="text-gray-400"
-        >
-          <path
-            d="M8.59063 18.1598L14.2506 12.4998L8.59063 6.83984L7.89062 7.54984L12.8406 12.4998L7.89062 17.4498L8.59063 18.1598Z"
-            fill="currentColor"
-          />
-        </svg>
+        <img src={movementIcon} alt="이동" className="w-6 h-6" />
       </div>
     </div>
   );
@@ -194,44 +260,35 @@ const MyPage = () => {
 
       {/* 헤더 바 */}
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
-        <Header
-          leftNode={
-            <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
-          }
-          title={
-            <div className="text-left whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              마이페이지
-            </div>
-          }
-          rightNode={
-            <IconButton
-              icon={ICONS.BELL}
-              onClick={() => navigate('/notifications')}
-              className="text-brand-lightBlue"
-            />
-          }
-        />
+        <div className="[&>*]:!border-none">
+          <Header
+            leftNode={
+              <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+            }
+            title={
+              <div className="text-left whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+                마이페이지
+              </div>
+            }
+            rightNode={
+              <IconButton
+                icon={ICONS.BELL}
+                onClick={() => navigate('/notifications')}
+                className="text-brand-lightBlue"
+              />
+            }
+          />
+        </div>
       </div>
 
       <div className="px-5 pb-12 flex flex-col flex-1">
         {/* 프로필 영역 */}
         <div className="py-6 flex items-center space-x-4 border-b border-gray-100">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 42 42"
-            fill="none"
-            style={{ width: '42px', height: '42px' }}
-            className="flex-shrink-0"
-          >
-            <circle cx="20.916" cy="20.916" r="20.916" fill="#D9D9D9" />
-            <path
-              d="M20.9154 7.28809C22.6646 7.28809 24.3421 7.98295 25.579 9.21983C26.8159 10.4567 27.5107 12.1343 27.5107 13.8835C27.5107 15.6327 26.8159 17.3102 25.579 18.5471C24.3421 19.784 22.6646 20.4788 20.9154 20.4788C19.1662 20.4788 17.4886 19.784 16.2517 18.5471C15.0149 17.3102 14.32 15.6327 14.32 13.8835C14.32 12.1343 15.0149 10.4567 16.2517 9.21983C17.4886 7.98295 19.1662 7.28809 20.9154 7.28809ZM20.9154 23.7765C28.2033 23.7765 34.1061 26.728 34.1061 30.3719V33.6696H7.72461V30.3719C7.72461 26.728 13.6275 23.7765 20.9154 23.7765Z"
-              fill="white"
-            />
-          </svg>
+          <Avatar size="md" className="!w-[42px] !h-[42px]" />
+
           <div>
             <h2 className="text-[16px] font-medium text-black leading-[20px] tracking-[0.4px]">
-              {userEmail}
+              {profile ? profile.email : '불러오는 중...'}
             </h2>
             <p className="text-[11px] font-normal text-black leading-[20px] tracking-[0.4px] flex items-center gap-1 mt-0.5">
               <svg
@@ -331,7 +388,7 @@ const MyPage = () => {
                 </div>
               </div>
               <button
-                onClick={() => setIsAlertOn(!isAlertOn)}
+                onClick={handleToggleNotification}
                 className={`w-[44px] h-[24px] flex items-center rounded-full p-0.5 transition-colors duration-300 ${isAlertOn ? 'bg-brand-lightBlue' : 'bg-gray-300'}`}
               >
                 <div
@@ -348,7 +405,7 @@ const MyPage = () => {
               },
               0,
               true,
-              () => navigate('/my/password-change'), // 👈 여기에 클릭 함수 전달
+              () => navigate('/my/password-change'),
             )}
             <div className="w-full border-b border-[#E6E7EA] mt-2" />
           </div>
@@ -358,8 +415,8 @@ const MyPage = () => {
         <div className="mt-auto pt-10 pb-4 flex flex-col gap-6">
           {/* 로그아웃하기 */}
           <button
-            onClick={() => setIsLogoutModalOpen(true)}
-            className="flex items-center space-x-4 text-left w-full"
+            onClick={handleLogout}
+            className="flex items-center space-x-4 text-left w-full cursor-pointer"
           >
             <div className="min-w-[40px] min-h-[40px] flex items-center justify-center flex-shrink-0">
               <img src={logoutIcon} alt="로그아웃" className="w-6 h-6" />
@@ -383,7 +440,7 @@ const MyPage = () => {
                 setIsWithdrawConfirmModalOpen(true);
               }
             }}
-            className="flex items-center space-x-4 text-left w-full"
+            className="flex items-center space-x-4 text-left w-full cursor-pointer"
           >
             <div className="min-w-[40px] min-h-[40px] flex items-center justify-center flex-shrink-0">
               <img src={deleteIcon} alt="회원 탈퇴" className="w-6 h-6" />
@@ -400,55 +457,7 @@ const MyPage = () => {
         </div>
       </div>
 
-      {/* --- 공통 모달 영역 --- */}
-
-      {/* 1. 로그아웃 모달 */}
-      <Modal
-        isOpen={isLogoutModalOpen}
-        onClose={() => setIsLogoutModalOpen(false)}
-        icon={
-          <div className="size-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2 mx-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="size-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
-          </div>
-        }
-        title="로그아웃 하시겠습니까?"
-        footer={
-          <div className="flex w-full gap-3 mt-2">
-            <button
-              onClick={() => setIsLogoutModalOpen(false)}
-              className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full font-medium transition-colors"
-            >
-              취소
-            </button>
-            <button
-              onClick={() => {
-                setIsLogoutModalOpen(false);
-                navigate('/login');
-              }}
-              className="flex-1 py-3.5 bg-[#FF5A5F] hover:bg-red-500 text-white rounded-full font-medium transition-colors"
-            >
-              로그아웃
-            </button>
-          </div>
-        }
-      >
-        {'계정에서 로그아웃하면\n알림을 받을 수 없습니다.'}
-      </Modal>
-
-      {/* 2. 교환 진행 중으로 인한 탈퇴 불가 알림 */}
+      {/* 교환 진행 중으로 인한 탈퇴 불가 알림 */}
       <Modal
         isOpen={isWithdrawBlockModalOpen}
         onClose={() => setIsWithdrawBlockModalOpen(false)}
@@ -460,9 +469,8 @@ const MyPage = () => {
                 setIsWithdrawBlockModalOpen(false);
                 setIsWithdrawConfirmModalOpen(true);
               }}
-              className="w-full py-3 px-5 bg-brand-lightBlue rounded-full flex justify-center items-center transition-colors"
+              className="w-full py-3 px-5 bg-brand-lightBlue rounded-full flex justify-center items-center transition-colors cursor-pointer"
             >
-              {/* 💡 text-sm -> text-base 로 폰트 사이즈 키움! */}
               <span className="text-white text-base font-light font-['Pretendard'] leading-6 tracking-tight">
                 교환 중 게시글 삭제하고 탈퇴하기
               </span>
@@ -471,7 +479,7 @@ const MyPage = () => {
             {/* 취소 */}
             <button
               onClick={() => setIsWithdrawBlockModalOpen(false)}
-              className="w-full py-3 px-5 rounded-3xl outline outline-[0.50px] outline-offset-[-0.50px] outline-gray-300 flex justify-center items-center transition-colors"
+              className="w-full py-3 px-5 rounded-3xl outline outline-[0.50px] outline-offset-[-0.50px] outline-gray-300 flex justify-center items-center transition-colors cursor-pointer"
             >
               <span className="text-cyan-900 text-base font-medium font-['Pretendard'] leading-6 tracking-tight">
                 취소
@@ -480,12 +488,7 @@ const MyPage = () => {
           </div>
         }
       >
-        {/* 💡 text-[15px] -> text-[17px] 로 본문 크기 키우고 중앙 정렬 추가! */}
-        <div
-          className="w-72 mx-auto text-center 
-        justify-center text-cyan-1000 text-base font-medium 
-        font-['Pretendard'] leading-5 tracking-wide pt-4 pb-2 translate-y-5"
-        >
+        <div className="w-72 mx-auto text-center text-cyan-1000 text-base font-medium font-['Pretendard'] leading-5 tracking-wide py-4">
           진행 중인 교환이 있습니다.
           <br />
           교환을 완료하거나 취소한 후<br />
@@ -493,7 +496,7 @@ const MyPage = () => {
         </div>
       </Modal>
 
-      {/* 3. 최종 회원 탈퇴 확인 창 (오른쪽 시안) */}
+      {/* 최종 회원 탈퇴 확인 창 (오른쪽 시안) */}
       <Modal
         isOpen={isWithdrawConfirmModalOpen}
         onClose={() => setIsWithdrawConfirmModalOpen(false)}
@@ -502,26 +505,20 @@ const MyPage = () => {
             <img src={finalAlertIcon} alt="" className="w-[34px] h-[34px]" />
           </div>
         }
-
         footer={
           <div className="flex w-full gap-3 mt-4">
-            {/* 💡 취소 버튼 (전달해주신 폰트/아웃라인 속성 적용) */}
             <button
               onClick={() => setIsWithdrawConfirmModalOpen(false)}
-              className="flex-1 h-11 flex justify-center items-center rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white transition-colors"
+              className="flex-1 h-11 flex justify-center items-center rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white transition-colors cursor-pointer"
             >
               <span className="text-black text-sm font-medium font-['Pretendard'] leading-5 tracking-tight">
                 취소
               </span>
             </button>
 
-            {/* 💡 탈퇴 버튼 (전달해주신 bg-rose-500 색상 및 폰트 적용) */}
             <button
-              onClick={() => {
-                console.log('최종 탈퇴 처리 로직');
-                setIsWithdrawConfirmModalOpen(false);
-              }}
-              className="flex-1 h-11 flex justify-center items-center bg-rose-500 rounded-full transition-colors"
+              onClick={handleWithdraw}
+              className="flex-1 h-11 flex justify-center items-center bg-rose-500 rounded-full transition-colors cursor-pointer"
             >
               <span className="text-white text-sm font-light font-['Pretendard'] leading-5 tracking-tight">
                 탈퇴

@@ -1,62 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import axiosInstance from '@/api/axiosInstance'; // 💡 API 통신용 인스턴스 추가
 
 type TabType = '전체' | '교환 전' | '교환 중' | '교환 완료';
 
-// 💡 백엔드 연동을 고려한 게시글 데이터 인터페이스 정의
+// 💡 프론트엔드 UI용 게시글 데이터 인터페이스
 interface Post {
   id: number;
-  title: string; // 내가 가진 과목 (예: 영어 회화)
-  preferredSubjects: string[]; // 희망하는 과목 1, 2, 3순위 리스트
-  status: '교환 전' | '교환 중' | '교환 완료';
-  requestCount: number; // 받은 요청 수
+  title: string;
+  preferredSubjects: string[];
+  status: TabType;
+  requestCount: number;
 }
 
 const MyPostpage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('전체');
 
+  // 💡 상태 관리 추가 (게시글 데이터 및 로딩 상태)
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
   const tabs: TabType[] = ['전체', '교환 전', '교환 중', '교환 완료'];
 
-  // 💡 피그마 시안에 명시된 4가지 케이스의 테스트용 데이터 구성
-  const posts: Post[] = [
-    {
-      id: 1,
-      title: '영어 회화',
-      preferredSubjects: ['컴퓨터 구조', '컴퓨터 구조', '컴퓨터 구조'],
-      status: '교환 전',
-      requestCount: 3,
-    },
-    {
-      id: 2,
-      title: '교양필라테스',
-      preferredSubjects: [
-        '교양 요가',
-        '발레를 통한 자세교정',
-        '교양 웨이트 트레이닝',
-      ],
-      status: '교환 중',
-      requestCount: 3,
-    },
-    {
-      id: 3,
-      title: 'SM리더특강',
-      preferredSubjects: ['운영체제', '소프트웨어이해', '프로그래밍언어론'],
-      status: '교환 중',
-      requestCount: 3,
-    },
-    {
-      id: 4,
-      title: '공예CAD1',
-      preferredSubjects: ['디지털스튜디오', '기초 id스튜디오', '트렌드디자인'],
-      status: '교환 완료',
-      requestCount: 3,
-    },
-  ];
+  // 💡 API 연동: 내 교환 게시글 목록 불러오기
+  useEffect(() => {
+    const fetchMyPosts = async () => {
+      try {
+        setIsLoading(true);
+        // ⚠️ 백엔드 API 명세서에 맞게 URL을 수정해 주세요 (예: '/api/me/exchange-posts' 또는 '/api/posts/me')
+        const response = await axiosInstance.get('/api/users/me/posts');
+
+        if (response.data?.success && response.data?.data) {
+          // 백엔드 데이터를 프론트 UI 구조에 맞게 매핑
+          const mappedPosts: Post[] = response.data.data.map((item: any) => {
+            // 💡 서버의 영문 상태값(status)을 한글 탭 메뉴(TabType)에 맞게 변환
+            let mappedStatus: TabType = '교환 전';
+            if (item.status === 'IN_PROGRESS') mappedStatus = '교환 중';
+            if (item.status === 'COMPLETED') mappedStatus = '교환 완료';
+            else if (
+              item.status === '교환 전' ||
+              item.status === '교환 중' ||
+              item.status === '교환 완료'
+            ) {
+              mappedStatus = item.status; // 서버가 이미 한글로 준다면 그대로 사용
+            }
+
+            return {
+              id: item.postId || item.id,
+              title: item.discardCourse?.name || '과목명 없음',
+              preferredSubjects:
+                item.wantedCourses?.map((w: any) => w.course.name) || [],
+              status: mappedStatus,
+              requestCount: item.requestCount || 0, // 백엔드에 requestCount가 없다면 0 처리
+            };
+          });
+          setPosts(mappedPosts);
+        }
+      } catch (error) {
+        console.error('내 게시글 목록을 불러오지 못했습니다:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMyPosts();
+  }, []);
 
   // 💡 선택한 탭에 따라 데이터 필터링
   const filteredPosts = posts.filter((post) => {
@@ -67,7 +80,7 @@ const MyPostpage = () => {
   return (
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
       {/* 헤더 바 */}
-      <div className="sticky top-0 z-40 bg-[#FBFBFB]">
+      <div className="sticky top-0 z-40 bg-[#FBFBFB] [&>header]:!border-none">
         <Header
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
@@ -99,10 +112,10 @@ const MyPostpage = () => {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-4 text-[15px] font-medium transition-colors flex items-center justify-center gap-1 ${
+                className={`flex-1 py-4 text-[15px] font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer ${
                   activeTab === tab
                     ? 'text-brand-lightBlue border-b-2 border-brand-lightBlue'
-                    : 'text-gray-400'
+                    : 'text-gray-400 hover:text-gray-500'
                 }`}
               >
                 <span>{tab}</span>
@@ -121,7 +134,11 @@ const MyPostpage = () => {
 
       {/* 게시글 목록 영역 */}
       <div className="flex-1 px-5 py-2">
-        {filteredPosts.length === 0 ? (
+        {isLoading ? (
+          <div className="flex h-[60vh] items-center justify-center text-gray-400 text-sm">
+            게시글을 불러오는 중입니다...
+          </div>
+        ) : filteredPosts.length === 0 ? (
           <div className="flex h-[60vh] items-center justify-center">
             <EmptyState
               className="min-h-0"
@@ -194,7 +211,7 @@ const MyPostpage = () => {
                   {/* 하단 라인: 받은 요청 수 & 이동 화살표 */}
                   <button
                     onClick={() => navigate(`/exchange/requests/${post.id}`)}
-                    className="self-end mt-2 flex items-center gap-1 hover:opacity-80 active:scale-95 transition-all"
+                    className="self-end mt-2 flex items-center gap-1 hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                   >
                     <span className="text-neutral-500 text-xs font-light leading-5 tracking-tight">
                       받은 요청 {post.requestCount}개
@@ -223,7 +240,7 @@ const MyPostpage = () => {
 
       {/* 플로팅 버튼 */}
       <button
-        className="fixed bottom-32 right-5 w-14 h-14 bg-[#4C9DD1] rounded-full shadow-lg flex items-center justify-center text-white z-50 hover:opacity-90 active:scale-95 transition-all"
+        className="fixed bottom-32 right-5 w-14 h-14 bg-[#4C9DD1] rounded-full shadow-lg flex items-center justify-center text-white z-50 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
         onClick={() => navigate('/post/write')}
       >
         <div className="w-12 h-12 flex items-center justify-center relative">

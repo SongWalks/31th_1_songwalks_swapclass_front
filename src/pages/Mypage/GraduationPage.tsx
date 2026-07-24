@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
+import { Icon } from '@iconify/react';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import cautionBlueIcon from '@/assets/icons/caution_blue.svg';
-import searchIcon from '@/assets/icons/search_icon.svg';
 import axiosInstance from '@/api/axiosInstance'; // 💡 프로젝트의 Axios 인스턴스 경로로 맞춰주세요!
 
 // API Response 데이터 타입 정의 (명세서 기준)
@@ -103,37 +103,39 @@ const GraduationPage = () => {
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
       {/* 1. 상단 헤더 */}
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
-        <Header
-          leftNode={
-            <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
-          }
-          title={
-            <div className="text-left whitespace-nowrap transform -translate-x-12 text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              졸업 요건 과목 등록
-            </div>
-          }
-          rightNode={
-            <button
-              onClick={() => navigate('/graduation/add')}
-              className="w-7 h-7 flex items-center justify-center text-black/40 hover:opacity-80 active:scale-95 transition-all"
-              aria-label="과목 추가"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="w-5 h-5"
+        <div className="[&>header]:!border-none">
+          <Header
+            leftNode={
+              <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+            }
+            title={
+              <div className="text-left whitespace-nowrap transform -translate-x-12 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+                졸업 요건 과목 등록
+              </div>
+            }
+            rightNode={
+              <button
+                onClick={() => navigate('add')}
+                className="w-7 h-7 flex items-center justify-center text-black/40 hover:opacity-80 active:scale-95 transition-all"
+                aria-label="과목 추가"
               >
-                <path
-                  d="M12 5v14M5 12h14"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          }
-        />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="w-5 h-5"
+                >
+                  <path
+                    d="M12 5v14M5 12h14"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            }
+          />
+        </div>
       </div>
 
       {/* 2. 검색 인풋 */}
@@ -146,22 +148,22 @@ const GraduationPage = () => {
             placeholder="검색어를 입력해주세요"
             className="flex-1 bg-transparent border-none outline-none text-sm font-light text-black placeholder-neutral-400 leading-5 tracking-wide"
           />
-          <img
-            src={searchIcon}
+          <Icon
+            icon={ICONS.SEARCH}
             alt="검색"
-            className="w-[18px] h-[18px] cursor-pointer"
+            className="w-[18px] h-[18px] text-gray-400 cursor-pointer"
           />
         </div>
       </div>
 
       {/* 3. 등록된 과목 개수 + 추가하기 버튼 */}
       <div className="px-5 pt-3 pb-1 flex items-center justify-between">
-        <div className="text-sm font-light leading-5 tracking-wide">
+        <div className="text-sm font-light leading-5 ">
           <span className="text-zinc-900">등록된 과목 </span>
           <span className="text-blue-400">{registeredCourses.length}</span>
         </div>
         <button
-          onClick={() => navigate('/graduation/add')}
+          onClick={() => navigate('add')}
           className="h-5 px-2 flex items-center justify-center gap-0.5 bg-blue-100 rounded-lg border-[0.5px] border-blue-400 text-zinc-900 text-xs font-light leading-5 tracking-wide hover:opacity-80 transition-opacity"
         >
           추가하기
@@ -186,7 +188,7 @@ const GraduationPage = () => {
             }
             title="아직 등록된 졸업요건 과목이 없습니다."
             description={`졸업에 필요한 과목을 등록하고\n교환할 강의를 더 쉽게 찾아보세요.`}
-            className="min-h-[45vh] justify-center"
+            className="min-h-[50vh] justify-center"
           />
         ) : (
           <div className="flex flex-col divide-y divide-gray-100 pb-10">
@@ -253,7 +255,7 @@ const GraduationPage = () => {
           등록한 과목은 과목 검색 시 가장 먼저 표시됩니다
         </p>
         <button
-          onClick={() => navigate('/graduation/add')}
+          onClick={() => navigate('add')}
           className="w-full h-14 bg-brand-lightBlue hover:opacity-90 active:scale-[0.99] transition-all rounded-md text-white text-lg font-semibold font-['Pretendard'] leading-5 tracking-tight"
         >
           과목 추가하기

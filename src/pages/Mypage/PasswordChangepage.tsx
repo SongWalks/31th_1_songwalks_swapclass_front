@@ -5,36 +5,11 @@ import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import Header from '@/components/layout/Header';
 import { Modal } from '@/components/common/Modal';
-import cautionIcon from '@/assets/icons/caution.svg';
 import defaultEyeIcon from '@/assets/icons/eye_icon.svg';
 import cautionEyeIcon from '@/assets/icons/Caution_eye_icon.svg';
 
-// 💡 API 연동 함수 (페이지 상단 또는 별도 파일에 작성)
-const updatePassword = async (
-  currentPassword,
-  newPassword,
-  newPasswordConfirm,
-) => {
-  const token = localStorage.getItem('accessToken'); // 로그인 시 저장한 토큰
-  const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL}/api/password/change`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        currentPassword,
-        newPassword,
-        newPasswordConfirm,
-      }),
-    },
-  );
-
-  const data = await response.json();
-  return { status: response.status, data };
-};
+// 💡 1. 미리 만들어둔 mypageApi에서 updatePassword 함수를 가져옵니다.
+import { updatePassword } from '@/api/mypageApi';
 
 const PasswordChangepage = () => {
   const navigate = useNavigate();
@@ -60,19 +35,23 @@ const PasswordChangepage = () => {
 
     // 2. API 호출
     try {
-      const { status, data } = await updatePassword(
-        pw.current,
-        pw.new,
-        pw.confirm,
-      );
+      // 💡 mypageApi의 함수 규격에 맞게 인자 전달
+      const response = await updatePassword({
+        currentPassword: pw.current,
+        newPassword: pw.new,
+        newPasswordConfirm: pw.confirm,
+      });
 
-      if (status === 200 && data.success) {
+      if (response.success) {
         setIsModalOpen(true);
       } else {
-        alert(data.message || '비밀번호 변경에 실패했습니다.');
+        alert(response.message || '비밀번호 변경에 실패했습니다.');
       }
-    } catch (error) {
-      alert('서버 연결 중 오류가 발생했습니다.');
+    } catch (error: any) {
+      console.error('비밀번호 변경 오류:', error);
+      alert(
+        error.response?.data?.message || '서버 연결 중 오류가 발생했습니다.',
+      );
     }
   };
 
@@ -85,7 +64,7 @@ const PasswordChangepage = () => {
       onClick={() =>
         setShowPassword({ ...showPassword, [key]: !showPassword[key] })
       }
-      className="flex items-center justify-center w-6 h-6"
+      className="flex items-center justify-center w-6 h-6 cursor-pointer"
     >
       <img
         src={isError(key) ? cautionEyeIcon : defaultEyeIcon}
@@ -96,20 +75,18 @@ const PasswordChangepage = () => {
   );
 
   return (
-    <div className="relative w-full min-h-screen bg-[#FBFBFB] p-5">
-      <Header
-        leftNode={
-          <IconButton
-            icon={ICONS.BACK}
-            onClick={() => navigate(-1)}
-            className="-ml-5"
-          />
-        }
-        title={<div className="h-10" />}
-        rightNode={<div className="w-10 h-10" />}
-      />
+    <div className="relative w-full h-full bg-[#FBFBFB] flex flex-col overflow-hidden">
+      <div className="[&>header]:!border-none">
+        <Header
+          leftNode={
+            <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+          }
+          title={<div className="h-10" />}
+          rightNode={<div className="w-10 h-10" />}
+        />
+      </div>
 
-      <div className="max-w-sm mx-auto mt-[70px]">
+      <div className="px-5 pt-[70px]">
         <h1 className="text-2xl font-bold font-['Paperlogy'] leading-9 tracking-wide text-cyan-900 mb-[3px]">
           비밀번호 변경
         </h1>
@@ -118,7 +95,7 @@ const PasswordChangepage = () => {
         </p>
       </div>
 
-      <div className="max-w-sm mx-auto flex flex-col gap-6">
+      <div className="px-5 flex flex-col gap-6">
         <Input
           label="현재 비밀번호"
           type={showPassword.current ? 'text' : 'password'}
@@ -126,6 +103,7 @@ const PasswordChangepage = () => {
           onChange={(e: any) => setPw({ ...pw, current: e.target.value })}
           onBlur={() => setTouched({ ...touched, current: true })}
           isError={isError('current')}
+          rightNode={renderEyeNode('current')}
         />
 
         <Input
@@ -155,7 +133,7 @@ const PasswordChangepage = () => {
 
         <button
           onClick={handleUpdate}
-          className="w-full h-14 mt-4 bg-brand-lightBlue rounded-2xl text-white font-bold"
+          className="w-full h-14 mt-4 bg-brand-lightBlue rounded-2xl text-white font-bold cursor-pointer hover:opacity-90 transition-opacity"
         >
           비밀번호 변경
         </button>
@@ -163,7 +141,7 @@ const PasswordChangepage = () => {
         {/* 🧪 개발 중 임시 버튼 - API 연동 확인되면 삭제 */}
         <button
           onClick={() => setIsModalOpen(true)}
-          className="w-full h-10 border border-dashed border-gray-400 rounded-xl text-gray-500 text-sm"
+          className="w-full h-10 border border-dashed border-gray-400 rounded-xl text-gray-500 text-sm cursor-pointer"
         >
           (테스트) 모달 미리보기
         </button>
@@ -173,8 +151,9 @@ const PasswordChangepage = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        className="relative w-full max-w-xs bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200"
         title={
-          <div className="w-80 text-center justify-center text-cyan-900 text-sm font-medium font-['Pretendard'] leading-4 tracking-wide">
+          <div className="w-72 text-center justify-center text-cyan-900 text-sm font-medium font-['Pretendard'] leading-4 tracking-wide">
             성공적으로 변경되었습니다
           </div>
         }
@@ -182,13 +161,13 @@ const PasswordChangepage = () => {
           <div className="flex flex-col w-full gap-2">
             <button
               onClick={() => navigate('/my')}
-              className="w-full h-12 rounded-full bg-brand-lightBlue text-white font-medium"
+              className="w-full h-12 rounded-full bg-brand-lightBlue text-white font-medium cursor-pointer"
             >
               확인
             </button>
             <button
               onClick={() => setIsModalOpen(false)}
-              className="w-full h-12 rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white text-black font-medium"
+              className="w-full h-12 rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white text-black font-medium cursor-pointer"
             >
               취소
             </button>
