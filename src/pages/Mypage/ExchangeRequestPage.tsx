@@ -49,7 +49,6 @@ const ExchangeRequestPage = () => {
   const hasReceivedRequests = receivedProposals.length > 0;
 
   // 4. 데이터 불러오기
-  // 💡 원래 상태의 API 연동 함수 (실서버 통신 + 데이터 가공)
   const fetchData = async () => {
     try {
       const [receivedRes, sentRes] = await Promise.all([
@@ -135,36 +134,39 @@ const ExchangeRequestPage = () => {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard'] pb-28 relative overflow-y-auto">
-      {/* 1. 상단 헤더 */}
-      <div className="[&>*]:!border-none">
-        <Header
-          leftNode={
-            <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
-          }
-          title={
-            <div className="text-left px-4 whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              교환 요청함
-            </div>
-          }
-          rightNode={
-            <IconButton
-              icon={ICONS.BELL}
-              onClick={() => navigate('/notifications')}
-              className="text-brand-lightBlue"
-            />
-          }
-        />
-      </div>
+    <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard'] pb-28 relative">
+      {/* 💡 1 & 2. [헤더 + 탭 영역]을 하나의 sticky 컨테이너로 감싸서 고정 */}
+      <div className="sticky top-0 z-50 bg-[#FBFBFB]">
+        {/* 상단 헤더 */}
+        <div className="[&>*]:!border-none">
+          <Header
+            leftNode={
+              <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+            }
+            title={
+              <div className="text-left px-4 whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+                교환 요청함
+              </div>
+            }
+            rightNode={
+              <IconButton
+                icon={ICONS.BELL}
+                onClick={() => navigate('/notifications')}
+                className="text-brand-lightBlue"
+              />
+            }
+          />
+        </div>
 
-      {/* 2. 공통 Tabs 컴포넌트 적용 (아이콘 포함) */}
-      <div className="relative border-b border-gray-200">
-        <Tabs
-          tabs={tabItems}
-          activeTabId={activeTabId}
-          onTabChange={(id) => setActiveTabId(id)}
-          variant="line"
-        />
+        {/* 공통 Tabs 컴포넌트 */}
+        <div className="relative border-b border-gray-200">
+          <Tabs
+            tabs={tabItems}
+            activeTabId={activeTabId}
+            onTabChange={(id) => setActiveTabId(id)}
+            variant="line"
+          />
+        </div>
       </div>
 
       {/* 3. 본문 영역 */}
@@ -251,7 +253,6 @@ const ExchangeRequestPage = () => {
                         {rankProposals.map((req) => (
                           <div
                             key={req.id}
-                            // 💡 카드 전체를 눌러도 상세 페이지로 이동하도록 클릭 이벤트 및 커서 추가
                             onClick={() => navigate(`/proposal/${req.id}`)}
                             className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
                           >
@@ -261,7 +262,7 @@ const ExchangeRequestPage = () => {
                               </span>
                               <button
                                 onClick={(e) => {
-                                  e.stopPropagation(); // 부모 div의 onClick 이벤트 중복 실행 방지
+                                  e.stopPropagation();
                                   navigate(`/proposal/${req.id}`);
                                 }}
                                 className="px-3 py-1 bg-brand-lightBlue text-white text-xs font-medium rounded-2xl tracking-wide cursor-pointer"
@@ -306,7 +307,7 @@ const ExchangeRequestPage = () => {
                               />
                             </div>
                           </div>
-                        ))}{' '}
+                        ))}
                       </div>
                     )}
                   </div>
@@ -397,7 +398,7 @@ const ExchangeRequestPage = () => {
         </div>
       )}
 
-      {/* 4. 하단 고정 안내 박스 (보낸 요청 탭이면서 sentProposal이 존재할 때만 노출, 왼쪽 정렬) */}
+      {/* 4. 하단 고정 안내 박스 */}
       {activeTabId === 'sent' && sentProposal && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-yellow-50 px-6 py-3.5 border-t border-yellow-100 flex items-center justify-start text-left z-40 shadow-lg">
           <span className="text-yellow-700 text-sm font-normal leading-5 tracking-wide whitespace-pre-line">
@@ -405,6 +406,7 @@ const ExchangeRequestPage = () => {
           </span>
         </div>
       )}
+
       <Modal
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
@@ -442,6 +444,7 @@ const ExchangeRequestPage = () => {
           보낼 수 있습니다.
         </p>
       </Modal>
+
       {/* 5. 공통 Toast 컴포넌트 연결 */}
       <Toast
         message="요청이 철회되었습니다."
