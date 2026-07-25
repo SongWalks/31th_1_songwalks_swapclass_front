@@ -33,9 +33,7 @@ const PasswordChangepage = () => {
       return alert('새 비밀번호가 일치하지 않습니다.');
     }
 
-    // 2. API 호출
     try {
-      // 💡 mypageApi의 함수 규격에 맞게 인자 전달
       const response = await updatePassword({
         currentPassword: pw.current,
         newPassword: pw.new,
@@ -49,9 +47,17 @@ const PasswordChangepage = () => {
       }
     } catch (error: any) {
       console.error('비밀번호 변경 오류:', error);
-      alert(
-        error.response?.data?.message || '서버 연결 중 오류가 발생했습니다.',
-      );
+
+      // 💡 백엔드에서 내려준 에러 메시지가 있다면 그걸 띄우고, 없으면 기본 메시지 출력
+      const serverMessage = error.response?.data?.message;
+      if (error.response?.status === 403) {
+        alert(
+          serverMessage ||
+            '접근 권한이 없습니다. (로그인이 필요하거나 권한 부족)',
+        );
+      } else {
+        alert(serverMessage || '비밀번호 변경 중 오류가 발생했습니다.');
+      }
     }
   };
 
