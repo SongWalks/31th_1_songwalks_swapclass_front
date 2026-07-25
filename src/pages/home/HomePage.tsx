@@ -3,76 +3,55 @@ import { HomeHeader } from '@/pages/home/components/HomeHeader';
 import { HomeHero } from '@/pages/home/components/HomeHero';
 import { ReceivedRequestCard } from '@/pages/home/components/ReceivedRequestCard';
 import { RecommendMatchItem } from '@/pages/home/components/RecommendMatchItem';
-
 import sooWatermark from '@/assets/images/soo-watermark.png';
+import { useHomeQuery } from '@/hooks/useHomeQuery';
 
-const HOME_STATE: 'empty' | 'active' | 'alert' = 'active'; // 현재 홈 화면 상태를 나타내는 상수 (empty, active, alert)
+// 💡 1. 만들어둔 Spinner 컴포넌트를 불러옵니다. (경로는 실제 위치에 맞게 수정해주세요)
+import { Spinner } from '@/components/common/Spinner';
 
 export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const sensorRef = useRef<HTMLDivElement>(null);
 
+  const { data: homeData, isLoading, isError } = useHomeQuery();
+
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        // 센서가 화면 밖으로 나가면(스크롤을 내리면) 블러 효과 ON
-        setIsScrolled(!entry.isIntersecting);
-      },
-      { threshold: 0 }, // 0으로 설정하면 단 1px만 스크롤돼도 반응함
+      ([entry]) => setIsScrolled(!entry.isIntersecting),
+      { threshold: 0 },
     );
-
     if (sensorRef.current) observer.observe(sensorRef.current);
     return () => observer.disconnect();
   }, []);
 
-  // 가짜(Mock) 데이터
-  const receivedRequests =
-    HOME_STATE === 'empty'
-      ? []
-      : [
-          {
-            id: 1,
-            subject: '마케팅과 소비자 이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '27m 32s',
-            isUrgent: false,
-          },
-          {
-            id: 2,
-            subject: '마케팅과 소비자 이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '15m 21s',
-            isUrgent: true,
-          },
-        ];
+  // 💡 2. 로딩 중일 때 Spinner 컴포넌트를 사용하도록 수정합니다.
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F9F9F9]">
+        <Spinner size="md" />
+      </div>
+    );
+  }
 
-  const recommendedMatches =
-    HOME_STATE === 'empty'
-      ? []
-      : [
-          {
-            id: 1,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-          {
-            id: 2,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-          {
-            id: 3,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-        ];
+  // 에러 발생 처리 (지금 이 화면이 뜨는게 정상!)
+  if (isError || !homeData) {
+    return (
+      <div className="flex h-screen items-center justify-center text-gray-500">
+        데이터를 불러오는데 실패했습니다.
+      </div>
+    );
+  }
+
+  const {
+    state = 'active',
+    userName = '눈송이',
+    receivedRequests = [],
+    recommendedMatches = [],
+  } = homeData;
 
   return (
     <div className="relative mx-auto w-full max-w-[430px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
-      {/* 화면 맨 위(top-0)에 투명한 1px짜리 센서를 붙여둠 */}
+      {/* 화면 맨 위 투명 센서 */}
       <div
         ref={sensorRef}
         className="absolute top-0 left-0 w-full h-[1px] bg-transparent pointer-events-none z-50"
@@ -100,7 +79,7 @@ export default function HomePage() {
         />
       </div>
 
-      {/* 워터마크 (absolute로 부모 영역 안에 가둠) */}
+      {/* 워터마크 */}
       <div className="absolute top-[100px] left-[60px] w-96 h-48 pointer-events-none z-0 select-none">
         <img
           src={sooWatermark}
@@ -111,14 +90,14 @@ export default function HomePage() {
 
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
-        {/* 헤더 (모바일 너비인 430px 안에서만 고정) */}
+        {/* 헤더 */}
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50">
           <HomeHeader isScrolled={isScrolled} />
         </div>
 
-        {/* 헤더 높이만큼 띄워주는 패딩 */}
         <div className="px-5 flex flex-col pt-[56px] mt-2">
-          <HomeHero state={HOME_STATE} />
+          {/* 서버 데이터 주입 */}
+          <HomeHero state={state} userName={userName} />
 
           {/* 받은 요청함 */}
           <section className="flex flex-col gap-3 mt-8">
