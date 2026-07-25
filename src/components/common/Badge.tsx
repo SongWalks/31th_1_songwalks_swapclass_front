@@ -23,7 +23,7 @@ const badgeVariants = {
   outlineGray: 'bg-white border border-gray-300 text-gray-600', // 흰 바탕 + 회색 테두리
   lightRed: 'bg-red-100 text-red-100 border text-gray-600',
   grayOutline: 'bg-gray-200 text-zinc-900 text-xs border border-slate-400 ', // 교양필수
-  blueSolid:
+  bluesolid:
     'bg-brand-lightBlue text-white text-xs font-light border border-slate-500 font-normal', // 졸업요건
   lightBlueOutline:
     'bg-blue-100 text-zinc-900 border text-xs border-brand-lightBlue ', //전공필수
