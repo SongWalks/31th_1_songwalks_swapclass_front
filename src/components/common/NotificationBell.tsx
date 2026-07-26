@@ -51,7 +51,7 @@ export const NotificationBell = () => {
       <IconButton icon={ICONS.BELL} />
 
       {unreadCount > 0 && (
-        <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 bg-point-red rounded-full" />
+        <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full" />
       )}
     </div>
   );
