@@ -33,9 +33,8 @@ export const HomeHeader = ({
         >
           <IconButton icon={ICONS.BELL} />
 
-          {/* 💡 2. unreadCount가 0보다 클 때만 빨간 점 렌더링! */}
           {unreadCount > 0 && (
-            <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-point-red rounded-full" />
+            <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full" />
           )}
         </div>
       </div>
