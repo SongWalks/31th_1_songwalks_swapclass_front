@@ -9,7 +9,10 @@ interface BadgeProps {
     | 'lightPink'
     | 'lightYellow'
     | 'outlineGray'
-    | 'outlineBlue';
+    | 'outlineBlue'
+    | 'lightRed'
+    | 'bluesolid'
+    | 'lightBlueOutline';
   className?: string; // 추가적인 여백(ml-2) 등을 줄 때 사용
 }
 
