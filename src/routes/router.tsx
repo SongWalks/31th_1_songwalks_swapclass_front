@@ -7,8 +7,8 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import BoardPage from '@/pages/Posts/BoardPage';
 import PostWritePage from '@/pages/Posts/PostWritePage';
 import CourseSearchPage from '@/pages/Posts/CourseSearchPage';
-import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
-import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
+//import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
+//import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
 
 // --- 2. 페이지 불러오기  ---
 
