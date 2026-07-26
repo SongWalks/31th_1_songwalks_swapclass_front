@@ -418,11 +418,11 @@ const SpecificPostsPage: React.FC = () => {
         {/* 안내사항 */}
         <section className="mb-6">
           {post.mine && (
-            <div className="w-full bg-[#F1F5F9] rounded-xl border border-[#BFDBFE] p-5">
-              <h3 className="text-gray-900 text-[15px] font-semibold mb-3">
+            <div className="w-full bg-[#E6EFF5] rounded-xl border border-brand-lightBlue p-5">
+              <h3 className="text-zinc-900 text-lg font-semibold mb-3">
                 안내사항
               </h3>
-              <p className="text-gray-700 text-[12px] font-light leading-relaxed">
+              <p className="text-zinc-900 text-xs font-light leading-relaxed">
                 버릴 과목은 등록 후 수정할 수 없습니다
                 <br />
                 원하는 과목은 수정이 가능합니다
