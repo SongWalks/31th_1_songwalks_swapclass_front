@@ -1,16 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { CourseCard } from '@/components/common/CourseCard';
 import { Badge } from '@/components/common/Badge';
-import { Input } from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import { Toast } from '@/components/common/Toast';
 import { Modal } from '@/components/common/Modal';
@@ -60,64 +54,10 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: '교환 완료',
 };
 
-// 💡 실제 API 연동 전 화면 확인용 목업 데이터 (postId가 없을 때 임시로 사용)
-const MOCK_POST_DATA: PostDetailResponse = {
-  postId: 0,
-  status: 'MATCHABLE',
-  authorId: 0,
-  authorNickname: '너송',
-  discardCourse: {
-    courseId: 0,
-    name: '영어회화',
-    professor: 'John Smith',
-    classTime: '화목 10:30-11:45',
-    department: '',
-    courseType: '교양필수',
-  },
-  wantedCourses: [
-    {
-      priority: 1,
-      course: {
-        courseId: 1,
-        name: '컴퓨터구조',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-    {
-      priority: 2,
-      course: {
-        courseId: 2,
-        name: '마케팅과 소비자 이슈',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-    {
-      priority: 3,
-      course: {
-        courseId: 3,
-        name: '회계원리',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-  ],
-  createdAt: new Date().toISOString(),
-  mine: false,
-};
-
 const SpecificPostsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { postId } = useParams<{ postId: string }>();
-  const [searchParams] = useSearchParams();
 
   const [post, setPost] = useState<PostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,26 +101,7 @@ const SpecificPostsPage: React.FC = () => {
   }, []);
 
   const fetchPostDetail = useCallback(async () => {
-    if (!postId) {
-      // 🧪 테스트용: ?mine=true/false가 있으면 그 값으로 덮어쓰고,
-      // 없으면 MOCK_POST_DATA에 직접 적어둔 mine 값을 그대로 씀
-      const mineParam = searchParams.get('mine');
-      const effectiveMine =
-        mineParam !== null ? mineParam === 'true' : MOCK_POST_DATA.mine;
-      const mockData = {
-        ...MOCK_POST_DATA,
-        mine: effectiveMine,
-        // 💡 내 게시글일 땐 작성자 이름도 "나송"으로 맞춰줌
-        authorNickname: effectiveMine ? '나송' : '너송',
-      };
-
-      console.warn(
-        `postId가 없어 목업 데이터로 대체합니다. (mine=${mockData.mine})`,
-      );
-      setPost(mockData);
-      setLoading(false);
-      return;
-    }
+    if (!postId) return;
 
     try {
       setLoading(true);
@@ -193,7 +114,7 @@ const SpecificPostsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [postId, searchParams]);
+  }, [postId]);
 
   useEffect(() => {
     fetchPostDetail();
@@ -211,14 +132,7 @@ const SpecificPostsPage: React.FC = () => {
   }, [location.state]);
 
   const handleRequestExchange = () => {
-    if (!postId) {
-      // 🧪 테스트 모드: 실제 postId가 없어도 다음 화면(내 게시글 선택)까지 확인할 수 있도록 이동
-      console.warn(
-        'postId가 없어 테스트용 경로(/test-select-my-post)로 이동합니다.',
-      );
-      navigate('/test-select-my-post');
-      return;
-    }
+    if (!postId) return;
 
     if (!myPostId) {
       setShowNoPostModal(true);
@@ -231,11 +145,7 @@ const SpecificPostsPage: React.FC = () => {
 
   // 💡 내 게시글 수정
   const handleEditPost = () => {
-    if (!postId) {
-      // 🧪 테스트 모드: 실제 postId가 없으면 임시 테스트 경로로 이동
-      navigate('/test-post-edit');
-      return;
-    }
+    if (!postId) return;
     navigate(`/board/${postId}/edit`);
   };
 

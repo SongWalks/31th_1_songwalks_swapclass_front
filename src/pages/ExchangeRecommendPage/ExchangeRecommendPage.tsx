@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { Tabs } from '@/components/common/Tabs';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 
@@ -61,7 +62,12 @@ const ExchangeRecommendPage = () => {
   const [loading, setLoading] = useState(true);
   const [proposingId, setProposingId] = useState<number | null>(null);
 
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
   // 💡 내 게시글 ID (추천 조회 + 제안 시 senderPostId로 사용)
+  // 이 페이지는 라우터에 :postId 파라미터가 없어서(경로: /exchange-recommend),
+  // BoardPage/SpecificPostsPage와 동일하게 /api/posts/me로 직접 조회해야 함
   const [myPostId, setMyPostId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -128,6 +134,7 @@ const ExchangeRecommendPage = () => {
     fetchRecommendations();
   }, [fetchRecommendations]);
 
+  // 💡 "제안" 버튼 클릭 시 교환 제안 생성
   const handlePropose = async (receiverPostId: number) => {
     if (!myPostId) return;
 
@@ -139,11 +146,14 @@ const ExchangeRecommendPage = () => {
       });
 
       if (response.data?.success) {
+        // 화면에서 즉시 "제안 완료" 상태로 반영
         setRecommendPosts((prev) =>
           prev.map((p) =>
             p.id === receiverPostId ? { ...p, requestStatus: 'PENDING' } : p,
           ),
         );
+        setToastMessage('교환 제안을 보냈습니다.');
+        setShowToast(true);
       }
     } catch (error) {
       console.error('제안 생성 실패:', error);
@@ -180,10 +190,9 @@ const ExchangeRecommendPage = () => {
   const currentPosts = postsByRank[activeTab];
 
   return (
-    <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
-      <div className="[&>*]:!border-none">
+    <div className="relative w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#FBFBFB]">
+      <div className="sticky top-0 z-40 bg-[#FBFBFB] [&>header]:!border-none">
         <Header
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
@@ -197,11 +206,10 @@ const ExchangeRecommendPage = () => {
             <IconButton
               icon={ICONS.BELL}
               onClick={() => navigate('/notifications')}
-              className="text-brand-lightBlue"
+              className="text-black"
             />
           }
         />
-        </div>
 
         <Tabs
           tabs={tabs}
@@ -276,6 +284,12 @@ const ExchangeRecommendPage = () => {
           </div>
         )}
       </div>
+
+      <Toast
+        message={toastMessage}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+      />
     </div>
   );
 };
