@@ -5,8 +5,6 @@ import { ReceivedRequestCard } from '@/pages/home/components/ReceivedRequestCard
 import { RecommendMatchItem } from '@/pages/home/components/RecommendMatchItem';
 import sooWatermark from '@/assets/images/soo-watermark.png';
 import { useHomeQuery } from '@/hooks/useHomeQuery';
-
-// 💡 1. 만들어둔 Spinner 컴포넌트를 불러옵니다. (경로는 실제 위치에 맞게 수정해주세요)
 import { Spinner } from '@/components/common/Spinner';
 
 export default function HomePage() {
@@ -24,7 +22,6 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, []);
 
-  // 💡 2. 로딩 중일 때 Spinner 컴포넌트를 사용하도록 수정합니다.
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#F9F9F9]">
@@ -33,7 +30,6 @@ export default function HomePage() {
     );
   }
 
-  // 에러 발생 처리 (지금 이 화면이 뜨는게 정상!)
   if (isError || !homeData) {
     return (
       <div className="flex h-screen items-center justify-center text-gray-500">
@@ -43,11 +39,23 @@ export default function HomePage() {
   }
 
   const {
-    state = 'active',
-    userName = '눈송이',
-    receivedRequests = [],
-    recommendedMatches = [],
-  } = homeData;
+    unreadCount = 0, // 혹시 값이 없으면 0으로 처리
+    heroBanner,
+    receivedProposals = [],
+    recommendedFeed,
+  } = homeData || {};
+
+  const recommendedMatches = recommendedFeed?.posts || [];
+  const receivedRequests = receivedProposals;
+
+  // 상태(state) 직접 계산 로직
+  let state: 'empty' | 'active' | 'alert' = 'active';
+
+  if (recommendedMatches.length === 0) {
+    state = 'empty'; // 추천 게시글이 없으면 empty
+  } else if (heroBanner && heroBanner.remainSeconds > 0) {
+    state = 'alert'; // 남은 시간이 있으면 alert (내일 교환)
+  }
 
   return (
     <div className="relative mx-auto w-full max-w-[430px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
@@ -92,12 +100,12 @@ export default function HomePage() {
       <div className="relative z-10 flex flex-col bg-transparent w-full">
         {/* 헤더 */}
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50">
-          <HomeHeader isScrolled={isScrolled} />
+          <HomeHeader isScrolled={isScrolled} unreadCount={unreadCount} />
         </div>
 
         <div className="px-5 flex flex-col pt-[56px] mt-2">
           {/* 서버 데이터 주입 */}
-          <HomeHero state={state} userName={userName} />
+          <HomeHero state={state} heroBanner={heroBanner} />
 
           {/* 받은 요청함 */}
           <section className="flex flex-col gap-3 mt-8">
@@ -113,7 +121,7 @@ export default function HomePage() {
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-5 px-5">
                 {receivedRequests.map((req) => (
-                  <ReceivedRequestCard key={req.id} {...req} />
+                  <ReceivedRequestCard key={req.proposalId} {...req} />
                 ))}
               </div>
             )}
@@ -131,7 +139,7 @@ export default function HomePage() {
             ) : (
               <div className="flex flex-col gap-3">
                 {recommendedMatches.map((match) => (
-                  <RecommendMatchItem key={match.id} {...match} />
+                  <RecommendMatchItem key={match.postId} {...match} />
                 ))}
               </div>
             )}

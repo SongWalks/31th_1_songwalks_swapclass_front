@@ -7,16 +7,50 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface HomeData {
-  state: 'empty' | 'active' | 'alert';
-  userName?: string;
-  receivedRequests: any[];
-  recommendedMatches: any[];
-  posts?: any[];
-  hasNext?: boolean;
+export interface Course {
+  courseId: number;
+  name: string;
+  professor: string;
+  classTime: string;
+  department: string;
+  courseType: string;
 }
 
-// API 호출 함수
+export interface Proposal {
+  proposalId: number;
+  myCourse: Course;
+  partnerCourse: Course;
+  matchRank: number;
+  expiresAt: string;
+  remainSeconds: number;
+}
+
+export interface Post {
+  postId: number;
+  discardCourse: Course;
+  wantedCourses: { priority: number; course: Course }[];
+  proposalCount: number;
+  createdAt: string;
+}
+
+export interface HomeData {
+  unreadCount: number;
+  heroBanner?: {
+    exchangeId: number;
+    chatRoomId: number;
+    scheduledAt: string;
+    remainSeconds: number;
+    myCourse: Course;
+    partnerCourse: Course;
+  };
+  receivedProposals: Proposal[];
+  recommendedFeed: {
+    posts: Post[];
+    page: number;
+    hasNext: boolean;
+  };
+}
+
 export const fetchHomeData = async (): Promise<HomeData> => {
   const response = await axiosInstance.get<ApiResponse<HomeData>>('/api/home');
 

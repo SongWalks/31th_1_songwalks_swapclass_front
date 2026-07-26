@@ -1,16 +1,45 @@
 import { Icon } from '@iconify/react';
 
+// 백엔드 명세에 맞춘 타입 선언
+interface Course {
+  courseId: number;
+  name: string;
+}
+
+interface WantedCourse {
+  priority: number;
+  course: Course;
+}
+
+// 기존 subject, targetSubject 대신 백엔드 데이터 구조로 변경
 interface MatchItemProps {
-  subject: string;
-  targetSubject: string;
-  time: string;
+  postId: number;
+  discardCourse: Course;
+  wantedCourses: WantedCourse[];
+  proposalCount: number;
+  createdAt: string;
 }
 
 export const RecommendMatchItem = ({
-  subject,
-  targetSubject,
-  time,
+  discardCourse,
+  wantedCourses,
+  createdAt,
 }: MatchItemProps) => {
+  // 작성일자를 시간 텍스트로 변환
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diff < 60) return '방금 전';
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+    return `${Math.floor(diff / 86400)}일 전`;
+  };
+
+  const timeText = formatTimeAgo(createdAt);
+  const wantedCourseName = wantedCourses?.[0]?.course?.name || '아무거나';
+
   return (
     <div
       className="flex justify-between items-center px-4 py-3.5
@@ -21,17 +50,17 @@ export const RecommendMatchItem = ({
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#5A9ECC] shrink-0" />
           <h3 className="font-bold text-gray-900 text-medium-14 truncate">
-            {subject}
+            {discardCourse?.name}
           </h3>
         </div>
         <p className="text-gray-400 text-light-13 ml-3.5 truncate">
-          ↔ {targetSubject}
+          ↔ {wantedCourseName}
         </p>
       </div>
 
       <div className="flex items-center gap-1 text-gray-700 shrink-0">
         <Icon icon="ph:clock" className="text-base translate-y-[1px]" />
-        <span className="font-bold text-[14px]">{time}</span>
+        <span className="font-bold text-[14px]">{timeText}</span>
       </div>
     </div>
   );

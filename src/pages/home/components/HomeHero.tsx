@@ -1,14 +1,47 @@
 import Button from '@/components/common/Button';
 
-interface HomeHeroProps {
-  state: 'empty' | 'active' | 'alert';
-  userName?: string;
+interface SimpleCourse {
+  name: string;
 }
 
-export const HomeHero = ({ state, userName = '송이' }: HomeHeroProps) => {
+interface HeroBannerData {
+  exchangeId: number;
+  chatRoomId: number;
+  scheduledAt: string;
+  remainSeconds: number;
+  myCourse: SimpleCourse;
+  partnerCourse: SimpleCourse;
+}
+
+interface HomeHeroProps {
+  state: 'empty' | 'active' | 'alert';
+  heroBanner?: HeroBannerData | null;
+}
+
+export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const calculateDDay = (seconds?: number) => {
+    if (seconds === undefined || seconds <= 0) return 'D-Day';
+    const days = Math.ceil(seconds / (24 * 3600));
+    return `D-${days}`;
+  };
+
+  const dDayText = calculateDDay(heroBanner?.remainSeconds);
+  const formattedTime = formatTime(heroBanner?.scheduledAt);
+  const courseName = heroBanner?.partnerCourse?.name || '과목명 로딩중';
+
   return (
     <section className="relative w-full pt-4 pb-6 flex flex-col">
-      {/* 마스코트 — 우측 상단 고정, 텍스트 위에 겹치게 */}
+      {/* 마스코트 */}
       <div
         className={`absolute right-[-8px] w-[160px] h-[170px] pointer-events-none z-10 transition-all ${
           state === 'empty'
@@ -25,7 +58,7 @@ export const HomeHero = ({ state, userName = '송이' }: HomeHeroProps) => {
         />
       </div>
 
-      {/* 텍스트 영역 — 마스코트랑 안 겹치게 우측 패딩 */}
+      {/* 텍스트 영역 */}
       <div
         className={`flex flex-col justify-center min-h-[140px]
         z-10 pr-[150px] ${
@@ -54,12 +87,13 @@ export const HomeHero = ({ state, userName = '송이' }: HomeHeroProps) => {
               text-brand-lightBlue rounded-full text-[11px] font-bold w-fit mb-6
               bg-white/60"
             >
-              D-2
+              {dDayText}
             </span>
             <h1 className="text-point-2 !text-[32px] !leading-[31px] font-bold">
               <span className="text-brand-navy">안녕하세요,</span>
               <br />
-              <span className="text-brand-blue">{userName}님!</span>
+              {/* 💡 2. 여기를 "송이님!"으로 완전 고정했습니다! */}
+              <span className="text-brand-blue">송이님!</span>
             </h1>
             <p className="text-gray-700 mt-2 text-medium-15 leading-relaxed">
               원하는 강의를 찾고
@@ -77,15 +111,15 @@ export const HomeHero = ({ state, userName = '송이' }: HomeHeroProps) => {
               text-brand-lightBlue rounded-full text-[11px] font-bold w-fit mb-6
               bg-white/60"
             >
-              D-2
+              {dDayText}
             </span>
             <h1 className="text-point-1 text-brand-navy leading-none">
-              2:00 AM
+              {formattedTime}
             </h1>
             <p className="text-gray-700 mt-3 text-light-14 leading-relaxed">
               내일{' '}
               <strong className="text-[#0467A7] text-medium-15">
-                마케팅과소비자이슈
+                {courseName}
               </strong>
               <br />
               교환이 있는 날이에요

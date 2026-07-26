@@ -1,18 +1,21 @@
+import { useNavigate } from 'react-router-dom';
 import { ICONS } from '@/constants/icons';
 import { IconButton } from '@/components/common/IconButton';
 import sooLogo from '@/assets/icons/soo-logo.png';
 
 export const HomeHeader = ({
   isScrolled = false,
+  unreadCount = 0, // 💡 1. 안 읽은 알림 개수를 받습니다 (기본값 0)
 }: {
   isScrolled?: boolean;
+  unreadCount?: number;
 }) => {
+  const navigate = useNavigate();
+
   return (
     <header
       className={`sticky top-0 z-50 flex justify-between items-center w-full max-w-[402px] mx-auto h-[56px] px-2 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-white/80 backdrop-blur-md shadow-sm' // 스크롤 내렸을 때: 반투명 유리 배경
-          : 'bg-transparent' // 맨 위에 있을 때: 투명 배경
+        isScrolled ? 'bg-white/80 backdrop-blur-md shadow-sm' : 'bg-transparent'
       }`}
     >
       <div className="flex items-center w-12 h-12 ml-2">
@@ -24,9 +27,16 @@ export const HomeHeader = ({
       </div>
 
       <div className="flex items-center justify-end mr-1">
-        <div className="relative mt-1">
+        <div
+          className="relative mt-1 cursor-pointer"
+          onClick={() => navigate('/alert')}
+        >
           <IconButton icon={ICONS.BELL} />
-          <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-point-red rounded-full" />
+
+          {/* 💡 2. unreadCount가 0보다 클 때만 빨간 점 렌더링! */}
+          {unreadCount > 0 && (
+            <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-point-red rounded-full" />
+          )}
         </div>
       </div>
     </header>
