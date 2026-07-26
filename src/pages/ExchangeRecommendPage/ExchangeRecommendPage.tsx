@@ -191,8 +191,7 @@ const ExchangeRecommendPage = () => {
 
   return (
     <div className="relative w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#FBFBFB] [&>header]:!border-none">
+      <div className="[&>header]:!border-none sticky top-0 z-40 bg-[#FBFBFB]">
         <Header
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
