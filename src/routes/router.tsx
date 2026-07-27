@@ -35,11 +35,8 @@ export const router = createBrowserRouter([
           // 예시: { path: '/board/:id', element: <DetailPage /> },    // 상세 게시글
           { path: '/board/write', element: <PostWritePage /> },
           { path: '/board/write/search', element: <CourseSearchPage /> },
-          {
-            path: '/board/:postId/select-my-post',
-            element: <SelectMyPostPage />,
-          }, // 제안 보낼 내 게시글 선택
-          { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
+          //{path: '/board/:postId/select-my-post',element: <SelectMyPostPage />,}, // 제안 보낼 내 게시글 선택
+          //{ path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
         ],
       },
     ],
