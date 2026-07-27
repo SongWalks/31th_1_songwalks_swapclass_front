@@ -19,6 +19,15 @@ interface CourseListItem {
   isGraduationReq: boolean;
 }
 
+// 💡 과목유형 필터 (교양/전공 필수·선택). 학과/영역 필터와 함께(AND) 적용됨
+const COURSE_TYPE_OPTIONS = [
+  { value: 'ALL', label: '전체' },
+  { value: '교양필수', label: '교양필수' },
+  { value: '교양선택', label: '교양선택' },
+  { value: '전공선택', label: '전공선택' },
+  { value: '전공필수', label: '전공필수' },
+];
+
 // 💡 학과/영역: 나중에 백엔드에서 실제 크롤링 데이터로 대체 예정. 지금은 화면 확인용 목업.
 const DEPARTMENT_OPTIONS = [
   { value: 'ALL', label: '전체' },
@@ -65,6 +74,8 @@ const CourseSearchPage: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [department, setDepartment] = useState('ALL');
   const [graduationOnly, setGraduationOnly] = useState(false);
+  // 💡 과목유형 필터: 'ALL'이면 전체, 값 있으면 그 유형만 (학과 필터와 AND로 결합)
+  const [courseTypeFilter, setCourseTypeFilter] = useState('ALL');
 
   const [courses, setCourses] = useState<CourseListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,7 +92,12 @@ const CourseSearchPage: React.FC = () => {
             graduationOnly,
           },
         });
-        setCourses(response.data?.data || []);
+        const rawCourses: CourseListItem[] = response.data?.data || [];
+        // 💡 졸업요건에 해당하는 과목(isGraduationReq: true)이 맨 위로 오도록 정렬
+        const sortedCourses = [...rawCourses].sort(
+          (a, b) => Number(b.isGraduationReq) - Number(a.isGraduationReq),
+        );
+        setCourses(sortedCourses);
       } catch (error) {
         console.error('과목 검색 실패:', error);
         setCourses([]);
@@ -124,11 +140,17 @@ const CourseSearchPage: React.FC = () => {
     });
   };
 
+  // 💡 GET /api/lectures엔 courseType 파라미터가 없어서, 받아온 결과를 클라이언트에서 한 번 더 필터링
+  const displayedCourses =
+    courseTypeFilter !== 'ALL'
+      ? courses.filter((course) => course.courseType === courseTypeFilter)
+      : courses;
+
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
       {/* 헤더: 뒤로가기 + 검색 인풋 + 필터 토글 */}
-      <div className="sticky mt-5 top-0 z-40 bg-neutral-50">
-        <div className="px-4 pt-4 pb-3 flex items-center gap-3">
+      <div className="sticky mt-1 top-0 z-40 bg-neutral-50">
+        <div className="px-2 pt-4 pb-3 flex items-center gap-3">
           <IconButton
             icon={ICONS.BACK}
             onClick={() => navigate(-1)}
@@ -159,7 +181,18 @@ const CourseSearchPage: React.FC = () => {
         </div>
 
         {isFilterOpen && (
-          <div className="mx-4 mb-3 p-5 bg-slate-50 rounded-lg border-[0.5px] border-brand-lightBlue flex flex-col gap-3">
+          <div className="mx-4 mb-5 p-5 bg-slate-50 rounded-lg border-[0.5px] border-brand-lightBlue flex flex-col gap-3">
+            <div>
+              <p className="text-zinc-900 text-xs font-medium mb-1.5 tracking-wide">
+                과목유형
+              </p>
+              <Dropdown
+                options={COURSE_TYPE_OPTIONS}
+                value={courseTypeFilter}
+                onChange={setCourseTypeFilter}
+                className="[&>div:last-child]:!max-h-64 [&>div:last-child]:!overflow-y-auto"
+              />
+            </div>
             <div>
               <p className="text-zinc-900 text-xs font-medium mb-1.5 tracking-wide">
                 학과/영역
@@ -171,21 +204,10 @@ const CourseSearchPage: React.FC = () => {
                 className="[&>div:last-child]:!max-h-64 [&>div:last-child]:!overflow-y-auto"
               />
             </div>
-
-            {/* 💡 실제 API의 graduationOnly(boolean) 파라미터와 매칭되는 체크박스 */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={graduationOnly}
-                onChange={(e) => setGraduationOnly(e.target.checked)}
-                className="w-4 h-4 accent-brand-lightBlue"
-              />
-              <span className="text-zinc-900 text-sm">
-                졸업요건 과목만 보기
-              </span>
-            </label>
           </div>
         )}
+
+        <div className="w-full border-b border-gray-200 mb-4" />
       </div>
 
       {/* 검색 결과 리스트 */}
@@ -194,13 +216,13 @@ const CourseSearchPage: React.FC = () => {
           <div className="text-center text-gray-400 text-sm py-10">
             검색 중입니다...
           </div>
-        ) : courses.length === 0 ? (
+        ) : displayedCourses.length === 0 ? (
           <div className="text-center text-gray-400 text-sm py-10">
             검색 결과가 없습니다.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {courses.map((course) => {
+            {displayedCourses.map((course) => {
               const isMajorRequired = course.courseType === '전공필수';
               return (
                 <button

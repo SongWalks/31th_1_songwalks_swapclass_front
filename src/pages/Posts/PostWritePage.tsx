@@ -38,7 +38,6 @@ const PostWritePage: React.FC = () => {
   const [wantedCourses, setWantedCourses] = useState<
     (CourseSelection | null)[]
   >([null, null, null]);
-  const [kakaoLink, setKakaoLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdPostId, setCreatedPostId] = useState<number | null>(null);
 
@@ -65,9 +64,7 @@ const PostWritePage: React.FC = () => {
 
   // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부 + 카카오톡 링크 입력
   const canSubmit =
-    !!discardCourse &&
-    wantedCourses.some((course) => course !== null) &&
-    kakaoLink.trim().length > 0;
+    !!discardCourse && wantedCourses.some((course) => course !== null);
 
   const handleSelectDiscardCourse = () => {
     // 💡 지금까지의 전체 선택 상태를 같이 들고 검색 페이지로 이동
@@ -108,7 +105,6 @@ const PostWritePage: React.FC = () => {
       const response = await axiosInstance.post('/api/posts', {
         discardCourseId: discardCourse.courseId,
         wantedCourseIds,
-        kakaoLink: kakaoLink.trim(),
       });
 
       if (response.data?.success) {
@@ -292,22 +288,6 @@ const PostWritePage: React.FC = () => {
               );
             })}
           </div>
-        </section>
-
-        {/* 카카오톡 오픈채팅방 링크 */}
-        <section className="mb-6">
-          <h2 className="text-brand-lightBlue text-base font-bold mb-2 tracking-wide">
-            카카오톡 오픈채팅방 링크
-          </h2>
-          <p className="text-neutral-500 text-xs font-light mb-3">
-            교환 확정 시 상대방과 연락할 오픈채팅방 링크를 입력해주세요
-          </p>
-          <Input
-            value={kakaoLink}
-            onChange={(e: any) => setKakaoLink(e.target.value)}
-            placeholder="https://open.kakao.com/o/..."
-            className="bg-white"
-          />
         </section>
 
         {/* 안내사항 */}

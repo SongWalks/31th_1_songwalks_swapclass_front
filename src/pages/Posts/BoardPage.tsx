@@ -71,7 +71,6 @@ const BoardPage = () => {
   const [searchQuery, setSearchQuery] = useState(''); // 💡 GET /api/posts의 dept 파라미터로 사용됨 (자유 검색어 아님)
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [proposingId, setProposingId] = useState<number | null>(null);
 
   // 💡 내 게시글 정보: /api/posts/me로 조회
   const [myPostId, setMyPostId] = useState<number | null>(null); // 제안 보낼 때 senderPostId로 사용
@@ -85,7 +84,6 @@ const BoardPage = () => {
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   // 💡 맞춤 필터 (내 타겟 과목 / 내 버릴 과목)
-  const [showFilterPanel, setShowFilterPanel] = useState(true);
   const [targetCourseFilter, setTargetCourseFilter] = useState('ALL');
   const [discardCourseFilter, setDiscardCourseFilter] = useState('ALL');
   const isFilterApplied =
@@ -95,7 +93,10 @@ const BoardPage = () => {
   useEffect(() => {
     const fetchMyPosts = async () => {
       try {
-        const response = await axiosInstance.get('/api/posts/me');
+        // 🧪 TODO: 백엔드 500 버그(status 없이 호출 시) 임시 우회. 수정되면 params 제거
+        const response = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'MATCHABLE' },
+        });
         const myPosts: MyPostResponse[] = response.data?.data || [];
 
         setMyPostIds(new Set(myPosts.map((p) => p.postId)));
@@ -178,42 +179,6 @@ const BoardPage = () => {
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handlePropose = async (e: React.MouseEvent, receiverPostId: number) => {
-    e.stopPropagation();
-
-    if (!myPostId) {
-      console.warn('내 게시글 ID(myPostId)가 없어 제안을 보낼 수 없습니다.');
-      alert('내 게시글 정보가 없어 제안을 보낼 수 없습니다.');
-      return;
-    }
-
-    try {
-      setProposingId(receiverPostId);
-      const response = await axiosInstance.post('/api/proposals', {
-        senderPostId: myPostId,
-        receiverPostId,
-      });
-
-      if (response.data?.success) {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === receiverPostId ? { ...p, alreadyProposed: true } : p,
-          ),
-        );
-      }
-    } catch (error) {
-      console.error('제안 생성 실패:', error);
-      alert('제안을 보내는 중 오류가 발생했습니다.');
-    } finally {
-      setProposingId(null);
-    }
-  };
-
-  // 💡 "필터 열기/닫기" 문구 버튼: 게시글 등록 여부와 무관하게 그냥 토글
-  const handleFilterToggleClick = () => {
-    setShowFilterPanel((prev) => !prev);
-  };
-
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
       {/* 헤더: 로고 + 알림 + 메뉴 */}
@@ -257,62 +222,49 @@ const BoardPage = () => {
           </div>
         </div>
 
-        {/* 맞춤 필터 열기/닫기 토글 (게시글 등록 여부와 무관하게 항상 표시) */}
-        <div className="px-5 pb-3">
-          <button
-            onClick={handleFilterToggleClick}
-            className="flex items-center gap-1.5 text-zinc-900 text-sm"
-          >
-            <Icon icon="mdi:filter-variant" className="w-4 h-4" />
-            {showFilterPanel ? '필터 닫기' : '필터 열기'}
-          </button>
-        </div>
-
         {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 */}
-        {showFilterPanel && (
-          <div className="px-5 pb-3 flex items-center gap-3">
-            <div className="flex-1">
-              {myPostId ? (
-                <Dropdown
-                  options={TARGET_COURSE_OPTIONS}
-                  value={targetCourseFilter}
-                  onChange={setTargetCourseFilter}
-                  placeholder="내 타겟 과목"
-                  className="[&>button]:!bg-blue-100 [&>button]:!border-none [&>button]:!rounded-3xl [&>button]:!text-brand-lightBlue [&>button]:!font-medium"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowFilterModal(true)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-100 border-none rounded-3xl text-sm text-brand-lightBlue font-medium"
-                >
-                  <span>내 타겟 과목</span>
-                  <Icon icon="ph:caret-down" className="text-brand-lightBlue" />
-                </button>
-              )}
-            </div>
-            <div className="flex-1">
-              {myPostId ? (
-                <Dropdown
-                  options={MY_DISCARD_COURSE_OPTIONS}
-                  value={discardCourseFilter}
-                  onChange={setDiscardCourseFilter}
-                  placeholder="내 버릴 과목"
-                  className="[&>button]:!bg-blue-100 [&>button]:!border-none [&>button]:!rounded-3xl [&>button]:!text-brand-lightBlue [&>button]:!font-medium"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowFilterModal(true)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-100 border-none rounded-3xl text-sm text-brand-lightBlue font-medium"
-                >
-                  <span>내 버릴 과목</span>
-                  <Icon icon="ph:caret-down" className="text-brand-lightBlue" />
-                </button>
-              )}
-            </div>
+        <div className="px-5 pb-3 flex items-center gap-3">
+          <div className="flex">
+            {myPostId ? (
+              <Dropdown
+                options={TARGET_COURSE_OPTIONS}
+                value={targetCourseFilter}
+                onChange={setTargetCourseFilter}
+                placeholder="내 타겟 과목"
+                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(true)}
+                className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
+              >
+                <span>내 타겟 과목</span>
+                <Icon icon="ph:caret-down" className="text-cyan-900" />
+              </button>
+            )}
           </div>
-        )}
+          <div className="flex">
+            {myPostId ? (
+              <Dropdown
+                options={MY_DISCARD_COURSE_OPTIONS}
+                value={discardCourseFilter}
+                onChange={setDiscardCourseFilter}
+                placeholder="내 버릴 과목"
+                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(true)}
+                className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
+              >
+                <span>내 버릴 과목</span>
+                <Icon icon="ph:caret-down" className="text-cyan-900" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 게시글 목록 */}
@@ -364,28 +316,12 @@ const BoardPage = () => {
                 onClick={() => navigate(`/board/${post.id}`)}
                 className="py-6 flex flex-col relative cursor-pointer hover:bg-black/[0.01] transition-colors"
               >
-                {/* 제목 + 제안 버튼 */}
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-black leading-5 tracking-wide">
-                    {post.title}
-                  </h3>
+                {/* 제목 */}
+                <h3 className="text-lg font-medium text-black leading-5 tracking-wide">
+                  {post.title}
+                </h3>
 
-                  {!post.mine && (
-                    <button
-                      onClick={(e) => handlePropose(e, post.id)}
-                      disabled={post.alreadyProposed || proposingId === post.id}
-                      className={`px-4 py-1 rounded-full text-xs font-medium transition-opacity ${
-                        post.alreadyProposed
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-brand-lightBlue text-white hover:opacity-90'
-                      } ${proposingId === post.id ? 'opacity-60' : ''}`}
-                    >
-                      {post.alreadyProposed ? '제안 완료' : '제안'}
-                    </button>
-                  )}
-                </div>
-
-                {/* 희망 과목 리스트 + 상세보기 화살표 */}
+                {/* 희망 과목 리스트 + 받은 요청 개수 + 상세보기 화살표 */}
                 <div className="mt-3 flex flex-col gap-1.5 relative">
                   {post.preferredSubjects.map((subject, index) => (
                     <div key={index} className="flex items-center gap-2">
@@ -398,19 +334,22 @@ const BoardPage = () => {
                     </div>
                   ))}
 
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="30"
-                    height="30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="absolute right-2 bottom-5 text-cyan-900"
-                  >
-                    <path
-                      d="M8.59063 18.1598L14.2506 12.4998L8.59063 6.83984L7.89062 7.54984L12.8406 12.4998L7.89062 17.4498L8.59063 18.1598Z"
-                      fill="currentColor"
-                    />
-                  </svg>
+                  <div className="absolute right-0 bottom-0 flex items-center gap-1 text-neutral-400 text-xs font-light">
+                    받은 요청 {post.proposalCount}개
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-neutral-400"
+                    >
+                      <path
+                        d="M8.59063 18.1598L14.2506 12.4998L8.59063 6.83984L7.89062 7.54984L12.8406 12.4998L7.89062 17.4498L8.59063 18.1598Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
                 </div>
               </div>
             ))}
