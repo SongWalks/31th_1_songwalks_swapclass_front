@@ -38,6 +38,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
   const dDayText = calculateDDay(heroBanner?.remainSeconds);
   const formattedTime = formatTime(heroBanner?.scheduledAt);
   const courseName = heroBanner?.partnerCourse?.name || '과목명 로딩중';
+  const hasAppointment = Boolean(heroBanner && heroBanner.remainSeconds > 0);
 
   return (
     <section className="relative w-full pt-4 pb-6 flex flex-col">
@@ -82,17 +83,19 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         {/* active */}
         {state === 'active' && (
           <>
-            <span
-              className="inline-block px-3 py-0.5 border border-brand-lightBlue
-              text-brand-lightBlue rounded-full text-[11px] font-bold w-fit mb-6
-              bg-white/60"
-            >
-              {dDayText}
-            </span>
+            {/* 💡 2. 약속이 있을 때만 디데이 뱃지 렌더링 */}
+            {hasAppointment && (
+              <span
+                className="inline-block px-3 py-0.5 border border-brand-lightBlue
+                text-brand-lightBlue rounded-full text-[11px] font-bold w-fit mb-6
+                bg-white/60"
+              >
+                {dDayText}
+              </span>
+            )}
             <h1 className="text-point-2 !text-[32px] !leading-[31px] font-bold">
               <span className="text-brand-navy">안녕하세요,</span>
               <br />
-              {/* 💡 2. 여기를 "송이님!"으로 완전 고정했습니다! */}
               <span className="text-brand-blue">송이님!</span>
             </h1>
             <p className="text-gray-700 mt-2 text-medium-15 leading-relaxed">
@@ -134,7 +137,10 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         size="lg"
         className="mt-9 backdrop-blur-sm border border-[#A8D4EF]/50 !h-[44px]"
       >
-        {state === 'empty' ? '교환 게시글 둘러보기' : '교환채팅방 입장하기'}
+        {/* 💡 3. 약속이 없을 땐(empty이거나 active인데 약속없음) 게시글 둘러보기로 통일 */}
+        {state === 'empty' || !hasAppointment
+          ? '교환 게시글 둘러보기'
+          : '교환채팅방 입장하기'}
       </Button>
     </section>
   );
