@@ -34,16 +34,29 @@ const REPORT_REASONS = [
   { id: 'OTHER', title: '기타', desc: '' },
 ];
 
-const mockUploadImages = async (files: File[]): Promise<string[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(
-        files.map(
-          (_, index) => `https://dummy-s3-bucket.com/temp_image_${index}.png`,
-        ),
-      );
-    }, 1000);
-  });
+const uploadImages = async (files: File[]): Promise<string[]> => {
+  try {
+    // 여러 장의 이미지를 병렬로 업로드
+    const uploadPromises = files.map(async (file) => {
+      const formData = new FormData();
+      formData.append('image', file); // 명세서에 적힌 키값 'image'
+
+      // 백엔드의 실제 이미지 업로드 엔드포인트로 변경해주세요 (예: /api/upload)
+      const response = await api.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // 명세서 응답 구조: data.imageUrl
+      return response.data.data.imageUrl;
+    });
+
+    return await Promise.all(uploadPromises);
+  } catch (error) {
+    console.error('이미지 업로드 실패:', error);
+    throw error;
+  }
 };
 
 // ==========================================
@@ -55,7 +68,7 @@ export default function ReportPage() {
 
   // 변수 세팅
   const reportedUserId = location.state?.reportedUserId || 123;
-  const currentExchangeId = 0;
+  const currentExchangeId = location.state?.exchangeId || null;
 
   // 상태 관리
   const [selectedReason, setSelectedReason] = useState<string>('');
@@ -87,12 +100,14 @@ export default function ReportPage() {
   // API 제출 핸들러
   const handleSubmit = async () => {
     try {
-      const uploadedUrls = await mockUploadImages(images);
+      const uploadedUrls = await uploadImages(images);
+
       const requestBody = {
         reportedUserId,
         reason: selectedReason,
         imageUrls: uploadedUrls,
-        exchangeId: currentExchangeId,
+        // exchangeId가 0이나 null이 아닌 유효한 값일 때만 객체에 쏙 집어넣습니다. (선택사항 처리)
+        ...(currentExchangeId ? { exchangeId: currentExchangeId } : {}),
       };
 
       const response = await api.post('/api/reports', requestBody);

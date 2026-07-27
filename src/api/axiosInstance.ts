@@ -32,10 +32,11 @@ axiosInstance.interceptors.response.use(
 
     // 2. 403 에러: 권한 없음 (정지된 사용자 처리)
     if (error.response?.status === 403) {
-      // TODO: 백엔드에서 정지 사유나 날짜를 내려준다고 가정 (명세서에 맞게 수정 필요)
       const message =
         error.response?.data?.message || '이용이 정지된 계정입니다.';
-      const suspendedUntil = error.response?.data?.suspendedUntil;
+
+      // ✅ data 객체 안의 data로 한 번 더 접근하도록 수정
+      const suspendedUntil = error.response?.data?.data?.suspendedUntil;
 
       if (suspendedUntil) {
         alert(`${message}\n정지 해제일: ${suspendedUntil}`);
