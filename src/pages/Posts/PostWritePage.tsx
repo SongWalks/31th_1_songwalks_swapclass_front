@@ -6,7 +6,6 @@ import { IconButton } from '@/components/common/IconButton';
 import { CourseCard } from '@/components/common/CourseCard';
 import { Badge } from '@/components/common/Badge';
 import { Modal } from '@/components/common/Modal';
-import { Input } from '@/components/common/Input';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 
@@ -62,9 +61,9 @@ const PostWritePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
-  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부 + 카카오톡 링크 입력
+  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부
   const canSubmit =
-    !!discardCourse && wantedCourses.some((course) => course !== null);
+    !!discardCourse && wantedCourses.every((course) => course !== null);
 
   const handleSelectDiscardCourse = () => {
     // 💡 지금까지의 전체 선택 상태를 같이 들고 검색 페이지로 이동
@@ -122,7 +121,7 @@ const PostWritePage: React.FC = () => {
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
       {/* 헤더: Header.tsx는 안 건드리고, 타이틀만 이 페이지에서 별도로 정중앙 오버레이 */}
-      <div className="relative sticky top-0 z-40 bg-neutral-50">
+      <div className="[&>header]:!border-none relative sticky top-0 z-40 bg-neutral-50">
         <Header
           leftNode={
             <Icon

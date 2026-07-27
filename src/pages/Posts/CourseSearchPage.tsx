@@ -19,6 +19,17 @@ interface CourseListItem {
   isGraduationReq: boolean;
 }
 
+// 💡 PostWritePage로 왕복할 때 실제로 필요한 필드만 담는 가벼운 타입
+// (CourseListItem 전체가 아니라 이 6개만 있으면 됨)
+interface CourseSelection {
+  courseId: number;
+  name: string;
+  professor: string;
+  classTime: string;
+  department: string;
+  courseType: string;
+}
+
 // 💡 과목유형 필터 (교양/전공 필수·선택). 학과/영역 필터와 함께(AND) 적용됨
 const COURSE_TYPE_OPTIONS = [
   { value: 'ALL', label: '전체' },
@@ -66,14 +77,15 @@ const CourseSearchPage: React.FC = () => {
   } = (location.state as {
     target?: 'discard' | 'wanted';
     priority?: number;
-    discardCourse?: CourseListItem | null;
-    wantedCourses?: (CourseListItem | null)[];
+    discardCourse?: CourseSelection | null;
+    wantedCourses?: (CourseSelection | null)[];
   }) || {};
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [department, setDepartment] = useState('ALL');
-  const [graduationOnly, setGraduationOnly] = useState(false);
+  // 💡 UI 없이 항상 false로 고정 (졸업요건 필터 UI는 사용 안 하기로 함)
+  const graduationOnly = false;
   // 💡 과목유형 필터: 'ALL'이면 전체, 값 있으면 그 유형만 (학과 필터와 AND로 결합)
   const [courseTypeFilter, setCourseTypeFilter] = useState('ALL');
 
