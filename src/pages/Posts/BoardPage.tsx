@@ -283,7 +283,7 @@ const BoardPage = () => {
           </div>
         ) : isFilterApplied ? (
           // 💡 맞춤 필터 적용 시: 와이어프레임 스타일(인디고 테두리 박스)로 렌더링
-          <div className="flex flex-col gap-3 pb-28 pt-2">
+          <div className="flex flex-col px-4 gap-3 pb-28">
             {posts.map((post) => (
               <div
                 key={post.id}
