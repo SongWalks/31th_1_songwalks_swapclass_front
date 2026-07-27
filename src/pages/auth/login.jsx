@@ -11,9 +11,9 @@ import emailIcon from '../assets/icons/email.svg';
 import logo from '../assets/icons/logo.png';
 import eyeIcon from '../assets/icons/eye.svg';
 import pwLockIcon from '../assets/icons/pwlock.svg';
-import Button from '../components/common/Button';
-import { Input } from '../components/common/Input';
-import { Spinner } from '../components/common/Spinner';
+import Button from '../../components/common/Button';
+import { Input } from '../../components/common/Input';
+import { Spinner } from '../../components/common/Spinner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
