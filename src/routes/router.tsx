@@ -16,18 +16,7 @@ import MyBookmarkPage from '@/pages/Mypage/MyBookmarkPage';
 import GraduationAddPage from '@/pages/Mypage/GraduationAddPage';
 import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
-
 // import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
-
-import { TestButton } from '../pages/TestButton';
-import { TestHeader } from '../pages/TestHeader';
-import { TestInput } from '../pages/TestInput';
-import { TestModal } from '../pages/TestModal';
-import { TestTabs } from '../pages/TestTabs';
-import { TestCard } from '../pages/TestCard';
-import { TestExtra } from '../pages/TestExtra';
-import { TestAvatar } from '../pages/TestAvatar';
-import { TestLoading } from '../pages/TestLoading';
 
 export const router = createBrowserRouter([
   {
@@ -54,15 +43,6 @@ export const router = createBrowserRouter([
               { path: 'request', element: <ExchangeRequestPage /> },
             ],
           },
-          { path: '/test-input', element: <TestInput /> },
-          { path: '/test-modal', element: <TestModal /> },
-          { path: '/test-button', element: <TestButton /> },
-          { path: '/test-header', element: <TestHeader /> },
-          { path: '/test-tabs', element: <TestTabs /> },
-          { path: '/test-card', element: <TestCard /> },
-          { path: '/test-extra', element: <TestExtra /> },
-          { path: '/test-avatar', element: <TestAvatar /> },
-          { path: '/test-loading', element: <TestLoading /> },
         ],
       },
       {
