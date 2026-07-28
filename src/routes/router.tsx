@@ -17,6 +17,7 @@ import GraduationAddPage from '@/pages/Mypage/GraduationAddPage';
 import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
 // import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
+//import CourseSearchPage from '@/pages/Posts/CourseSearchPage';
 
 export const router = createBrowserRouter([
   {
@@ -55,7 +56,7 @@ export const router = createBrowserRouter([
             path: '/my/graduation',
             children: [
               { index: true, element: <GraduationPage /> },
-              { path: 'add', element: <GraduationAddPage /> },
+              { path: 'modify', element: <GraduationAddPage /> },
             ],
           },
           {
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
           },
+          //{ path: '/search', element: <CourseSearchPage /> },
         ],
       },
     ],
