@@ -26,7 +26,7 @@ export const router = createBrowserRouter([
 
           {
             //나중에 다 머지한 뒤에 라우터 수정
-            path: 'exchange-recommend',
+            path: 'my/exchange-recommend',
             element: <ExchangeRecommendPage />,
           },
         ],
