@@ -7,11 +7,7 @@ export const ICONS = {
   CLOSE: 'ph:x', // 닫기 (X표시)
   CHECK: 'ph:check-bold', // 체크 (체크박스, 완료 등)
   PLUS: 'ph:plus-bold', // 추가 (+ 버튼)
-<<<<<<< HEAD
-  WARNING: 'ph:warning', // 경고 (느낌표)
-=======
   WARNING: 'ph:warning-duotone', // 경고 (느낌표)
->>>>>>> da92837036da5417537f08086bbe249b0afac040
 
   // 💡 나중에 필요할 때 여기에 계속 추가하시면 됩니다!
   // HOME: 'ph:house-fill',
