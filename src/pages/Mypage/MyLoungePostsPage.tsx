@@ -4,7 +4,6 @@ import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
-import { FAB } from '@/components/common/FAB';
 import { getMyLoungePosts, type LoungePostItem } from '@/api/loungeApi';
 
 // 💡 카드 안에서만 쓰는 작은 아이콘들 (별도 svg 파일 없이 인라인으로)
@@ -125,7 +124,7 @@ const MyLoungePostsPage: React.FC = () => {
             />
           }
           title={
-            <div className="text-left whitespace-nowrap transform -translate-x-16 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
               내 라운지 게시글
             </div>
           }

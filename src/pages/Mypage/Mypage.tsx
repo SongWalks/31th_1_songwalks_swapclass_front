@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ICONS } from '@/constants/icons';
-
+import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { Avatar } from '@/components/common/Avatar';
 import { IconButton } from '@/components/common/IconButton';
@@ -266,7 +266,7 @@ const MyPage = () => {
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
             title={
-              <div className="text-left whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
                 마이페이지
               </div>
             }
@@ -288,31 +288,17 @@ const MyPage = () => {
 
           <div>
             <h2 className="text-[16px] font-medium text-black leading-[20px] tracking-[0.4px]">
-              {profile ? profile.email : '불러오는 중...'}
+              {profile ? profile.email : '비회원'}
             </h2>
-            <p className="text-[11px] font-normal text-black leading-[20px] tracking-[0.4px] flex items-center gap-1 mt-0.5">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 12 12"
-                fill="none"
-                style={{ width: '11.133px', height: '11.133px' }}
-                className="flex-shrink-0"
-              >
-                <circle
-                  cx="5.56641"
-                  cy="5.56641"
-                  r="5.31641"
-                  fill="#D2EBFC"
-                  stroke="#4C9DD1"
-                  strokeWidth="0.5"
+            {profile && (
+              <p className="text-[11px] font-normal text-black leading-[20px] tracking-[0.4px] flex items-center gap-1 mt-0.5">
+                <Icon
+                  icon="mdi:check-circle"
+                  className="w-6 h-4 text-brand-lightBlue mt-0.5 shrink-0"
                 />
-                <path
-                  d="M4.20115 7.21533L2.42656 5.44074L1.82227 6.04078L4.20115 8.41967L9.30789 3.31293L8.70785 2.71289L4.20115 7.21533Z"
-                  fill="#4C9DD1"
-                />
-              </svg>
-              숙명여자대학교 인증 계정
-            </p>
+                숙명여자대학교 인증 계정
+              </p>
+            )}
           </div>
         </div>
 

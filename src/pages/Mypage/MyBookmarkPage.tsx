@@ -115,7 +115,7 @@ const MyBookmarkPage: React.FC = () => {
             />
           }
           title={
-            <div className="text-left whitespace-nowrap transform -translate-x-16 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
               내 북마크 목록
             </div>
           }

@@ -143,14 +143,6 @@ const PasswordChangepage = () => {
         >
           비밀번호 변경
         </button>
-
-        {/* 🧪 개발 중 임시 버튼 - API 연동 확인되면 삭제 */}
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full h-10 border border-dashed border-gray-400 rounded-xl text-gray-500 text-sm cursor-pointer"
-        >
-          (테스트) 모달 미리보기
-        </button>
       </div>
 
       {/* 💡 비밀번호 변경 성공 모달 */}

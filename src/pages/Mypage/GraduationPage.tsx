@@ -2,15 +2,35 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
+import { CourseCard } from '@/components/common/CourseCard';
+import { Badge } from '@/components/common/Badge';
 import { Icon } from '@iconify/react';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
-import cautionBlueIcon from '@/assets/icons/caution_blue.svg';
 import axiosInstance from '@/api/axiosInstance'; // 💡 프로젝트의 Axios 인스턴스 경로로 맞춰주세요!
 
 // API Response 데이터 타입 정의 (명세서 기준)
+// 💡 기존엔 course.name만 있었는데, 카드 디자인(교수/시간/태그 뱃지)을 그대로 보여주려면
+// 이 필드들이 필요해요. 백엔드 응답에 아직 없다면 추가해달라고 요청해주세요 — 우선 옵셔널로 열어뒀어요.
 interface CourseDetail {
   name: string;
+  professor?: string;
+  classTime?: string;
+  tags?: {
+    label: string;
+    variant:
+      | 'primary'
+      | 'secondary'
+      | 'lightBlue'
+      | 'lightPink'
+      | 'lightYellow'
+      | 'outlineGray'
+      | 'outlineBlue'
+      | 'lightRed'
+      | 'grayOutline'
+      | 'bluesolid'
+      | 'lightBlueOutline';
+  }[];
 }
 
 interface GraduationCourse {
@@ -53,51 +73,12 @@ const GraduationPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery, fetchGraduationCourses]);
 
-  // 2. 이수 완료 토글 API (true ↔ false)
-  const handleToggleComplete = async (courseId: number) => {
-    try {
-      const response = await axiosInstance.patch(
-        `/graduation/courses/${courseId}/complete`,
-      );
-      if (response.data?.success) {
-        const updatedStatus = response.data.data.completed;
-        // 상태값 즉시 반영
-        setRegisteredCourses((prev) =>
-          prev.map((item) =>
-            item.id === courseId ? { ...item, completed: updatedStatus } : item,
-          ),
-        );
-      }
-    } catch (error) {
-      console.error('이수 상태 변경 실패:', error);
-      alert('이수 상태 변경 중 오류가 발생했습니다.');
-    }
-  };
+  // 2. 이수 완료 토글은 별도 페이지에서 처리하기로 해서 이 화면에선 관련 이벤트를 지웠어요.
+  // (해당 페이지 만들 때 아래 형태로 axiosInstance.patch(`/graduation/courses/${courseId}/complete`) 호출하면 돼요.)
 
   // 3. 등록된 졸업 요건 과목 삭제 API
-  const handleDeleteCourse = async (courseId: number, courseName: string) => {
-    if (
-      !window.confirm(
-        `'${courseName}' 과목을 졸업 요건 목록에서 삭제하시겠습니까?`,
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await axiosInstance.delete(
-        `/graduation/courses/${courseId}`,
-      );
-      if (response.data?.success) {
-        setRegisteredCourses((prev) =>
-          prev.filter((item) => item.id !== courseId),
-        );
-      }
-    } catch (error) {
-      console.error('과목 삭제 실패:', error);
-      alert('과목 삭제 중 오류가 발생했습니다.');
-    }
-  };
+  // 💡 이 화면에선 삭제 버튼을 없앴다고 하셔서 handleDeleteCourse는 지웠어요.
+  // 나중에 다시 필요해지면 위 handleToggleComplete 옆에 axiosInstance.delete(`/graduation/courses/${courseId}`) 형태로 추가하시면 돼요.
 
   return (
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
@@ -109,29 +90,19 @@ const GraduationPage = () => {
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
             title={
-              <div className="text-left whitespace-nowrap transform -translate-x-12 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
                 졸업 요건 과목 등록
               </div>
             }
             rightNode={
               <button
-                onClick={() => navigate('add')}
+                onClick={() => navigate('modify')}
                 className="w-7 h-7 flex items-center justify-center text-black/40 hover:opacity-80 active:scale-95 transition-all"
-                aria-label="과목 추가"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="w-5 h-5"
-                >
-                  <path
-                    d="M12 5v14M5 12h14"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <Icon
+                  icon="mdi:pencil-outline"
+                  className="size-5 text-neutral-500"
+                />
               </button>
             }
           />
@@ -150,25 +121,17 @@ const GraduationPage = () => {
           />
           <Icon
             icon={ICONS.SEARCH}
-            alt="검색"
             className="w-[18px] h-[18px] text-gray-400 cursor-pointer"
           />
         </div>
       </div>
 
-      {/* 3. 등록된 과목 개수 + 추가하기 버튼 */}
+      {/* 3. 등록된 과목 개수 */}
       <div className="px-5 pt-3 pb-1 flex items-center justify-between">
         <div className="text-sm font-light leading-5 ">
           <span className="text-zinc-900">등록된 과목 </span>
           <span className="text-blue-400">{registeredCourses.length}</span>
         </div>
-        <button
-          onClick={() => navigate('add')}
-          className="h-5 px-2 flex items-center justify-center gap-0.5 bg-blue-100 rounded-lg border-[0.5px] border-blue-400 text-zinc-900 text-xs font-light leading-5 tracking-wide hover:opacity-80 transition-opacity"
-        >
-          추가하기
-          <span className="text-blue-400 text-xs">+</span>
-        </button>
       </div>
 
       {/* 4. 리스트 / Empty State 출력 영역 */}
@@ -179,83 +142,67 @@ const GraduationPage = () => {
           </div>
         ) : registeredCourses.length === 0 ? (
           <EmptyState
-            icon={
-              <img
-                src={cautionBlueIcon}
-                alt="Caution"
-                className="w-9 h-9 select-none"
-              />
-            }
+            icon={<Icon icon={ICONS.WARNING} className="w-9 h-9 select-none" />}
             title="아직 등록된 졸업요건 과목이 없습니다."
             description={`졸업에 필요한 과목을 등록하고\n교환할 강의를 더 쉽게 찾아보세요.`}
             className="min-h-[50vh] justify-center"
           />
         ) : (
-          <div className="flex flex-col divide-y divide-gray-100 pb-10">
+          <div className="flex flex-col gap-3 pb-10">
             {registeredCourses.map((item) => (
-              <div
+              <CourseCard
                 key={item.id}
-                className="py-4 flex items-center justify-between"
-              >
-                {/* 과목명 (이수 완료 시 취소선 및 옅은 색상 스타일링) */}
-                <span
-                  className={`text-sm tracking-wide font-normal ${
-                    item.completed ? 'line-through text-gray-400' : 'text-black'
-                  }`}
-                >
-                  {item.course.name}
-                </span>
+                title={
+                  <div className="flex flex-col gap-1">
+                    <span className="text-zinc-900 text-base font-semibold leading-6 tracking-tight">
+                      {item.course.name}
+                    </span>
+                    {(item.course.professor || item.course.classTime) && (
+                      <span className="text-slate-500 text-sm font-normal leading-5 tracking-wide">
+                        {[item.course.professor, item.course.classTime]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                }
 
-                <div className="flex items-center gap-2">
-                  {/* 이수 완료 토글 버튼 */}
-                  <button
-                    onClick={() => handleToggleComplete(item.id)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      item.completed
-                        ? 'bg-blue-50 text-brand-lightBlue border border-brand-lightBlue'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    {item.completed ? '✅ 이수 완료' : '이수 완료'}
-                  </button>
-
-                  {/* 삭제 버튼 */}
-                  <button
-                    onClick={() =>
-                      handleDeleteCourse(item.id, item.course.name)
-                    }
-                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                    aria-label="과목 삭제"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+                badges={
+                  item.course.tags &&
+                  item.course.tags.filter((tag) => tag.label !== '졸업요건')
+                    .length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.course.tags
+                        .filter((tag) => tag.label !== '졸업요건')
+                        .map((tag, idx) => (
+                          <Badge key={idx} variant={tag.variant}>
+                            {tag.label}
+                          </Badge>
+                        ))}
+                    </div>
+                  )
+                }
+                className={item.completed ? '!bg-neutral-50' : ''}
+                // 💡 이수완료 체크는 별도 페이지에서 하기로 해서 여기선 클릭 이벤트 없이 상태만 보여줘요.
+                // 미이수(completed === false)면 뱃지 자체를 아예 안 띄워요.
+                rightNode={
+                  item.completed ? (
+                    <Badge variant="primary">이수완료</Badge>
+                  ) : undefined
+                }
+              />
             ))}
           </div>
         )}
       </div>
 
       {/* 5. 하단 안내 문구 + 버튼 */}
-      <div className="px-5 pb-6 pt-4 bg-[#FBFBFB]">
+      <div className="sticky bottom-0 z-40 px-5 pb-6 pt-4 bg-[#FBFBFB] border-t border-gray-100">
         <p className="text-center text-cyan-900 text-base font-bold font-['Pretendard'] leading-5 tracking-tight mb-7">
           등록한 과목은 과목 검색 시 가장 먼저 표시됩니다
         </p>
         <button
-          onClick={() => navigate('add')}
+          onClick={() => navigate('/search')}
           className="w-full h-14 bg-brand-lightBlue hover:opacity-90 active:scale-[0.99] transition-all rounded-md text-white text-lg font-semibold font-['Pretendard'] leading-5 tracking-tight"
         >
           과목 추가하기

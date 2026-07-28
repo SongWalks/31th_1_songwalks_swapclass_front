@@ -32,8 +32,8 @@ const MyPostpage = () => {
     const fetchMyPosts = async () => {
       try {
         setIsLoading(true);
-        // ⚠️ 백엔드 API 명세서에 맞게 URL을 수정해 주세요 (예: '/api/me/exchange-posts' 또는 '/api/posts/me')
-        const response = await axiosInstance.get('/api/users/me/posts');
+        // 💡 다른 화면들(ExchangeRecommendPage, BoardPage)에서 확인된 실제 엔드포인트로 맞췄어요.
+        const response = await axiosInstance.get('/api/posts/me');
 
         if (response.data?.success && response.data?.data) {
           // 백엔드 데이터를 프론트 UI 구조에 맞게 매핑
@@ -86,7 +86,7 @@ const MyPostpage = () => {
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
           title={
-            <div className="text-left whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
               내 게시글
             </div>
           }
@@ -112,7 +112,7 @@ const MyPostpage = () => {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-4 text-[15px] font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                className={`flex-1 py-4 text-[15px] font-light transition-colors flex items-center justify-center gap-1 cursor-pointer ${
                   activeTab === tab
                     ? 'text-brand-lightBlue border-b-2 border-brand-lightBlue'
                     : 'text-gray-400 hover:text-gray-500'
@@ -133,7 +133,7 @@ const MyPostpage = () => {
       </div>
 
       {/* 게시글 목록 영역 */}
-      <div className="flex-1 px-5 py-2">
+      <div className="flex-1 px-8 py-2">
         {isLoading ? (
           <div className="flex h-[60vh] items-center justify-center text-gray-400 text-sm">
             게시글을 불러오는 중입니다...
@@ -241,7 +241,7 @@ const MyPostpage = () => {
       {/* 플로팅 버튼 */}
       <button
         className="fixed bottom-32 right-5 w-14 h-14 bg-[#4C9DD1] rounded-full shadow-lg flex items-center justify-center text-white z-50 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-        onClick={() => navigate('/post/write')}
+        onClick={() => navigate('/board/write')}
       >
         <div className="w-12 h-12 flex items-center justify-center relative">
           <div className="w-[3.13px] h-5 absolute bg-white rounded-full" />

@@ -24,6 +24,21 @@ import movementIcon from '@/assets/icons/movement.svg';
 import requestCommentIcon from '@/assets/icons/request_comment.svg';
 import finalAlertIcon from '@/assets/icons/final_alert.svg';
 
+// 💡 남은 시간 표시 헬퍼: 30~20분 파랑 / 19~10분 주황 / 9~0분 빨강
+const formatRemaining = (totalSeconds: number) => {
+  const clamped = Math.max(0, totalSeconds);
+  const m = Math.floor(clamped / 60);
+  const s = clamped % 60;
+  return `${m}m${String(s).padStart(2, '0')}s`;
+};
+
+const getRemainingColorClass = (totalSeconds: number) => {
+  const minutes = Math.floor(Math.max(0, totalSeconds) / 60);
+  if (minutes >= 20) return 'text-brand-lightBlue';
+  if (minutes >= 10) return 'text-[#F98E15]';
+  return 'text-rose-500';
+};
+
 const ExchangeRequestPage = () => {
   const navigate = useNavigate();
 
@@ -41,6 +56,13 @@ const ExchangeRequestPage = () => {
   );
   const [sentProposal, setSentProposal] = useState<ProposalData | null>(null);
 
+  // 💡 받은 요청 카드마다 남은 시간을 실시간으로 보여주기 위한 공용 틱(1초마다 갱신)
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // 3. UI 상태 관리 (토스트, 모달)
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -49,6 +71,9 @@ const ExchangeRequestPage = () => {
   const hasReceivedRequests = receivedProposals.length > 0;
 
   // 4. 데이터 불러오기
+  // 💡 GET /api/proposals/received 응답엔 id/status/expiresAt/remainSeconds/matchRank/chatRoomId만 있고
+  // 화면에서 쓰는 targetCourse(과목명)/wantedCourses(희망과목)/requestCount(받은 요청 수)는 없어요.
+  // 백엔드에 해당 필드 추가를 요청하시거나, 별도 상세 조회 API로 채워야 실제 내용이 나와요.
   const fetchData = async () => {
     try {
       const [receivedRes, sentRes] = await Promise.all([
@@ -57,7 +82,14 @@ const ExchangeRequestPage = () => {
       ]);
 
       if (receivedRes.success) {
-        setReceivedProposals(receivedRes.data);
+        // expiresAt(ISO 문자열)을 타임스탬프(ms)로 변환해서 카운트다운 계산에 바로 쓸 수 있게 함
+        const withExpiry = (receivedRes.data || []).map((item: any) => ({
+          ...item,
+          expiresAt: item.expiresAt
+            ? new Date(item.expiresAt).getTime()
+            : undefined,
+        }));
+        setReceivedProposals(withExpiry);
       }
 
       if (sentRes.success) {
@@ -144,7 +176,7 @@ const ExchangeRequestPage = () => {
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
             title={
-              <div className="text-left px-4 whitespace-nowrap transform -translate-x-20 text-black/70 text-xl font-semibold leading-5 tracking-wide">
+              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
                 교환 요청함
               </div>
             }
@@ -250,64 +282,82 @@ const ExchangeRequestPage = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col divide-y divide-gray-100">
-                        {rankProposals.map((req) => (
-                          <div
-                            key={req.id}
-                            onClick={() => navigate(`/proposal/${req.id}`)}
-                            className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-black text-lg font-medium leading-5 tracking-wide">
-                                {req.targetCourse}
-                              </span>
-                              <button
+                        {rankProposals.map((req) => {
+                          const expiresAt = (req as any).expiresAt as
+                            number | undefined;
+                          const remainSeconds =
+                            expiresAt !== undefined
+                              ? Math.max(
+                                  0,
+                                  Math.round((expiresAt - now) / 1000),
+                                )
+                              : undefined;
+
+                          return (
+                            <div
+                              key={req.id}
+                              onClick={() => navigate(`/proposal/${req.id}`)}
+                              className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                                  {req.targetCourse}
+                                </span>
+                                <div className="flex items-center gap-2 ">
+                                  {remainSeconds !== undefined && (
+                                    <span
+                                      className={`flex items-center gap-1 text-xs font-bold tracking-wide ${getRemainingColorClass(
+                                        remainSeconds,
+                                      )}`}
+                                    >
+                                      <Icon
+                                        icon="lucide:clock"
+                                        className="w-3 h-3"
+                                      />
+                                      {formatRemaining(remainSeconds)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-1.5 pl-1">
+                                {req.wantedCourses.map((course, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
+                                      {idx + 1}
+                                    </div>
+                                    <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                                      {course}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate(`/proposal/${req.id}`);
                                 }}
-                                className="px-3 py-1 bg-brand-lightBlue text-white text-xs font-medium rounded-2xl tracking-wide cursor-pointer"
+                                className="absolute right-5 bottom-4 flex items-center text-neutral-500 text-xs font-light tracking-tight cursor-pointer gap-1"
                               >
-                                제안
-                              </button>
+                                <img
+                                  src={requestCommentIcon}
+                                  alt="받은 요청"
+                                  className="w-3.5 h-3.5"
+                                />
+                                받은 요청 {req.requestCount}개
+                                <img
+                                  src={movementIcon}
+                                  alt="이동"
+                                  className="w-3.5 h-3.5"
+                                />
+                              </div>
                             </div>
-
-                            <div className="flex flex-col gap-1.5 pl-1">
-                              {req.wantedCourses.map((course, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center gap-2"
-                                >
-                                  <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
-                                    {idx + 1}
-                                  </div>
-                                  <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
-                                    {course}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/proposal/${req.id}`);
-                              }}
-                              className="absolute right-5 bottom-4 flex items-center text-neutral-500 text-xs font-light tracking-tight cursor-pointer gap-1"
-                            >
-                              <img
-                                src={requestCommentIcon}
-                                alt="받은 요청"
-                                className="w-3.5 h-3.5"
-                              />
-                              받은 요청 {req.requestCount}개
-                              <img
-                                src={movementIcon}
-                                alt="이동"
-                                className="w-3.5 h-3.5"
-                              />
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
