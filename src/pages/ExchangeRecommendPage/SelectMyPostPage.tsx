@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
+import { Icon } from '@iconify/react';
 import axiosInstance from '@/api/axiosInstance';
 
 interface CourseDetail {
@@ -34,44 +35,6 @@ interface MyPostListItem {
   alreadyProposed: boolean;
 }
 
-// 💡 화면 확인용 목업 데이터 (와이어프레임 예시와 동일하게 5개, "공예CAD1"만 요청완료로 표시)
-const MOCK_MY_POSTS: MyPostListItem[] = [
-  {
-    id: 1,
-    title: '영어 회화',
-    preferredSubjects: ['컴퓨터 구조', '컴퓨터 구조', '컴퓨터 구조'],
-    alreadyProposed: false,
-  },
-  {
-    id: 2,
-    title: '교양필라테스',
-    preferredSubjects: [
-      '교양 요가',
-      '발레를 통한 자세교정',
-      '교양 웨이트 트레이닝',
-    ],
-    alreadyProposed: false,
-  },
-  {
-    id: 3,
-    title: 'SM리더특강',
-    preferredSubjects: ['운영체제', '소프트웨어이해', '프로그래밍언어론'],
-    alreadyProposed: false,
-  },
-  {
-    id: 4,
-    title: '공예CAD1',
-    preferredSubjects: ['디지털스튜디오', '기초 id스튜디오', '트렌드디자인'],
-    alreadyProposed: true,
-  },
-  {
-    id: 5,
-    title: 'SM리더특강',
-    preferredSubjects: ['운영체제', '소프트웨어이해', '프로그래밍언어론'],
-    alreadyProposed: false,
-  },
-];
-
 const SelectMyPostPage: React.FC = () => {
   const navigate = useNavigate();
   const { postId } = useParams<{ postId: string }>(); // 상대방(받는 쪽) 게시글 id
@@ -81,15 +44,14 @@ const SelectMyPostPage: React.FC = () => {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 💡 상대방(받는 쪽) 게시글이 원하는 과목 목록 + 그중 내가 고른 과목의 순위
+  const [targetWantedCourses, setTargetWantedCourses] = useState<
+    WantedCourseItem[]
+  >([]);
+  const [matchedPriority, setMatchedPriority] = useState<number | null>(null);
+
   useEffect(() => {
     const fetchMyPosts = async () => {
-      // 🧪 임시: 화면 확인용 목업 데이터로 렌더링 (확인 끝나면 아래 return 지우고 실제 API 살리기)
-      setLoading(true);
-      setMyPosts(MOCK_MY_POSTS);
-      setLoading(false);
-      return;
-
-      /* 💡 실제 API 연동 코드
       try {
         setLoading(true);
         const response = await axiosInstance.get('/api/posts/me');
@@ -115,33 +77,41 @@ const SelectMyPostPage: React.FC = () => {
       } finally {
         setLoading(false);
       }
-      */
     };
 
     fetchMyPosts();
   }, []);
 
+  // 💡 상대방 게시글의 원하는 과목 목록 가져오기 (몇 순위인지 표시하는 데 사용)
+  useEffect(() => {
+    if (!postId) return;
+
+    const fetchTargetWantedCourses = async () => {
+      try {
+        const response = await axiosInstance.get(`/api/posts/${postId}`);
+        setTargetWantedCourses(response.data?.data?.wantedCourses || []);
+      } catch (error) {
+        console.error('상대 게시글 조회 실패:', error);
+      }
+    };
+
+    fetchTargetWantedCourses();
+  }, [postId]);
+
   const handleSelectPost = async (
     myPostId: number,
     alreadyProposed: boolean,
   ) => {
-    if (alreadyProposed || isSubmitting) return;
+    if (alreadyProposed || isSubmitting || !postId) return;
 
-    // 💡 선택 하이라이트는 postId(상대 게시글) 유무와 무관하게 항상 즉시 표시
     setSelectedId(myPostId);
 
-    if (!postId) {
-      // 🧪 테스트 모드: 실제 postId가 없을 때도 전체 흐름(선택→전송→상세페이지→완료모달)을
-      // 끝까지 확인할 수 있도록, 성공한 것처럼 목업 상세페이지로 이동
-      console.warn(
-        'postId(상대 게시글)가 없어 실제 API 대신 테스트용 이동을 실행합니다.',
-      );
-      navigate('/test-specific-post', {
-        replace: true,
-        state: { justProposed: true },
-      });
-      return;
-    }
+    // 💡 선택한 내 게시글(버릴 과목)이 상대방 희망 목록 몇 순위인지 찾기
+    const post = myPosts.find((p) => p.id === myPostId);
+    const matched = targetWantedCourses.find(
+      (w) => w.course.name === post?.title,
+    );
+    setMatchedPriority(matched ? matched.priority : null);
 
     try {
       setIsSubmitting(true);
@@ -168,17 +138,47 @@ const SelectMyPostPage: React.FC = () => {
 
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
-      <div className="sticky top-0 z-40 bg-neutral-50">
+      <div className="[&>header]:!border-none sticky top-0 z-40 bg-neutral-50">
         <Header
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
           title={
-            <div className="text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              내 게시글
+            <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
+              <span className="text-black/70 text-xl font-semibold leading-5 tracking-wide">
+                내 게시글
+              </span>
             </div>
           }
         />
+      </div>
+
+      <div className="flex items-start gap-2 bg-amber-50 -mx-2 px-4 py-3 mb-6">
+        {selectedId ? (
+          <>
+            <Icon
+              icon="mdi:check-circle-outline"
+              className="w-6 h-4 text-yellow-700 mt-0.5 shrink-0"
+            />
+            <p className="text-yellow-700 text-sm font-medium leading-5 tracking-wide">
+              {myPosts.find((p) => p.id === selectedId)?.title} 선택됨
+              <br />
+              {matchedPriority
+                ? `상대방의 교환 희망 ${matchedPriority}순위 과목입니다`
+                : '상대방의 희망 과목 목록에 없는 과목입니다'}
+            </p>
+          </>
+        ) : (
+          <>
+            <Icon
+              icon="mdi:alert-outline"
+              className="w-6 h-4 text-amber-500 mt-0.5 shrink-0"
+            />
+            <p className="text-yellow-700 text-sm font-medium leading-5 tracking-wide">
+              상대방의 1순위 과목을 교환 요청 시 매칭 성공률이 올라가요
+            </p>
+          </>
+        )}
       </div>
 
       <div className="flex-1 px-4">
@@ -191,7 +191,7 @@ const SelectMyPostPage: React.FC = () => {
             선택 가능한 게시글이 없습니다.
           </div>
         ) : (
-          <div className="flex flex-col divide-y">
+          <div className="flex flex-col px-4 gap-3 pb-28 divide-y">
             {myPosts.map((post) => {
               const isSelected = selectedId === post.id;
               return (
@@ -203,12 +203,10 @@ const SelectMyPostPage: React.FC = () => {
                   disabled={post.alreadyProposed || isSubmitting}
                   className={`w-full text-left py-6 px-3 -mx-3 rounded-lg transition-colors ${
                     isSelected
-                      ? 'bg-slate-100 border border-brand-lightBlue'
+                      ? 'bg-[#F1F7FB] border border-brand-lightBlue'
                       : 'border border-transparent'
                   } ${
-                    post.alreadyProposed
-                      ? 'opacity-40 cursor-not-allowed'
-                      : 'hover:bg-black/[0.02]'
+                    post.alreadyProposed ? 'opacity-40 cursor-not-allowed' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -241,7 +239,7 @@ const SelectMyPostPage: React.FC = () => {
                         height="30"
                         viewBox="0 0 24 24"
                         fill="none"
-                        className="absolute right-2 bottom-5 text-cyan-900"
+                        className="absolute -right-5 bottom-5 text-cyan-900"
                       >
                         <path
                           d="M8.59063 18.1598L14.2506 12.4998L8.59063 6.83984L7.89062 7.54984L12.8406 12.4998L7.89062 17.4498L8.59063 18.1598Z"

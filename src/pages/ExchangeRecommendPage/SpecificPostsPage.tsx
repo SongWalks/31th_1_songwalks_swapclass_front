@@ -60,6 +60,7 @@ const SpecificPostsPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
 
   const [post, setPost] = useState<PostDetailResponse | null>(null);
+  const [receivedRequestCount, setReceivedRequestCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // 💡 내 게시글 ID: BoardPage와 동일하게 /api/posts/me로 직접 조회
@@ -87,7 +88,10 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     const fetchMyPostId = async () => {
       try {
-        const response = await axiosInstance.get('/api/posts/me');
+        // 🧪 TODO: 백엔드 500 버그(status 없이 호출 시) 임시 우회. 수정되면 params 제거
+        const response = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'MATCHABLE' },
+        });
         const myPosts: MyPostResponse[] = response.data?.data || [];
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
         setMyPostId(activePost ? activePost.postId : null);
@@ -119,6 +123,24 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     fetchPostDetail();
   }, [fetchPostDetail]);
+
+  // 💡 받은 요청 개수: GET /api/proposals/received는 "내가 받은 요청"만 알려주기 때문에
+  // 내 게시글(post.mine === true)일 때만 정확한 값. 남의 글일 땐 알 방법이 없어 0으로 둠
+  useEffect(() => {
+    if (!post?.mine) return;
+
+    const fetchReceivedRequestCount = async () => {
+      try {
+        const response = await axiosInstance.get('/api/proposals/received');
+        const received = response.data?.data || [];
+        setReceivedRequestCount(received.length);
+      } catch (error) {
+        console.error('받은 요청 개수 조회 실패:', error);
+      }
+    };
+
+    fetchReceivedRequestCount();
+  }, [post?.mine]);
 
   // 💡 SelectMyPostPage에서 제안 성공 후 돌아왔을 때 완료 모달 표시
   useEffect(() => {
@@ -181,9 +203,13 @@ const SpecificPostsPage: React.FC = () => {
       if (isLiked) {
         await axiosInstance.delete(`/api/posts/${postId}/likes`);
         setIsLiked(false);
+        setToastMessage('찜 목록에서 삭제되었습니다.');
+        setShowToast(true);
       } else {
         await axiosInstance.post(`/api/posts/${postId}/likes`);
         setIsLiked(true);
+        setToastMessage('찜 목록에 등록되었습니다.');
+        setShowToast(true);
       }
     } catch (error) {
       console.error('찜하기 처리 실패:', error);
@@ -276,19 +302,16 @@ const SpecificPostsPage: React.FC = () => {
               <div className="text-black text-[16px] font-medium leading-tight">
                 {post.authorNickname}
               </div>
-              {/* 💡 TODO: "받은 요청 수"는 현재 API 응답에 없어 임시로 숨김/0 처리 */}
+              {/* 💡 남의 글일 땐 GET /api/proposals/received로 알 방법이 없어 0 고정, 내 글이면 실제 값 */}
               <div className="text-black/60 text-[12px] font-light leading-tight">
-                받은 요청 0개
+                받은 요청 {receivedRequestCount}개
               </div>
             </div>
           </div>
 
           {/* 💡 내 게시글일 때만: 현재 교환 상태 뱃지 */}
           {post.mine && (
-            <Badge
-              variant="outlineGray"
-              className="!bg-zinc-300 !border-neutral-400 !text-zinc-900 !rounded-lg shrink-0"
-            >
+            <Badge variant="outlineGray" className="shrink-0">
               {STATUS_LABEL[post.status] ?? post.status}
             </Badge>
           )}
@@ -312,11 +335,9 @@ const SpecificPostsPage: React.FC = () => {
               </div>
             }
             rightNode={
-              // 💡 버릴 과목은 등록 후 수정 불가라, 내 글이어도 여기선 삭제 아이콘 없음
-              // (게시글 전체 삭제는 하단 "게시글 삭제하기"에서 처리)
               <Badge
                 variant="lightRed"
-                className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                className="!font-normal !rounded-lg shrink-0 mt-9"
               >
                 {post.discardCourse.courseType}
               </Badge>
@@ -359,16 +380,16 @@ const SpecificPostsPage: React.FC = () => {
                   }
                   rightNode={
                     <div className="flex flex-col items-end justify-end h-[80px]">
-                      <div className="flex flex-row gap-1.5">
+                      <div className="flex mb-2 gap-1.5">
                         <Badge
-                          variant="lightBlue"
-                          className="!border !border-neutral-400 !bg-sky-100 !text-zinc-900 !font-normal !text-[10px] !rounded-lg"
+                          variant="lightBlueOutline"
+                          className=" !font-normal !rounded-lg"
                         >
                           {item.course.department}
                         </Badge>
                         <Badge
-                          variant="lightBlue"
-                          className="!border !border-neutral-400 !bg-sky-100 !text-zinc-900 !font-normal !rounded-lg"
+                          variant="lightBlueOutline"
+                          className=" !font-normal !rounded-lg"
                         >
                           {item.course.courseType}
                         </Badge>

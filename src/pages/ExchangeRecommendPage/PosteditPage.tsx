@@ -52,59 +52,6 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: '교환 완료',
 };
 
-// 💡 실제 API 연동 전 화면 확인용 목업 데이터 (postId가 없을 때 임시로 사용)
-const MOCK_POST_DATA: PostDetailResponse = {
-  postId: 0,
-  status: 'MATCHABLE',
-  authorId: 0,
-  authorNickname: '나송',
-  discardCourse: {
-    courseId: 0,
-    name: '영어회화',
-    professor: 'John Smith',
-    classTime: '화목 10:30-11:45',
-    department: '',
-    courseType: '교양필수',
-  },
-  wantedCourses: [
-    {
-      priority: 1,
-      course: {
-        courseId: 1,
-        name: '컴퓨터구조',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-    {
-      priority: 2,
-      course: {
-        courseId: 2,
-        name: '컴퓨터구조',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-    {
-      priority: 3,
-      course: {
-        courseId: 3,
-        name: '컴퓨터구조',
-        professor: 'John Smith',
-        classTime: '화목 10:30-11:45',
-        department: '컴퓨터 과학',
-        courseType: '전공필수',
-      },
-    },
-  ],
-  createdAt: new Date().toISOString(),
-  mine: true,
-};
-
 const toCourseSelection = (course: CourseDetail): CourseSelection => ({
   courseId: course.courseId,
   name: course.name,
@@ -119,6 +66,7 @@ const PostEditPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
 
   const [post, setPost] = useState<PostDetailResponse | null>(null);
+  const [receivedRequestCount, setReceivedRequestCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [wantedCourses, setWantedCourses] = useState<
     (CourseSelection | null)[]
@@ -139,19 +87,7 @@ const PostEditPage: React.FC = () => {
   };
 
   const fetchPost = useCallback(async () => {
-    // 🧪 임시: 화면 확인용으로 항상 목업 데이터 사용 (확인 끝나면 아래 return 지우고 실제 API 살리기)
-    console.warn('임시 목업 데이터로 렌더링합니다.');
-    applyPostData(MOCK_POST_DATA);
-    setLoading(false);
-    return;
-
-    /* 💡 실제 API 연동 코드
-    if (!postId) {
-      console.warn('postId가 없어 목업 데이터로 대체합니다.');
-      applyPostData(MOCK_POST_DATA);
-      setLoading(false);
-      return;
-    }
+    if (!postId) return;
 
     try {
       setLoading(true);
@@ -161,17 +97,30 @@ const PostEditPage: React.FC = () => {
       }
     } catch (error) {
       console.error('게시글 조회 실패:', error);
-      // 💡 API 연동 전/실패 시에도 화면 확인용 목업으로 대체
-      applyPostData(MOCK_POST_DATA);
     } finally {
       setLoading(false);
     }
-    */
   }, [postId]);
 
   useEffect(() => {
     fetchPost();
   }, [fetchPost]);
+
+  // 💡 받은 요청 개수: GET /api/proposals/received는 "내가 받은 요청"만 알려주므로
+  // 내 게시글(이 페이지는 항상 내 게시글)에 한해서만 정확히 계산 가능
+  useEffect(() => {
+    const fetchReceivedRequestCount = async () => {
+      try {
+        const response = await axiosInstance.get('/api/proposals/received');
+        const received = response.data?.data || [];
+        setReceivedRequestCount(received.length);
+      } catch (error) {
+        console.error('받은 요청 개수 조회 실패:', error);
+      }
+    };
+
+    fetchReceivedRequestCount();
+  }, []);
 
   const handleSelectWantedCourse = (index: number) => {
     // TODO: CourseSearchPage가 지금 무조건 '/board/write'로 돌아가게 되어 있어서
@@ -190,24 +139,7 @@ const PostEditPage: React.FC = () => {
   const canSubmit = wantedCourses.some((course) => course !== null);
 
   const handleSubmitEdit = async () => {
-    if (!canSubmit || isSubmitting) return;
-
-    // 🧪 임시: 실제 API 호출 없이 "제출하면 원래 게시글로 돌아가는지"만 확인
-    // (확인 끝나면 아래 return 지우고 실제 API 코드 살리기)
-    console.warn('테스트 모드: 실제 PATCH 없이 바로 이동합니다.');
-    navigate(postId ? `/board/${postId}` : '/test-specific-post?mine=true', {
-      replace: true,
-    });
-    return;
-
-    /* 💡 실제 API 연동 코드
-    if (!postId) {
-      console.warn(
-        'postId가 없어 실제 PATCH 대신 테스트용 이동을 실행합니다.',
-      );
-      navigate('/test-specific-post?mine=true', { replace: true });
-      return;
-    }
+    if (!canSubmit || !postId || isSubmitting) return;
 
     // TODO: PATCH /api/posts/{postId} 실제 요청 스키마 확인되면 그에 맞춰 수정
     const wantedCourseIds = wantedCourses
@@ -230,7 +162,6 @@ const PostEditPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-    */
   };
 
   if (loading || !post) {
@@ -282,7 +213,7 @@ const PostEditPage: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-32">
         {/* 프로필 + 상태 뱃지 */}
-        <div className="flex items-center justify-between gap-3.5 py-2 px-6 border-b border-gray-200/60 mb-4">
+        <div className="flex items-center justify-between gap-3.5 py-2 px-6 border-b border-gray-200/60">
           <div className="flex items-center gap-3.5">
             <Avatar size="md" />
             <div className="flex flex-col gap-0.5">
@@ -290,7 +221,7 @@ const PostEditPage: React.FC = () => {
                 {post.authorNickname}
               </div>
               <div className="text-black/60 text-[12px] font-light leading-tight">
-                받은 요청 0개
+                받은 요청 {receivedRequestCount}개
               </div>
             </div>
           </div>
@@ -303,7 +234,7 @@ const PostEditPage: React.FC = () => {
         </div>
 
         {/* 버릴 과목 수정 불가 경고 */}
-        <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
+        <div className="flex items-start gap-2 bg-amber-50 -mx-4 px-4 py-3 mb-6">
           <Icon
             icon="mdi:alert-outline"
             className="w-4 h-4 text-amber-500 mt-0.5 shrink-0"
