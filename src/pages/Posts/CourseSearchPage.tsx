@@ -17,6 +17,10 @@ interface CourseListItem {
   category: string;
   area: string;
   isGraduationReq: boolean;
+  myGraduationCourse: boolean; // 💡 내가 졸업요건으로 등록해둔 과목인지 여부 (새로 추가된 필드)
+  code: string;
+  section: string;
+  credits: string;
 }
 
 // 💡 PostWritePage로 왕복할 때 실제로 필요한 필드만 담는 가벼운 타입
@@ -91,6 +95,13 @@ const CourseSearchPage: React.FC = () => {
 
   const [courses, setCourses] = useState<CourseListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  // 💡 응답에 페이지네이션 정보가 새로 생겨서 같이 보관해둬요 (지금은 안 쓰지만, "더보기"/무한스크롤 붙일 때 바로 쓸 수 있게)
+  const [pageInfo, setPageInfo] = useState({
+    page: 0,
+    totalPages: 0,
+    totalElements: 0,
+    hasNext: false,
+  });
 
   // 💡 검색어 + 학과 + 졸업요건만 보기 옵션으로 실제 API 조회 (300ms 디바운스)
   useEffect(() => {
@@ -104,12 +115,19 @@ const CourseSearchPage: React.FC = () => {
             graduationOnly,
           },
         });
-        const rawCourses: CourseListItem[] = response.data?.data || [];
+        // 💡 크롤링 데이터로 바뀌면서 응답이 페이지네이션 형태(data.content)로 변경됨
+        const rawCourses: CourseListItem[] = response.data?.data?.content || [];
         // 💡 졸업요건에 해당하는 과목(isGraduationReq: true)이 맨 위로 오도록 정렬
         const sortedCourses = [...rawCourses].sort(
           (a, b) => Number(b.isGraduationReq) - Number(a.isGraduationReq),
         );
         setCourses(sortedCourses);
+        setPageInfo({
+          page: response.data?.data?.page ?? 0,
+          totalPages: response.data?.data?.totalPages ?? 0,
+          totalElements: response.data?.data?.totalElements ?? 0,
+          hasNext: response.data?.data?.hasNext ?? false,
+        });
       } catch (error) {
         console.error('과목 검색 실패:', error);
         setCourses([]);
