@@ -1,32 +1,5 @@
 import { create } from 'zustand';
 
-// 모의 데이터
-const MOCK_POSTS = [
-  {
-    id: '1',
-    title: '데이터베이스 001분반 증원',
-    content: '증원된 거 확인하세요',
-    postType: '강의꿀팁',
-    courseTag: '데이터베이스',
-    date: '6/29 19:37',
-    likes: 12,
-    comments: 2,
-    isBookmarked: false,
-  },
-  {
-    id: '2',
-    title: '운영체제 2분반 폐강위기',
-    content: '현재 수강 인원 7명 3명만 더',
-    postType: '폐강과목',
-    badgeType: '교양필수',
-    courseTag: '운영체제',
-    date: '6/29 19:37',
-    likes: 12,
-    comments: 2,
-    isBookmarked: false,
-  },
-];
-
 // 1. Zustand 스토어 타입 정의
 interface LoungeState {
   activeTab: string;
@@ -91,23 +64,8 @@ export const useLounge = () => {
   const hasActiveFilters =
     store.selectedType !== null || store.selectedCourses.length > 0;
 
-  const filteredPosts = MOCK_POSTS.filter((post) => {
-    const matchSearch =
-      post.title.includes(store.searchQuery) ||
-      post.content.includes(store.searchQuery);
-    const matchType = store.selectedType
-      ? post.postType === store.selectedType
-      : true;
-    const matchCourse =
-      store.selectedCourses.length > 0
-        ? store.selectedCourses.includes(post.courseTag)
-        : true;
-    return matchSearch && matchType && matchCourse;
-  });
-
   return {
     ...store,
     hasActiveFilters,
-    filteredPosts,
   };
 };

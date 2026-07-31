@@ -11,6 +11,7 @@
     "prepare": "cd .. && husky Frontend/.husky"
   },
   "dependencies": {
+    "@iconify-react/material-symbols-light": "^1.0.29",
     "@iconify/react": "^6.0.2",
     "@tanstack/react-query": "^5.101.4",
     "axios": "^1.18.1",
@@ -32,6 +33,7 @@
     "globals": "^17.7.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
+    "msw": "^2.15.0",
     "oxlint": "^1.69.0",
     "postcss": "^8.5.16",
     "prettier": "^3.9.1",
@@ -44,6 +46,11 @@
     "src/**/*.{js,jsx,ts,tsx}": [
       "prettier --write",
       "eslint --fix"
+    ]
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
     ]
   }
 }

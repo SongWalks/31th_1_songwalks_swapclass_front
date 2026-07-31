@@ -9,7 +9,7 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import { LoungePage } from '@/pages/lounge/LoungePage';
 import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
-import { LoungeFilterPage } from '@/pages/lounge/LoungeFilterPage';
+import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
 import { PostEditPage } from '@/pages/lounge/PostEditPage';
 
 export const router = createBrowserRouter([
@@ -29,9 +29,9 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
-          { path: '/post/:id', element: <PostDetailPage /> },
+          { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
-          { path: '/lounge/filter', element: <LoungeFilterPage /> },
+          { path: '/course-search', element: <CourseSearchPage /> },
           { path: '/lounge/:postId/edit', element: <PostEditPage /> },
         ],
       },
