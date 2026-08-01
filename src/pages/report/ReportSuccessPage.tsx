@@ -87,7 +87,7 @@ export default function ReportSuccessPage() {
           <Button
             size="lg"
             variant="primary"
-            onClick={() => navigate('/', { replace: true })} // 💡 뒤로 가기 기록을 남기지 않고 홈으로 완벽히 이동!
+            onClick={() => navigate('/', { replace: true })}
           >
             확인
           </Button>
