@@ -15,10 +15,9 @@ interface MatchItemProps {
   proposalCount: number;
 
   senderPostId: number;
-  myDiscardCourse: Course;
-  requestStatus: string;
+  // 백엔드 명세에 맞게 타입 지정: PENDING이거나 null
+  requestStatus: 'PENDING' | null;
 
-  // 박스 클릭 시 호출될 함수 (부모에서 주입)
   onPropose?: (senderPostId: number, receiverPostId: number) => void;
 }
 
@@ -32,8 +31,8 @@ export const RecommendMatchItem = ({
 }: MatchItemProps) => {
   const wantedCourseName = wantedCourses?.[0]?.course?.name || '아무거나';
 
-  // 백엔드 상태에 따라 분기 (상태명은 백엔드 확인 후 수정 필요)
-  const isAlreadyRequested = requestStatus !== 'NONE';
+  // 상태가 PENDING이면 이미 요청한 상태
+  const isAlreadyRequested = requestStatus === 'PENDING';
 
   return (
     <div
@@ -59,7 +58,6 @@ export const RecommendMatchItem = ({
         </p>
       </div>
 
-      {/* 이미 요청한 경우 우측에 작은 텍스트로 피드백만 주기 (선택 사항 - 필요 없으면 삭제 가능) */}
       {isAlreadyRequested && (
         <span className="text-gray-400 text-light-13 shrink-0">제안 완료</span>
       )}
