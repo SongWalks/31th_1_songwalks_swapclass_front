@@ -10,11 +10,11 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import LoginPage from '../pages/auth/login';
 import SignupPage from '../pages/auth/signup';
 import FindPWPage from '../pages/auth/findPW';
-import AlertPage from '../pages/alert';
-import EPRPage from '../pages/epr';
-import CRPPage from '../pages/chat/crp';
-import SDPPage from '../pages/chat/sdp';
-import TDPPage from '../pages/chat/tdp';
+import AlertPage from '../pages/alert/alert';
+import EPRPage from '../pages/chat/EPR';
+import CRPPage from '../pages/chat/CRP';
+import SDPPage from '../pages/chat/SDP';
+import TDPPage from '../pages/chat/TDP';
 
 // --- 2. 페이지 불러오기  ---
 export const router = createBrowserRouter([

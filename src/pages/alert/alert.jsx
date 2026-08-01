@@ -28,54 +28,6 @@ const PAGE_SIZE = 20;
 
 const USE_MOCK = false;
 
-const MOCK_NOTIFICATIONS = [
-  {
-    id: 1,
-    type: 'MATCH_PROPOSAL',
-    title: '마케팅과 소비자이슈 1순위 매칭 제안',
-    body: '마케팅과소비자이슈의 1순위 과목을 찾았습니다!\n교환을 제안해보세요!',
-    deepLink: null,
-    isRead: false,
-    createdAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 2,
-    type: 'MATCH_PROPOSAL',
-    title: '마케팅과 소비자이슈 2순위 매칭 제안',
-    body: '마케팅과소비자이슈의 2순위 과목을 찾았습니다!\n교환을 제안해보세요!',
-    deepLink: null,
-    isRead: false,
-    createdAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 3,
-    type: 'LIKE',
-    title: '찜 알림',
-    body: '누군가 회원님의 [데이터베이스] 과목을 찜했습니다!\n상대방이 버리는 과목을 확인해 볼까요?',
-    deepLink: null,
-    isRead: true,
-    createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 4,
-    type: 'MATCH_ACCEPTED',
-    title: '매칭완료',
-    body: '매칭이 성사되었습니다!\n교환 채팅방으로 이동하여 시간을 조율해 주세요',
-    deepLink: null,
-    isRead: true,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 5,
-    type: 'EXCHANGE_SCHEDULED',
-    title: '매칭 시간 확정',
-    body: '오후 2시 15분으로 교환 시간이 확정되었습니다.\n교환 5분 전 과목 보유 인증이 진행됩니다. 약속 시간을 꼭 지켜주세요.',
-    deepLink: null,
-    isRead: true,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 const TYPE_ICON_MAP = {
   MATCH_PROPOSAL: { icon: matchIcon, bg: 'bg-blue-100' },
   MATCH_REQUESTED: { icon: matchIcon, bg: 'bg-blue-100' },
@@ -141,13 +93,6 @@ export default function AlertPage() {
     }
 
     try {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 300));
-        setNotifications(MOCK_NOTIFICATIONS);
-        setHasMore(false);
-        return;
-      }
-
       const token = getTokens()?.accessToken;
       const payload = await apiFetch(
         `${API.LIST}?page=${page}&size=${PAGE_SIZE}`,
@@ -168,28 +113,28 @@ export default function AlertPage() {
 
   // API 1. 안 읽은 알림 개수 조회
   // TODO: 헤더/탭바 뱃지 UI 나오면 마운트 시(or 폴링)로 연결
-  const fetchUnreadCount = async () => {
-    try {
-      const token = getTokens()?.accessToken;
-      const payload = await apiFetch(API.UNREAD_COUNT, { token });
-      return payload?.data?.unreadCount ?? null;
-    } catch {
-      return null;
-    }
-  };
+  // const fetchUnreadCount = async () => {
+  //   try {
+  //     const token = getTokens()?.accessToken;
+  //     const payload = await apiFetch(API.UNREAD_COUNT, { token });
+  //     return payload?.data?.unreadCount ?? null;
+  //   } catch {
+  //     return null;
+  //   }
+  // };
 
-  // API 5. 알림 전체 읽음 처리
-  // TODO: '모두 읽음' 버튼 UI 나오면 onClick에 연결하고 아래처럼 로컬 상태도 갱신
-  const markAllAsRead = async () => {
-    try {
-      const token = getTokens()?.accessToken;
-      await apiFetch(API.READ_ALL, { method: 'PATCH', token });
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      return true;
-    } catch {
-      return false;
-    }
-  };
+  // // API 5. 알림 전체 읽음 처리
+  // // TODO: '모두 읽음' 버튼 UI 나오면 onClick에 연결하고 아래처럼 로컬 상태도 갱신
+  // const markAllAsRead = async () => {
+  //   try {
+  //     const token = getTokens()?.accessToken;
+  //     await apiFetch(API.READ_ALL, { method: 'PATCH', token });
+  //     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  //     return true;
+  //   } catch {
+  //     return false;
+  //   }
+  // };
 
   // 리스트를 끝까지 스크롤하면 다음 페이지 로드 (기존 "불러오는 중..." 표시를 그대로 재사용)
   const handleScroll = () => {
