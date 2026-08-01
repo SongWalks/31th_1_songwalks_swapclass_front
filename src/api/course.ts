@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { Course } from '@/types/course';
 
 const TEMP_TOKEN =
-  'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg1NTE2MTEzLCJleHAiOjE3ODU1MTc5MTN9.GRIsd2jcIguoJNwvf9rnCZdbn0LSgFVUF8KEoPuZV6v8dyLqXtTIqKz0lMs5CSAYVKppb7Of6ptzhnUPY7yNsg';
+  'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg1NTIwMjcwLCJleHAiOjE3ODU1MjIwNzB9.uTqIRGwyK2S3qca5HiK1882CgrnC4WmD9929bnkyrL7y2bH5mexaMys0dj8g_mNkFmXEtrz_M8ei4xd4aqumbg';
 
 export interface FetchCoursesParams {
   keyword?: string;

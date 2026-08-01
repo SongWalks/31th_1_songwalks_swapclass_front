@@ -39,7 +39,10 @@ export const PostCard = ({ post, onClick }: PostCardProps) => {
       }
       rightNode={
         <div className="flex items-center gap-1 text-[12px] whitespace-nowrap text-gray-400 mt-1">
-          <Icon icon="ph:clock-fill" className="text-[14px]" />
+          <Icon
+            icon="ph:clock-fill"
+            className="text-[14px] -translate-y-[1px]"
+          />
           <span>{post.date}</span>
         </div>
       }

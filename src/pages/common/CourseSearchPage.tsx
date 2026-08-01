@@ -10,11 +10,9 @@ import { Dropdown } from '@/components/common/Dropdown';
 import { useLounge } from '../../store/useLounge';
 import { ICONS } from '@/constants/icons';
 import { IconButton } from '@/components/common/IconButton';
-import { useWriteStore } from '@/store/useWriteStore';
 
 export const CourseSearchPage = () => {
   const navigate = useNavigate();
-  const { setWriteData } = useWriteStore();
 
   const { searchQuery, setSearchQuery } = useLounge();
 

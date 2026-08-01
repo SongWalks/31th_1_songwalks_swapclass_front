@@ -10,7 +10,7 @@ import { Input } from '@/components/common/Input';
 import { FilterChip } from '@/components/common/FilterChip';
 import { useLounge } from '../../store/useLounge';
 import { ICONS } from '@/constants/icons';
-import { IconButton } from '@/components/common/IconButton';
+import { NotificationBell } from '@/components/common/NotificationBell';
 import { useWriteStore } from '@/store/useWriteStore';
 import { PostCard } from '@/components/common/PostCard';
 import { getLoungePosts } from '@/api/lounge.ts';
@@ -108,16 +108,7 @@ export const LoungePage = () => {
       {/* 1. 상단 헤더 영역 */}
       <div className="shrink-0 w-full z-20">
         <div className="[&>header]:!border-none">
-          <Header
-            title="라운지"
-            rightNode={
-              <IconButton
-                icon={ICONS.BELL}
-                onClick={() => {}}
-                className="text-gray-800"
-              />
-            }
-          />
+          <Header title="라운지" rightNode={<NotificationBell />} />
         </div>
       </div>
 
@@ -212,7 +203,6 @@ export const LoungePage = () => {
           ) : formattedPosts.length === 0 ? (
             <EmptyState title="검색 결과가 없습니다" />
           ) : (
-            // 💡 4️⃣ 재포장한 formattedPosts를 돌리면서 PostCard에 꽂아줍니다.
             formattedPosts.map((post) => (
               <PostCard
                 key={post.id}

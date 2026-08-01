@@ -292,7 +292,10 @@ export const PostDetailPage = () => {
             {postData.content}
           </p>
           <div className="flex items-center justify-end gap-1 text-[13px] text-gray-400">
-            <Icon icon="ph:clock-fill" className="text-[14px]" />
+            <Icon
+              icon="ph:clock-fill"
+              className="text-[14px] -translate-y-[1px]"
+            />
             <span>{formatDate(postData.updatedAt)}</span>
           </div>
         </div>
@@ -371,7 +374,7 @@ export const PostDetailPage = () => {
       </div>
 
       {/* 하단 댓글 입력창 */}
-      <div className="absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30 bg-white">
+      <div className="absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30">
         <Input
           variant="pill"
           placeholder="댓글을 입력하세요"
@@ -417,7 +420,9 @@ export const PostDetailPage = () => {
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        icon={<Icon icon="ph:warning" className="text-[40px] text-[#F94C66]" />}
+        icon={
+          <Icon icon={ICONS.WARNING} className="text-[40px] text-[#F94C66]" />
+        }
         title="게시글을 삭제하시겠습니까?"
         footer={
           <>

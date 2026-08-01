@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom'; // ✅ useLocation 추가
+import { useNavigate } from 'react-router-dom'; // ✅ useLocation 추가
 import { useEffect } from 'react'; // ✅ useEffect 추가
 import { Icon } from '@iconify/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,6 @@ import type { CreatePostRequest } from '@/types/lounge';
 
 export const LoungeWritePage = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // ✅ 추가
   const queryClient = useQueryClient();
 
   const { postType, courseTag, title, content, setWriteData, resetWriteData } =
