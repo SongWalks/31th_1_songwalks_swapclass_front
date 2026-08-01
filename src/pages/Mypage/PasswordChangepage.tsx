@@ -51,10 +51,7 @@ const PasswordChangepage = () => {
       // 💡 백엔드에서 내려준 에러 메시지가 있다면 그걸 띄우고, 없으면 기본 메시지 출력
       const serverMessage = error.response?.data?.message;
       if (error.response?.status === 403) {
-        alert(
-          serverMessage ||
-            '접근 권한이 없습니다. (로그인이 필요하거나 권한 부족)',
-        );
+        alert(serverMessage || '로그인 먼저 진행해 주세요.');
       } else {
         alert(serverMessage || '비밀번호 변경 중 오류가 발생했습니다.');
       }
@@ -149,7 +146,6 @@ const PasswordChangepage = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        className="relative w-full max-w-xs bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200"
         title={
           <div className="w-72 text-center justify-center text-cyan-900 text-sm font-medium font-['Pretendard'] leading-4 tracking-wide">
             성공적으로 변경되었습니다

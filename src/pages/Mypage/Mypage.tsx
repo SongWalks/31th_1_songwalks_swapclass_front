@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ICONS } from '@/constants/icons';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { Avatar } from '@/components/common/Avatar';
 import { IconButton } from '@/components/common/IconButton';
 import { Modal } from '@/components/common/Modal';
+import { NotificationBell } from '@/components/common/NotificationBell';
 import postIcon from '@/assets/icons/post_icon.svg';
 import exchangeIcon from '@/assets/icons/exchange_recommend_icon.svg';
 import likeIcon from '@/assets/icons/like_icon.svg';
@@ -25,6 +25,7 @@ import {
   deleteAccount,
   type UserProfile,
 } from '@/api/mypageApi';
+import axiosInstance from '@/api/axiosInstance';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -63,16 +64,52 @@ const MyPage = () => {
         if (res.success) {
           setProfile(res.data);
           setIsAlertOn(res.data.notificationEnabled);
-
-          // TODO: 여기에 뱃지 알림 관련 API를 호출해서 상태를 업데이트하세요!
-          // setHasNewRecommend(서버응답.hasNew);
-          // setRequestCount(서버응답.requestCount);
         }
       } catch (error) {
         console.error('내 프로필 정보 조회 실패:', error);
       }
     };
     fetchProfile();
+  }, []);
+
+  // 💡 뱃지(받은 요청 개수 / 추천 매칭함 new 여부) 채우기
+  useEffect(() => {
+    const fetchBadgeCounts = async () => {
+      // 받은 요청함 뱃지: PENDING(대기 중) 상태인 것만 개수로 카운트
+      try {
+        const receivedRes = await axiosInstance.get('/api/proposals/received');
+        const received: any[] = receivedRes.data?.data || [];
+        setRequestCount(
+          received.filter((item) => item.status === 'PENDING').length,
+        );
+      } catch (error) {
+        console.error('받은 요청 개수 조회 실패:', error);
+      }
+
+      // 추천 매칭함 new 뱃지: 아직 요청 안 보낸(requestStatus === 'NONE') 추천이 하나라도 있으면 New
+      // 💡 BoardPage/ExchangeRecommendPage와 동일하게 내 게시글(myPostId)이 있어야 조회 가능
+      try {
+        const myPostsRes = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'MATCHABLE' },
+        });
+        const myPosts: { postId: number; status: string }[] =
+          myPostsRes.data?.data || [];
+        const myPostId = myPosts.find((p) => p.status === 'MATCHABLE')?.postId;
+        if (!myPostId) return;
+
+        const recRes = await axiosInstance.get('/api/matches/recommendations', {
+          params: { postId: myPostId, page: 0, size: 20 },
+        });
+        const recommendations: { requestStatus: string | null }[] =
+          recRes.data?.data?.posts || [];
+        // 💡 아직 요청 안 보낸 추천은 requestStatus가 'NONE' 문자열이 아니라 null로 옴 (Swagger로 확인함)
+        setHasNewRecommend(recommendations.some((item) => !item.requestStatus));
+      } catch (error) {
+        console.error('추천 매칭함 new 여부 조회 실패:', error);
+      }
+    };
+
+    fetchBadgeCounts();
   }, []);
 
   // 2. 알림 설정 토글 API 연동
@@ -141,7 +178,7 @@ const MyPage = () => {
       fontSizeClass: 'text-[15px]',
       // 💡 새로운 추천이 있을 때만 'new' 뱃지 표시
       badge: hasNewRecommend ? 'new' : undefined,
-      onClick: () => navigate('/my/recommend'),
+      onClick: () => navigate('/my/exchange-recommend'),
     },
     {
       icon: <img src={chatIcon} alt="교환 요청함" className="w-5 h-[19px]" />,
@@ -232,8 +269,8 @@ const MyPage = () => {
 
       <div className="flex items-center space-x-2">
         {item.badge === 'new' && (
-          <span className="w-9 h-4 bg-brand-lightBlue rounded-[20px] text-white text-xs font-normal leading-5 tracking-wide flex items-center justify-center antialiased subpixel-antialiased">
-            new
+          <span className="w-9 h-5 bg-brand-lightBlue rounded-[20px] text-white text-xs font-normal leading-5 tracking-wide flex items-center justify-center antialiased subpixel-antialiased">
+            New
           </span>
         )}
         {typeof item.badge === 'number' && (
@@ -262,21 +299,12 @@ const MyPage = () => {
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <div className="[&>*]:!border-none">
           <Header
-            leftNode={
-              <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
-            }
             title={
               <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
                 마이페이지
               </div>
             }
-            rightNode={
-              <IconButton
-                icon={ICONS.BELL}
-                onClick={() => navigate('/notifications')}
-                className="text-brand-lightBlue"
-              />
-            }
+            rightNode={<NotificationBell />}
           />
         </div>
       </div>
@@ -391,7 +419,7 @@ const MyPage = () => {
               },
               0,
               true,
-              () => navigate('/my/password-change'),
+              () => navigate('/password-change'),
             )}
             <div className="w-full border-b border-[#E6E7EA] mt-2" />
           </div>

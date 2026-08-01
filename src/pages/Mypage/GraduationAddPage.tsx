@@ -10,30 +10,34 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 
-type BadgeVariant =
-  | 'primary'
-  | 'secondary'
-  | 'lightBlue'
-  | 'lightPink'
-  | 'lightYellow'
-  | 'outlineGray'
-  | 'outlineBlue'
-  | 'lightRed'
-  | 'grayOutline'
-  | 'bluesolid'
-  | 'lightBlueOutline';
-
+// 💡 professor/classTime/tags는 실제 API에 없는 필드라 목업으로 고정돼 있었음(모든 과목에
+// 'John Smith' 등 동일 값이 뜨는 심각한 버그였음). GraduationPage.tsx와 동일하게
+// courseType만 실제로 존재하는 값으로 쓰고, 교수/시간은 아예 표시 안 함(CourseSearchPage에서 확인).
 interface CourseItem {
   id: number;
   name: string;
-  professor: string;
-  classTime: string;
-  tags: { label: string; variant: BadgeVariant }[];
+  courseType?: string;
+  // 💡 category/department: /api/me/graduation-courses에 아직 없는 필드(백엔드 추가 요청함).
+  // 오면 category가 courseType(예: '학과전공')보다 우선해서 뱃지에 쓰임.
+  category?: string;
+  department?: string;
   completed: boolean;
 }
 
 // 💡 이 페이지는 검색/추가가 아니라 "등록된 과목 중 이수완료로 설정할 과목을 고르는" 화면이라
 // 이전의 검색창/추가 로직은 다 지우고, 체크박스 다중 선택 + 일괄 이수완료 설정으로 바꿨어요.
+// 💡 과목유형별 뱃지 색상: 교양(선택/필수)=하늘색 아웃라인, 전공(선택/필수)=노란색, 그 외=파란 아웃라인
+// (CourseSearchPage.tsx/GraduationPage.tsx랑 동일한 규칙)
+const getCourseTypeBadgeVariant = (courseType: string) => {
+  if (courseType === '교양선택' || courseType === '교양필수') {
+    return 'lightBlueOutline' as const;
+  }
+  if (courseType === '전공선택' || courseType === '전공필수') {
+    return 'lightYellow' as const;
+  }
+  return 'outlineBlue' as const;
+};
+
 const GraduationAddPage = () => {
   const navigate = useNavigate();
 
@@ -51,18 +55,13 @@ const GraduationAddPage = () => {
       setLoading(true);
       const response = await axiosInstance.get('/api/me/graduation-courses');
       if (response.data?.success) {
-        // 💡 professor/classTime/tags는 아직 API 응답에 없어서 임시값을 넣어뒀어요.
-        // 백엔드에서 내려주기 시작하면 c.professor, c.classTime, c.tags로 바로 바꾸면 돼요.
         const apiCourses: CourseItem[] = response.data.data.courses.map(
           (c: any) => ({
             id: c.courseId,
             name: c.courseName,
-            professor: 'John Smith',
-            classTime: '화목 10:30-11:45',
-            tags: [
-              { label: '전공필수', variant: 'lightBlueOutline' as const },
-              { label: '컴퓨터공학', variant: 'outlineGray' as const },
-            ],
+            courseType: c.courseType,
+            category: c.category,
+            department: c.department,
             completed: c.completed,
           }),
         );
@@ -94,6 +93,12 @@ const GraduationAddPage = () => {
     setSelectedIds(isAllSelected ? [] : courses.map((c) => c.id));
   };
 
+  // 전체 해제(이수완료 취소)도 저장 가능해야 하므로, 선택 개수가 아니라
+  // 실제 completed 상태와 달라진 과목이 있는지로 저장 가능 여부를 판단함
+  const hasChanges = courses.some(
+    (c) => selectedIds.includes(c.id) !== c.completed,
+  );
+
   // 이수완료 설정 성공 시에만 토스트가 닫히고 나서 이동하도록 구분
   const [navigateOnToastClose, setNavigateOnToastClose] = useState(false);
 
@@ -104,15 +109,30 @@ const GraduationAddPage = () => {
     }
   };
 
-  // API 2: 선택한 과목들 이수완료로 일괄 설정
+  // API 2: 선택 상태가 바뀐 과목만 골라서 이수완료 토글
+  // 💡 실제 API는 "일괄 설정"이 아니라 "과목 하나당 완료↔미완료 토글"이라(PATCH /{courseId}),
+  // 선택된 과목 전부를 무조건 부르면 이미 완료된 과목이 오히려 미완료로 풀려버림.
+  // 그래서 선택 상태(selectedIds)와 실제 completed 값이 다른 과목만 토글함.
   const handleSubmit = async () => {
     if (submitting) return;
+
+    const toToggle = courses.filter(
+      (c) => selectedIds.includes(c.id) !== c.completed,
+    );
+
+    if (toToggle.length === 0) {
+      navigate('/my/graduation');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await axiosInstance.patch('/api/me/graduation-courses/complete', {
-        courseIds: selectedIds,
-      });
-      setToastMessage('이수완료로 설정되었습니다.');
+      await Promise.all(
+        toToggle.map((c) =>
+          axiosInstance.patch(`/api/me/graduation-courses/${c.id}`),
+        ),
+      );
+      setToastMessage('저장되었습니다.');
       setNavigateOnToastClose(true);
       setShowToast(true);
     } catch (error) {
@@ -210,26 +230,31 @@ const GraduationAddPage = () => {
                     </span>
                   }
                   title={
-                    <div className="flex flex-col gap-1">
-                      <span className="text-zinc-900 text-base font-semibold leading-6 tracking-tight">
-                        {item.name}
-                      </span>
-                      <span className="text-slate-500 text-sm font-normal leading-5 tracking-wide">
-                        {`${item.professor} · ${item.classTime}`}
-                      </span>
-                    </div>
+                    <span className="text-zinc-900 text-base font-semibold leading-6 tracking-tight">
+                      {item.name}
+                    </span>
                   }
-                  badges={
-                    <div className="flex flex-wrap gap-1.5">
-                      {item.tags
-                        .filter((tag) => tag.label !== '졸업요건')
-                        .map((tag, idx) => (
-                          <Badge key={idx} variant={tag.variant}>
-                            {tag.label}
+                  badges={(() => {
+                    const label = item.category || item.courseType;
+                    const showTypeBadge = label && label !== '학과전공';
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {showTypeBadge && (
+                          <Badge
+                            variant={getCourseTypeBadgeVariant(label)}
+                            className="!font-normal"
+                          >
+                            {label}
                           </Badge>
-                        ))}
-                    </div>
-                  }
+                        )}
+                        {item.department && (
+                          <Badge variant="grayOutline" className="!font-normal">
+                            {item.department}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
                 />
               );
             })}
@@ -242,10 +267,10 @@ const GraduationAddPage = () => {
         <div className="sticky bottom-0 w-full px-4 pb-6 pt-4 bg-neutral-50 border-t border-gray-100">
           <button
             onClick={handleSubmit}
-            disabled={submitting || selectedIds.length === 0}
+            disabled={submitting || !hasChanges}
             className="w-full h-14 bg-brand-lightBlue disabled:opacity-40 hover:opacity-90 active:scale-[0.99] transition-all rounded-md text-white text-lg font-semibold"
           >
-            이수완료로 설정하기
+            저장하기
           </button>
         </div>
       )}

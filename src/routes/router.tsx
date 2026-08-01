@@ -5,19 +5,17 @@ import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
-// --- 2. 페이지 불러오기 ---
-import Mypage from '../pages/Mypage/Mypage';
-import PasswordChangepage from '../pages/Mypage/PasswordChangepage';
-import MyPostpage from '../pages/Mypage/MyPostpage';
+// 💡 마이페이지
+import Mypage from '@/pages/Mypage/Mypage';
+import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
+import MyPostpage from '@/pages/Mypage/MyPostpage';
 import LikeListPage from '@/pages/Mypage/LikeListPage';
 import GraduationPage from '@/pages/Mypage/GraduationPage';
+import GraduationAddPage from '@/pages/Mypage/GraduationAddPage';
 import MyLoungePostsPage from '@/pages/Mypage/MyLoungePostsPage';
 import MyBookmarkPage from '@/pages/Mypage/MyBookmarkPage';
-import GraduationAddPage from '@/pages/Mypage/GraduationAddPage';
 import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
-// import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
-//import CourseSearchPage from '@/pages/Posts/CourseSearchPage';
 
 export const router = createBrowserRouter([
   {
@@ -38,7 +36,6 @@ export const router = createBrowserRouter([
               { path: 'likes', element: <LikeListPage /> },
               { path: 'lounge', element: <MyLoungePostsPage /> },
               { path: 'bookmarks', element: <MyBookmarkPage /> },
-              // { path: 'recommend', element: <ExchangeRecommendPage /> },
 
               // 💡 ExchangeRequestPage는 DefaultLayout에 유지 (/my/request)
               { path: 'request', element: <ExchangeRequestPage /> },
