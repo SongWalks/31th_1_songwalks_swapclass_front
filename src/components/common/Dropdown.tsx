@@ -30,7 +30,7 @@ export const Dropdown = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-brand-blue transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-brand-lightBlue transition-colors"
       >
         <span>{selectedOption ? selectedOption.label : placeholder}</span>
         <Icon

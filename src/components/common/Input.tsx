@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import cautionIcon from '@/assets/icons/caution.svg';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string | React.ReactNode; // 💡 새로 추가된 라벨 타입
   leftNode?: React.ReactNode; // 왼쪽 아이콘 (이메일, 자물쇠 등)
   rightNode?: React.ReactNode; // 오른쪽 아이콘 (눈 모양, 전송 버튼 등)
   isError?: boolean; // 에러 여부 (빨간 테두리)
@@ -13,6 +14,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
     {
+      label, // 💡 추가된 부분
       leftNode,
       rightNode,
       isError = false,
@@ -25,6 +27,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ) => {
     return (
       <div className="w-full flex flex-col gap-1">
+        {/* 💡 새로 추가된 라벨 영역 */}
+        {label && (
+          <label className="text-sm font-medium text-gray-900 mb-1">
+            {label}
+          </label>
+        )}
+
         {/* 입력창 + 아이콘을 감싸는 컨테이너 */}
         <div className="relative flex items-center w-full">
           {/* 1. 왼쪽 아이콘 영역 */}

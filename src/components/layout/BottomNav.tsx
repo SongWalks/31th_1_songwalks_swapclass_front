@@ -5,8 +5,6 @@ export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 💡 메뉴 데이터 배열 (주소와 아이콘 매핑)
-  // 아이콘은 시안과 가장 유사한 ph(Phosphor) 및 mdi 계열로 임시 세팅했습니다.
   const navItems = [
     { id: 'home', label: '홈', path: '/', icon: 'ph:house-fill' },
     {
@@ -19,7 +17,7 @@ export default function BottomNav() {
       id: 'chat',
       label: '교환채팅방',
       path: '/chat',
-      icon: 'ph:chat-circle-dots-fill',
+      icon: 'ph:chat-circle-dots',
     },
     { id: 'lounge', label: '라운지', path: '/lounge', icon: 'mdi:snowflake' },
     { id: 'my', label: '마이페이지', path: '/my', icon: 'ph:user' },
@@ -41,15 +39,17 @@ export default function BottomNav() {
             onClick={() => navigate(item.path)}
             className="flex flex-col items-center justify-center gap-1 w-16"
           >
-            {/* 아이콘 영역 (활성화 시 파란색 동그라미 배경 + 흰색 아이콘) */}
             <div
-              className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 ${
+              className={`relative shrink-0 w-10 h-10 rounded-full transition-colors duration-200 ${
                 isActive
-                  ? 'bg-brand-lightBlue text-white' // 활성화: 파란 원 배경, 흰색 아이콘 (아까 쓰신 색상 변수명)
-                  : 'bg-transparent text-gray-400' // 비활성화: 투명 배경, 회색 아이콘
+                  ? 'bg-brand-lightBlue text-white'
+                  : 'bg-transparent text-gray-400'
               }`}
             >
-              <Icon icon={item.icon} className="text-[24px]" />
+              <Icon
+                icon={item.icon}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 block"
+              />
             </div>
 
             {/* 텍스트 영역 (활성화 시 파란색 글씨) */}

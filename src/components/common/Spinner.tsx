@@ -1,23 +1,26 @@
-import { Icon } from '@iconify/react';
-
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
 export const Spinner = ({ size = 'md', className = '' }: SpinnerProps) => {
+  // Tailwind 너비(w), 높이(h), 테두리 굵기(border) 조합
   const sizeStyles = {
-    sm: 'text-2xl', // 24px (버튼 안이나 좁은 영역)
-    md: 'text-4xl', // 36px (기본)
-    lg: 'text-6xl', // 60px (전체 화면 중앙)
+    sm: 'w-6 h-6 border-2', // 24px (버튼 안이나 좁은 영역)
+    md: 'w-9 h-9 border-4', // 36px (기본)
+    lg: 'w-16 h-16 border-4', // 64px (전체 화면 중앙)
   };
 
   return (
     <div className={`flex justify-center items-center ${className}`}>
-      {/* 💡 animate-spin 클래스로 무한 회전 효과를 줍니다 */}
-      <Icon
-        icon="ph:spinner-gap-bold"
-        className={`animate-spin text-brand-blue ${sizeStyles[size]}`}
+      <div
+        className={`
+          ${sizeStyles[size]}
+          border-brand-lightBlue
+          border-t-transparent
+          rounded-full
+          animate-spin
+        `}
       />
     </div>
   );
