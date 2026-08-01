@@ -136,7 +136,7 @@ export const CourseSearchPage = () => {
   }
 
   return (
-    <div className="absolute top-0 left-0 w-full h-full flex flex-col overflow-hidden bg-white">
+    <div className="absolute top-0 left-0 w-full h-full flex flex-col overflow-hidden">
       <div className="shrink-0 w-full z-20">
         {/* 헤더 부분 */}
         <div className="flex items-center px-4 h-[80px] gap-2">
