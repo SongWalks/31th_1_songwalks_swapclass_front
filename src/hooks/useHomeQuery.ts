@@ -31,6 +31,7 @@ export interface Post {
   wantedCourses: { priority: number; course: Course }[];
   proposalCount: number;
   createdAt: string;
+  requestStatus?: 'PENDING' | null;
 }
 
 export interface HomeData {

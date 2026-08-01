@@ -6,12 +6,29 @@ import { RecommendMatchItem } from '@/pages/home/components/RecommendMatchItem';
 import sooWatermark from '@/assets/images/soo-watermark.png';
 import { useHomeQuery } from '@/hooks/useHomeQuery';
 import { Spinner } from '@/components/common/Spinner';
+import { Toast } from '@/components/common/Toast';
+import { ICONS } from '@/constants/icons';
+import axiosInstance from '@/api/axiosInstance';
+import { useProposeMutation, useAcceptMutation } from '@/hooks/useProposals';
 
 export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const sensorRef = useRef<HTMLDivElement>(null);
 
+  const [toast, setToast] = useState<{
+    isVisible: boolean;
+    message: string;
+    icon: string; // 아이콘은 어떤 문자열이든 될 수 있다고 알려줌
+  }>({
+    isVisible: false,
+    message: '',
+    icon: ICONS.CHECK,
+  });
+
   const { data: homeData, isLoading, isError } = useHomeQuery();
+
+  const proposeMutation = useProposeMutation();
+  const acceptMutation = useAcceptMutation();
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -57,6 +74,53 @@ export default function HomePage() {
     state = 'alert'; // 남은 시간이 있으면 alert (내일 교환)
   }
 
+  // 토스트 띄우기 헬퍼 함수
+  const showToast = (message: string, isError = false) => {
+    setToast({
+      isVisible: true,
+      message,
+      // 에러 상황이면 경고 아이콘, 성공이면 체크 아이콘 사용 (프로젝트에 맞게 수정)
+      icon: isError ? ICONS.WARNING : ICONS.CHECK,
+    });
+  };
+
+  // 제안하기 핸들러 (React Query 적용)
+  const handlePropose = (senderPostId: number, receiverPostId: number) => {
+    // 이미 로딩 중이면 중복 클릭 방지
+    if (proposeMutation.isPending) return;
+
+    proposeMutation.mutate(
+      { senderPostId, receiverPostId },
+      {
+        onSuccess: () => {
+          showToast('교환 제안을 성공적으로 보냈습니다!');
+        },
+        onError: (error: any) => {
+          const errorMessage =
+            error.response?.data?.message ||
+            '제안 처리 중 오류가 발생했습니다.';
+          showToast(errorMessage, true);
+        },
+      },
+    );
+  };
+
+  // 수락하기 핸들러 (React Query 적용)
+  const handleAccept = (proposalId: number) => {
+    if (acceptMutation.isPending) return;
+
+    acceptMutation.mutate(proposalId, {
+      onSuccess: () => {
+        showToast('교환 제안을 수락했습니다!');
+      },
+      onError: (error: any) => {
+        const errorMessage =
+          error.response?.data?.message || '수락 처리 중 오류가 발생했습니다.';
+        showToast(errorMessage, true);
+      },
+    });
+  };
+
   return (
     <div className="relative mx-auto w-full max-w-[430px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
       {/* 화면 맨 위 투명 센서 */}
@@ -98,16 +162,13 @@ export default function HomePage() {
 
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
-        {/* 헤더 */}
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50">
           <HomeHeader isScrolled={isScrolled} unreadCount={unreadCount} />
         </div>
 
         <div className="px-5 flex flex-col pt-[56px] mt-2">
-          {/* 서버 데이터 주입 */}
           <HomeHero state={state} heroBanner={heroBanner} />
 
-          {/* 받은 요청함 */}
           <section className="flex flex-col gap-3 mt-8">
             <h2 className="text-[16px] font-bold text-[#5A9ECC]">
               받은 요청함
@@ -121,13 +182,16 @@ export default function HomePage() {
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-5 px-5">
                 {receivedRequests.map((req) => (
-                  <ReceivedRequestCard key={req.proposalId} {...req} />
+                  <ReceivedRequestCard
+                    key={req.proposalId}
+                    {...req}
+                    // onAccept={handleAccept} // 컴포넌트에 프롭 전달
+                  />
                 ))}
               </div>
             )}
           </section>
 
-          {/* 추천 매칭 */}
           <section className="flex flex-col gap-3 mt-8">
             <h2 className="text-[16px] font-bold text-[#5A9ECC]">추천 매칭</h2>
             {recommendedMatches.length === 0 ? (
@@ -138,14 +202,38 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {recommendedMatches.map((match) => (
-                  <RecommendMatchItem key={match.postId} {...match} />
+                {recommendedMatches.map((match: any) => (
+                  <RecommendMatchItem
+                    key={match.postId}
+
+                    /* ✨ 타입 에러 해결: API 필드를 컴포넌트 프롭에 맞게 수동 매핑 */
+                    id={match.postId}
+                    discardCourse={match.discardCourse}
+                    wantedCourses={match.wantedCourses}
+                    proposalCount={match.proposalCount}
+
+                    /* 백엔드 응답인 requestStatus 명시적 주입 (PENDING or null) */
+                    requestStatus={match.requestStatus || null}
+
+                    /* 🚨 주의: API에서 내 게시글 ID를 주지 않는다면 전역 상태 등에서 가져와야 함 */
+                    senderPostId={1} // 임시 값. 실제 유저의 포스트 ID로 교체 필요
+
+                    onPropose={handlePropose}
+                  />
                 ))}
               </div>
             )}
           </section>
         </div>
       </div>
+
+      {/* ✨ 토스트 컴포넌트 렌더링 */}
+      <Toast
+        message={toast.message}
+        isVisible={toast.isVisible}
+        icon={toast.icon}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 }
