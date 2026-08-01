@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
@@ -73,8 +73,26 @@ const PostEditPage: React.FC = () => {
   >([null, null, null]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 💡 경쟁 상태(race condition) 버그 수정: /search에서 새 과목 고르고 돌아오면 이 페이지가
+  // 통째로 언마운트→재마운트되면서, fetchPost()(서버의 예전 데이터)랑 location.state(방금
+  // 고른 새 과목)가 동시에 wantedCourses를 채우려고 함. fetchPost는 네트워크 요청이라 항상
+  // 늦게 끝나서, 방금 고른 새 과목을 서버의 예전 값이 덮어써버렸음.
+  // ref로 "방금 과목 선택하고 돌아온 값"을 기억해뒀다가, fetchPost 응답이 늦게 와도
+  // 그 값을 우선시하도록 함.
+  const pendingWantedCoursesRef = useRef<(CourseSelection | null)[] | null>(
+    null,
+  );
+
   const applyPostData = (data: PostDetailResponse) => {
     setPost(data);
+
+    if (pendingWantedCoursesRef.current) {
+      // 방금 과목 검색에서 돌아온 거면, 서버의 예전 값 대신 방금 고른 값을 그대로 유지
+      setWantedCourses(pendingWantedCoursesRef.current);
+      pendingWantedCoursesRef.current = null;
+      return;
+    }
+
     const sorted = [...data.wantedCourses].sort(
       (a, b) => a.priority - b.priority,
     );
@@ -102,9 +120,75 @@ const PostEditPage: React.FC = () => {
     }
   }, [postId]);
 
+  // 💡 StrictMode(개발 모드)에서 이 useEffect가 두 번 실행되면 fetchPost도 두 번 나가서,
+  // 첫 번째 응답이 pendingWantedCoursesRef를 정상적으로 소비(비움)한 뒤에 두 번째(중복) 응답이
+  // 뒤늦게 도착해 ref가 이미 비어있는 걸 보고 서버의 예전 값으로 다시 덮어써버렸음.
+  // ref로 "이 마운트에서 이미 fetchPost를 시작했는지"를 기억해서, 실제 요청은 한 번만 나가게 함.
+  const hasFetchedPostRef = useRef(false);
+
   useEffect(() => {
+    if (hasFetchedPostRef.current) return;
+    hasFetchedPostRef.current = true;
     fetchPost();
   }, [fetchPost]);
+
+  // 💡 CourseSearchPage에서 과목 선택하고 돌아왔을 때 반영
+  // 팀원분이 만든 CourseSearchPage.tsx는 location.state가 아니라
+  // sessionStorage('selectedCourse')에 저장하고 navigate(-1)만 하는 방식이라 그거에 맞춤.
+  // (pendingWantedCoursesRef는 그대로 유지 — fetchPost의 서버 응답이 늦게 와서
+  // 방금 고른 과목을 덮어쓰는 문제를 막아주는 장치라 여전히 필요함)
+  useEffect(() => {
+    let restoredWanted: (CourseSelection | null)[] | null = null;
+
+    const rawForm = sessionStorage.getItem('postEditFormState');
+    if (rawForm) {
+      try {
+        const form = JSON.parse(rawForm);
+        restoredWanted = form.wantedCourses ?? null;
+      } catch (error) {
+        console.error('수정 중이던 내용을 복원하지 못했습니다.', error);
+      }
+    }
+
+    const rawCourse = sessionStorage.getItem('selectedCourse');
+    if (rawCourse) {
+      try {
+        const selected = JSON.parse(rawCourse);
+        const rawTarget = sessionStorage.getItem('courseSearchTarget');
+        const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
+        const courseSelection: CourseSelection = {
+          courseId: selected.courseId,
+          name: selected.name ?? selected.title,
+          professor: selected.professor,
+          classTime: selected.classTime,
+          department: selected.department,
+          courseType: selected.courseType,
+        };
+
+        if (
+          targetInfo?.target === 'wanted' &&
+          typeof targetInfo.priority === 'number'
+        ) {
+          const base = restoredWanted ?? [null, null, null];
+          const next = [...base];
+          next[targetInfo.priority] = courseSelection;
+          restoredWanted = next;
+        }
+      } catch (error) {
+        console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+      }
+    }
+
+    if (restoredWanted) {
+      pendingWantedCoursesRef.current = restoredWanted;
+      setWantedCourses(restoredWanted);
+    }
+
+    sessionStorage.removeItem('postEditFormState');
+    sessionStorage.removeItem('selectedCourse');
+    sessionStorage.removeItem('courseSearchTarget');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 💡 받은 요청 개수: GET /api/proposals/received는 "내가 받은 요청"만 알려주므로
   // 내 게시글(이 페이지는 항상 내 게시글)에 한해서만 정확히 계산 가능
@@ -123,9 +207,16 @@ const PostEditPage: React.FC = () => {
   }, []);
 
   const handleSelectWantedCourse = (index: number) => {
-    // TODO: CourseSearchPage가 지금 무조건 '/board/write'로 돌아가게 되어 있어서
-    // 수정 페이지 전용 반환 경로 처리가 필요함. 스키마/흐름 확정되면 연결.
-    alert('과목 검색 연동은 아직 준비 중이에요.');
+    // 💡 버릴 과목은 이 페이지에서 수정 불가라 discardCourse는 안 넘김 (target도 항상 'wanted')
+    sessionStorage.setItem(
+      'postEditFormState',
+      JSON.stringify({ wantedCourses }),
+    );
+    sessionStorage.setItem(
+      'courseSearchTarget',
+      JSON.stringify({ target: 'wanted', priority: index }),
+    );
+    navigate('/course-search');
   };
 
   const handleRemoveWantedCourse = (index: number) => {
@@ -262,15 +353,24 @@ const PostEditPage: React.FC = () => {
                 <img src={throwArrow} alt="throw" className="absolute size-6" />
               </div>
             }
-            rightNode={
-              <Badge
-                variant="lightRed"
-                className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
-              >
-                {post.discardCourse.courseType}
-              </Badge>
+            badges={
+              <div className="flex flex-wrap gap-1.5">
+                <Badge
+                  variant="lightRed"
+                  className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                >
+                  {post.discardCourse.courseType}
+                </Badge>
+                {post.discardCourse.department && (
+                  <Badge
+                    variant="lightRed"
+                    className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                  >
+                    {post.discardCourse.department}
+                  </Badge>
+                )}
+              </div>
             }
-            badges={undefined}
           />
         </section>
 
@@ -288,7 +388,6 @@ const PostEditPage: React.FC = () => {
           <div className="flex flex-col gap-4">
             {[0, 1, 2].map((index) => {
               const course = wantedCourses[index];
-              const isMajorRequired = course?.courseType?.startsWith('전공');
               return (
                 <div key={index}>
                   <div className="text-zinc-900 text-xs font-medium mb-2 ml-1">
@@ -320,30 +419,22 @@ const PostEditPage: React.FC = () => {
                         />
                       }
                       badges={
-                        <>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge
+                            variant="lightBlueOutline"
+                            className="!font-normal !rounded-lg"
+                          >
+                            {course.courseType}
+                          </Badge>
                           {course.department && (
                             <Badge
-                              variant="outlineGray"
-                              className="!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg"
+                              variant="lightBlueOutline"
+                              className="!font-normal !rounded-lg"
                             >
                               {course.department}
                             </Badge>
                           )}
-                          <Badge
-                            variant={
-                              isMajorRequired
-                                ? 'lightBlueOutline'
-                                : 'outlineGray'
-                            }
-                            className={
-                              isMajorRequired
-                                ? '!rounded-lg'
-                                : '!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg'
-                            }
-                          >
-                            {course.courseType}
-                          </Badge>
-                        </>
+                        </div>
                       }
                     />
                   ) : (
