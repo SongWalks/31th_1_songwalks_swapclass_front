@@ -36,11 +36,6 @@ const PostWritePage: React.FC = () => {
   // 💡 등록 성공 모달
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // 💡 팀원분이 만든 CourseSearchPage.tsx는 location.state가 아니라
-  // sessionStorage('selectedCourse')에 저장하고 navigate(-1)만 하는 방식이라, 여기서도 그거에 맞춤.
-  // - postWriteFormState: 검색 페이지로 나가기 직전의 전체 선택 상태(버릴과목+원하는과목)를 저장해뒀다가 복원
-  // - courseSearchTarget: 방금 고른 과목을 "버릴 과목"에 넣을지 "원하는 과목 몇 순위"에 넣을지
-  // - selectedCourse: 팀원분 컴포넌트가 저장하는 실제 고른 과목 (공용 키라 이름 그대로 씀)
   useEffect(() => {
     let restoredDiscard: CourseSelection | null = discardCourse;
     let restoredWanted: (CourseSelection | null)[] = wantedCourses;
