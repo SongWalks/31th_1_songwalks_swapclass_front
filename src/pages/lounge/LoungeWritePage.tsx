@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom'; // ✅ useLocation 추가
-import { useEffect } from 'react'; // ✅ useEffect 추가
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/layout/Header';
@@ -10,8 +10,8 @@ import { ICONS } from '@/constants/icons';
 import Button from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
 import { useWriteStore } from '@/store/useWriteStore';
-import { createPost } from '@/api/lounge';
-import type { CreatePostRequest } from '@/types/lounge';
+import { createPost } from '@/api/lounge/lounge';
+import type { CreatePostRequest } from '@/types/lounge/lounge';
 import { NotificationBell } from '@/components/common/NotificationBell';
 
 export const LoungeWritePage = () => {

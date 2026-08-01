@@ -20,8 +20,8 @@ import {
   deletePost,
   createComment,
   deleteComment,
-} from '@/api/lounge';
-import type { LocalComment } from '@/types/lounge';
+} from '@/api/lounge/lounge';
+import type { LocalComment } from '@/types/lounge/lounge';
 
 const formatDate = (dateString: string) => {
   if (!dateString) return '';
