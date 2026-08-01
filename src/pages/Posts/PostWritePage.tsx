@@ -9,8 +9,8 @@ import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 
-import throwArrow from '@/assets/icons/throw_arrow.svg';
-import wantArrow from '@/assets/icons/want_arrow.svg';
+import throwArrow from '@/assets/icons/posts/throw_arrow.svg';
+import wantArrow from '@/assets/icons/posts/want_arrow.svg';
 
 interface CourseSelection {
   courseId: number;
