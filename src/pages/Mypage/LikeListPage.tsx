@@ -7,6 +7,7 @@ import { Tabs } from '../../components/common/Tabs';
 import { EmptyState } from '../../components/common/EmptyState';
 import { Toast } from '@/components/common/Toast';
 import { getLikePosts, deleteLikePost } from '@/api/likeApi';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 import searchIcon from '@/assets/icons/search_icon.svg';
 import redHeartIcon from '@/assets/icons/red_heart.svg';
@@ -126,13 +127,7 @@ const LikeListPage = () => {
                 찜 목록
               </div>
             }
-            rightNode={
-              <IconButton
-                icon={ICONS.BELL}
-                onClick={() => navigate('/notifications')}
-                className="text-brand-lightBlue"
-              />
-            }
+            rightNode={<NotificationBell />}
           />
         </div>
 
