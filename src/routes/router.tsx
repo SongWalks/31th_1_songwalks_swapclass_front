@@ -61,7 +61,6 @@ export const router = createBrowserRouter([
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
           },
-          //{ path: '/search', element: <CourseSearchPage /> },
         ],
       },
     ],
