@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { FAB } from '@/components/common/FAB';
-import { Tabs } from '@/components/common/Tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import Header from '@/components/layout/Header';
 import { Input } from '@/components/common/Input';
@@ -107,22 +106,7 @@ export const LoungePage = () => {
     <div className="absolute top-0 left-0 w-full h-full flex flex-col overflow-hidden">
       {/* 1. 상단 헤더 영역 */}
       <div className="shrink-0 w-full z-20">
-        <div className="[&>header]:!border-none">
-          <Header title="라운지" rightNode={<NotificationBell />} />
-        </div>
-      </div>
-
-      {/* 2. 상단 TABS 영역 */}
-      <div className="px-4 shrink-0 z-20 border-b border-gray-100">
-        <Tabs
-          variant="line"
-          activeTabId={activeTab}
-          onTabChange={setActiveTab}
-          tabs={[
-            { id: 'target', label: '내 타겟 과목' },
-            { id: 'drop', label: '내 버릴 과목' },
-          ]}
-        />
+        <Header title="라운지" rightNode={<NotificationBell />} />
       </div>
 
       {/* 3. 콘텐츠 영역 (스크롤) */}
@@ -176,7 +160,6 @@ export const LoungePage = () => {
               />
             ))}
 
-            {/* ✅ 수정 2: 공통 필터 페이지로 이동할 때 '돌아올 현재 주소'를 전달 */}
             <button
               onClick={() =>
                 navigate('/course-search', {
