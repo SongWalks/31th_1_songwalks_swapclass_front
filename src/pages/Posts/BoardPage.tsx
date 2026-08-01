@@ -51,9 +51,6 @@ interface BoardPost {
   alreadyProposed: boolean;
 }
 
-// 💡 드롭다운 옵션은 고정 목업이 아니라, 내가 올린 모든 게시글(GET /api/posts/me)의
-// discardCourse/wantedCourses에서 실시간으로 모아서 채움 (게시글 여러 개 올렸으면 그 과목들 다 포함)
-
 const BoardPage = () => {
   const navigate = useNavigate();
 
@@ -89,7 +86,6 @@ const BoardPage = () => {
   useEffect(() => {
     const fetchMyPosts = async () => {
       try {
-        // 🧪 TODO: 백엔드 500 버그(status 없이 호출 시) 임시 우회. 수정되면 params 제거
         const response = await axiosInstance.get('/api/posts/me', {
           params: { status: 'MATCHABLE' },
         });
@@ -99,8 +95,6 @@ const BoardPage = () => {
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
         setMyPostId(activePost ? activePost.postId : null);
 
-        // 💡 게시글을 여러 개 올렸을 수 있으니, 그 안의 원하는 과목/버릴 과목을 전부 모아서
-        // 드롭다운 옵션으로 채움 (하나만 있다고 가정하지 않음)
         const wantedNames = new Set<string>();
         const discardNames = new Set<string>();
         myPosts.forEach((p) => {
@@ -171,7 +165,6 @@ const BoardPage = () => {
             id: post.postId,
             title: post.discardCourse?.name ?? '',
             preferredSubjects: sortedWanted.map((w) => w.course?.name ?? ''),
-            // 💡 my-targets/my-seekers 응답엔 proposalCount가 없어서 0으로 기본값 처리
             proposalCount: post.proposalCount ?? 0,
             alreadyProposed: false,
           };
@@ -179,7 +172,6 @@ const BoardPage = () => {
 
         setPosts(mapped);
       } catch (error: any) {
-        // 💡 콘솔에만 남기지 않고, 실제 상태코드/메시지를 화면에서도 바로 확인할 수 있게 함
         const status = error?.response?.status;
         const serverMessage = error?.response?.data?.message;
         console.error('게시글 목록 조회 실패:', error);
@@ -204,8 +196,6 @@ const BoardPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery, targetCourseFilter, discardCourseFilter, fetchPosts]);
 
-  // 💡 로그인 안 한 상태(accessToken 없음)에서 스크롤하면 안내 모달을 한 번 띄움
-  // (DefaultLayout의 실제 스크롤 컨테이너는 window가 아니라 #main-scroll-container)
   useEffect(() => {
     const isLoggedIn = !!localStorage.getItem('accessToken');
     if (isLoggedIn) return; // 이미 로그인된 경우엔 안 띄움
@@ -225,8 +215,6 @@ const BoardPage = () => {
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // 💡 비로그인 상태면 로그인/가입 모달을, 로그인은 했는데 게시글이 없으면
-  // 기존의 "게시글 먼저 등록해주세요" 모달을 띄움
   const handleFilterButtonClick = () => {
     const isLoggedIn = !!localStorage.getItem('accessToken');
     if (!isLoggedIn) {
@@ -249,11 +237,7 @@ const BoardPage = () => {
           rightNode={
             <div className="flex items-center gap-2">
               <NotificationBell />
-              <IconButton
-                icon="mdi:menu"
-                className="text-black"
-                // TODO: 이 메뉴 버튼이 실제로 뭘 열어야 하는지 정해지면 onClick 연결
-              />
+              <IconButton icon="mdi:menu" className="text-black" />
             </div>
           }
         />
@@ -412,12 +396,14 @@ const BoardPage = () => {
       </div>
 
       {/* 글쓰기 FAB */}
-      <FAB
-        onClick={() => navigate('/board/write')}
-        icon={ICONS.PLUS}
-        text="글쓰기"
-        className="!fixed !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
-      />
+      <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] pointer-events-none z-40">
+        <FAB
+          onClick={() => navigate('/board/write')}
+          icon={ICONS.PLUS}
+          text="글쓰기"
+          className="!pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
+        />
+      </div>
 
       {/* 💡 하단 네비게이션 바는 라우터의 DefaultLayout이 자동으로 렌더링하므로 여기서 별도로 넣지 않음 */}
 

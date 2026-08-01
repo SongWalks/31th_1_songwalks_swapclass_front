@@ -347,7 +347,7 @@ const PostWritePage: React.FC = () => {
       </div>
 
       {/* 하단 고정 등록하기 버튼 */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] px-4 pb-6 pt-3">
         <button
           onClick={handleSubmit}
           disabled={!canSubmit || isSubmitting}
