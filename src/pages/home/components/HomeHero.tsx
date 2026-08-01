@@ -38,7 +38,9 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
   const dDayText = calculateDDay(heroBanner?.remainSeconds);
   const formattedTime = formatTime(heroBanner?.scheduledAt);
   const courseName = heroBanner?.partnerCourse?.name || '과목명 로딩중';
-  const hasAppointment = Boolean(heroBanner && heroBanner.remainSeconds > 0);
+
+  // 💡 교환 약속(디데이)이 있는지 확인하는 조건 추가
+  const hasAppointment = heroBanner != null && heroBanner.remainSeconds > 0;
 
   return (
     <section className="relative w-full pt-4 pb-6 flex flex-col">
@@ -61,8 +63,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
 
       {/* 텍스트 영역 */}
       <div
-        className={`flex flex-col justify-center min-h-[140px]
-        z-10 pr-[150px] ${
+        className={`flex flex-col justify-center min-h-[140px] z-10 pr-[150px] ${
           state === 'empty' ? 'pt-28' : state === 'alert' ? 'pt-14' : 'pt-8'
         }`}
       >
@@ -83,7 +84,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         {/* active */}
         {state === 'active' && (
           <>
-            {/* 💡 2. 약속이 있을 때만 디데이 뱃지 렌더링 */}
+            {/* 💡 약속이 있을 때만 디데이 뱃지 표시 */}
             {hasAppointment && (
               <span
                 className="inline-block px-3 py-0.5 border border-brand-lightBlue
@@ -137,10 +138,8 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         size="lg"
         className="mt-9 backdrop-blur-sm border border-[#A8D4EF]/50 !h-[44px]"
       >
-        {/* 💡 3. 약속이 없을 땐(empty이거나 active인데 약속없음) 게시글 둘러보기로 통일 */}
-        {state === 'empty' || !hasAppointment
-          ? '교환 게시글 둘러보기'
-          : '교환채팅방 입장하기'}
+        {/* 💡 교환 약속이 없으면 '둘러보기', 있으면 '입장하기' */}
+        {!hasAppointment ? '교환 게시글 둘러보기' : '교환채팅방 입장하기'}
       </Button>
     </section>
   );
