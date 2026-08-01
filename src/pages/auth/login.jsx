@@ -2,15 +2,15 @@ import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { useNavigate } from 'react-router-dom';
-// import { loginRequest, refreshTokenRequest, ApiError } from '../../api/authApi';
-// import { saveTokens, clearTokens } from '../../utils/tokenStorage';
-import lockIcon from '../assets/icons/lock.svg';
-import joinIcon from '../assets/icons/join.svg';
-import checkIcon from '../assets/icons/check.svg';
-import emailIcon from '../assets/icons/email.svg';
-import logo from '../assets/icons/logo.png';
-import eyeIcon from '../assets/icons/eye.svg';
-import pwLockIcon from '../assets/icons/pwlock.svg';
+import { loginRequest, ApiError } from '@/api/auth/authApi';
+import { saveTokens } from '@/store/tokenStorage';
+import lockIcon from '../../assets/icons/lock.svg';
+import joinIcon from '../../assets/icons/join.svg';
+import checkIcon from '../../assets/icons/check.svg';
+import emailIcon from '../../assets/icons/email.svg';
+import logo from '../../assets/icons/logo.png';
+import eyeIcon from '../../assets/icons/eye.svg';
+import pwLockIcon from '../../assets/icons/pwlock.svg';
 import Button from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Spinner } from '../../components/common/Spinner';
@@ -47,27 +47,6 @@ export default function LoginPage() {
     return !errors.email && !errors.password;
   }
 
-  // function scheduleTokenRefresh(refreshToken, expiresIn) {
-  //   clearTimeout(refreshTimerRef.current);
-  //   refreshTimerRef.current = setTimeout(async () => {
-  //     try {
-  //       // const reissued = await refreshTokenRequest(refreshToken);
-  //       // saveTokens(reissued, autoLogin);
-  //       setBanner({
-  //         type: 'success',
-  //         message: '토큰이 만료되어 새 토큰으로 재발급되었습니다.',
-  //       });
-  //       // scheduleTokenRefresh(reissued.refreshToken, reissued.expiresIn);
-  //     } catch {
-  //       // clearTokens();
-  //       setBanner({
-  //         type: 'error',
-  //         message: '세션이 만료되었습니다. 다시 로그인해주세요.',
-  //       });
-  //     }
-  //   }, expiresIn * 1000);
-  // }
-
   async function handleSubmit(e) {
     e.preventDefault();
     setBanner(null);
@@ -75,18 +54,23 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      // const tokens = await loginRequest({ email: email.trim(), password });
-      // saveTokens(tokens, autoLogin);
+      const { data } = await loginRequest({ email: email.trim(), password });
+      saveTokens(data, autoLogin);
       setBanner({
         type: 'success',
         message: `로그인에 성공했습니다. ${autoLogin ? '자동 로그인이 설정됨' : ''}`,
       });
-      // scheduleTokenRefresh(tokens.refreshToken, tokens.expiresIn);
-    } catch {
-      setBanner({
-        type: 'error',
-        message: '알 수 없는 오류가 발생했습니다. 다시 시도해주세요.',
-      });
+      navigate('/'); // TODO: 실제 로그인 후 이동할 경로로 교체
+    } catch (err) {
+      if (err instanceof ApiError) {
+        // 400: 비밀번호 불일치, 403: 정지된 계정 등 서버 메시지 그대로 노출
+        setBanner({ type: 'error', message: err.message });
+      } else {
+        setBanner({
+          type: 'error',
+          message: '네트워크 오류가 발생했습니다. 다시 시도해주세요.',
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

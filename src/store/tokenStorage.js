@@ -1,26 +1,30 @@
-/**
- * 토큰 저장 유틸
- * - "자동 로그인" 체크 시: localStorage (브라우저/앱 종료 후에도 유지)
- * - 미체크 시: sessionStorage (탭/앱 종료 시 소멸)
- */
-
-const ACCESS_TOKEN_KEY = "soo_access_token";
-const REFRESH_TOKEN_KEY = "soo_refresh_token";
-const EXPIRES_AT_KEY = "soo_token_expires_at";
+const ACCESS_TOKEN_KEY = 'soo_access_token';
+const REFRESH_TOKEN_KEY = 'soo_refresh_token';
+const EXPIRES_AT_KEY = 'soo_token_expires_at';
 
 function getStorage(persist) {
   return persist ? window.localStorage : window.sessionStorage;
 }
 
-export function saveTokens({ accessToken, refreshToken, expiresIn }, persist) {
+function decodeJwtExpiresAt(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveTokens({ accessToken, refreshToken }, persist) {
   const storage = getStorage(persist);
-  const expiresAt = Date.now() + expiresIn * 1000;
+  const expiresAt =
+    decodeJwtExpiresAt(accessToken) ?? Date.now() + 30 * 60 * 1000;
 
   storage.setItem(ACCESS_TOKEN_KEY, accessToken);
   storage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   storage.setItem(EXPIRES_AT_KEY, String(expiresAt));
 
-  // 두 storage 모두 정리해서 이전 로그인 방식의 잔여 토큰이 남지 않도록 함
   const other = getStorage(!persist);
   other.removeItem(ACCESS_TOKEN_KEY);
   other.removeItem(REFRESH_TOKEN_KEY);
@@ -37,7 +41,6 @@ export function getTokens() {
   const expiresAt = Number(storage.getItem(EXPIRES_AT_KEY)) || 0;
 
   if (!accessToken || !refreshToken) return null;
-
   return { accessToken, refreshToken, expiresAt, storage };
 }
 

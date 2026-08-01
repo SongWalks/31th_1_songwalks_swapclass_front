@@ -7,40 +7,11 @@ import { Modal } from '@/components/common/Modal';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import eyeIcon from '@/assets/icons/eye.svg';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
-const API = {
-  SEND_CODE: `${API_BASE}/api/auth/email/send-code`,
-  VERIFY_CODE: `${API_BASE}/api/auth/email/verify-code`,
-  RESET_PASSWORD: `${API_BASE}/api/auth/password/reset`,
-};
-
-const MOCK_ACCOUNT = { email: 'test1234@sookmyung.ac.kr', code: '123456' };
-
-const postJson = async (url, body) => {
-  if (body?.email === MOCK_ACCOUNT.email) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    if (url === API.SEND_CODE) return { status: 200, data: { success: true } };
-    if (url === API.VERIFY_CODE) {
-      const isCorrect = body.code === MOCK_ACCOUNT.code;
-      return {
-        status: isCorrect ? 200 : 400,
-        data: isCorrect
-          ? { success: true }
-          : { success: false, message: '잘못된 입력값입니다.' },
-      };
-    }
-    if (url === API.RESET_PASSWORD)
-      return { status: 200, data: { success: true } };
-  }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => null);
-  return { status: res.status, data };
-};
+import {
+  sendPasswordResetCode,
+  verifyEmailCode,
+  resetPasswordRequest,
+} from '@/api/auth/authApi';
 
 const EMAIL_DOMAIN = 'sookmyung.ac.kr';
 const CODE_TIMER_SECONDS = 5 * 60;
@@ -133,17 +104,18 @@ export default function FindPasswordPage() {
     setEmailError('');
     setIsSending(true);
     try {
-      const { data } = await postJson(API.SEND_CODE, { email });
-      if (data?.success) {
-        setIsCodeSent(true);
-        setSecondsLeft(CODE_TIMER_SECONDS);
-        setCode('');
-        setCodeError('');
-      } else {
-        setEmailError(data?.message || '인증코드 발송에 실패했습니다.');
-      }
-    } catch {
-      setEmailError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+      await sendPasswordResetCode(email);
+      setIsCodeSent(true);
+      setSecondsLeft(CODE_TIMER_SECONDS);
+      setCode('');
+      setCodeError('');
+    } catch (err) {
+      // 404: 가입되지 않은 이메일
+      setEmailError(
+        err.status === 404
+          ? '가입되지 않은 이메일입니다.'
+          : err.message || '인증코드 발송에 실패했습니다.',
+      );
     } finally {
       setIsSending(false);
     }
@@ -154,14 +126,10 @@ export default function FindPasswordPage() {
     setCodeError('');
     setIsVerifying(true);
     try {
-      const { data } = await postJson(API.VERIFY_CODE, { email, code });
-      if (!data?.success) {
-        setCodeError(data?.message || '잘못된 입력값입니다.');
-        return;
-      }
+      await verifyEmailCode(email, code);
       setStep('password');
-    } catch {
-      setCodeError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+    } catch (err) {
+      setCodeError(err.message || '잘못된 입력값입니다.');
     } finally {
       setIsVerifying(false);
     }
@@ -189,18 +157,14 @@ export default function FindPasswordPage() {
     if (!validatePassword()) return;
     setIsSubmitting(true);
     try {
-      const { status, data } = await postJson(API.RESET_PASSWORD, {
+      await resetPasswordRequest({
         email,
-        password,
-        passwordConfirm,
+        newPassword: password,
+        newPasswordConfirm: passwordConfirm,
       });
-      if (status === 200 && data?.success) {
-        setShowCompleteModal(true);
-        return;
-      }
-      setResetError(data?.message || '비밀번호 변경에 실패했습니다.');
-    } catch {
-      setResetError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+      setShowCompleteModal(true);
+    } catch (err) {
+      setResetError(err.message || '비밀번호 변경에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }

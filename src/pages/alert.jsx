@@ -5,6 +5,8 @@ import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
+import { apiFetch } from '@/api/auth/client';
+import { getTokens } from '@/store/tokenStorage';
 
 // 💡 알림 타입별 아이콘 - src/assets/icons 안의 실제 파일명으로 교체하세요.
 import matchIcon from '@/assets/icons/matchoffer.svg';
@@ -14,17 +16,17 @@ import clockIcon from '@/assets/icons/hands.svg';
 import cancelIcon from '@/assets/icons/matched.svg';
 import systemIcon from '@/assets/icons/dibs.svg';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+// apiFetch가 API_BASE를 이미 붙이므로 여기는 path만 관리
 const API = {
-  UNREAD_COUNT: `${API_BASE}/api/notifications/unread-count`,
-  LIST: `${API_BASE}/api/notifications`,
-  READ_ONE: (id) => `${API_BASE}/api/notifications/${id}/read`,
-  READ_ALL: `${API_BASE}/api/notifications/read-all`,
+  UNREAD_COUNT: '/api/notifications/unread-count',
+  LIST: '/api/notifications',
+  READ_ONE: (id) => `/api/notifications/${id}/read`,
+  READ_ALL: '/api/notifications/read-all',
 };
 
 const PAGE_SIZE = 20;
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 const MOCK_NOTIFICATIONS = [
   {
@@ -107,18 +109,6 @@ const formatRelativeTime = (iso) => {
   return `${Math.floor(diffHour / 24)}일 전`;
 };
 
-const getJson = async (url) => {
-  const res = await fetch(url, { credentials: 'include' });
-  const data = await res.json().catch(() => null);
-  return { status: res.status, data };
-};
-
-const patchJson = async (url) => {
-  const res = await fetch(url, { method: 'PATCH', credentials: 'include' });
-  const data = await res.json().catch(() => null);
-  return { status: res.status, data };
-};
-
 export default function AlertPage() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -158,23 +148,46 @@ export default function AlertPage() {
         return;
       }
 
-      const { status, data } = await getJson(
+      const token = getTokens()?.accessToken;
+      const payload = await apiFetch(
         `${API.LIST}?page=${page}&size=${PAGE_SIZE}`,
+        { token },
       );
-
-      if (status === 200 && data?.success) {
-        const fetched = data.data.notifications ?? [];
-        setNotifications((prev) => (reset ? fetched : [...prev, ...fetched]));
-        setHasMore(fetched.length === PAGE_SIZE);
-        pageRef.current = page + 1;
-      } else {
-        showToast(TOAST_BY_TYPE.LOAD_FAILED);
-      }
+      const fetched = payload?.data?.notifications ?? [];
+      setNotifications((prev) => (reset ? fetched : [...prev, ...fetched]));
+      setHasMore(fetched.length === PAGE_SIZE);
+      pageRef.current = page + 1;
     } catch {
+      // apiFetch는 401/403/네트워크 오류 시 ApiError를 던짐 (여기서는 메시지 구분 없이 안내)
       showToast(TOAST_BY_TYPE.LOAD_FAILED);
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
+    }
+  };
+
+  // API 1. 안 읽은 알림 개수 조회
+  // TODO: 헤더/탭바 뱃지 UI 나오면 마운트 시(or 폴링)로 연결
+  const fetchUnreadCount = async () => {
+    try {
+      const token = getTokens()?.accessToken;
+      const payload = await apiFetch(API.UNREAD_COUNT, { token });
+      return payload?.data?.unreadCount ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  // API 5. 알림 전체 읽음 처리
+  // TODO: '모두 읽음' 버튼 UI 나오면 onClick에 연결하고 아래처럼 로컬 상태도 갱신
+  const markAllAsRead = async () => {
+    try {
+      const token = getTokens()?.accessToken;
+      await apiFetch(API.READ_ALL, { method: 'PATCH', token });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -199,12 +212,11 @@ export default function AlertPage() {
         );
       } else {
         try {
-          const { status } = await patchJson(API.READ_ONE(item.id));
-          if (status === 200) {
-            setNotifications((prev) =>
-              prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)),
-            );
-          }
+          const token = getTokens()?.accessToken;
+          await apiFetch(API.READ_ONE(item.id), { method: 'PATCH', token });
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)),
+          );
         } catch {
           // 읽음 처리 실패는 조용히 무시 (다음 진입 시 재시도됨)
         }
@@ -231,19 +243,6 @@ export default function AlertPage() {
     }
   };
 
-  // 👇 실제 푸시 서버 없이도 "알림 오는 거" 눈으로 확인하기 위한 mock 발송 버튼
-  // 브라우저 알림 권한만 허용돼 있으면, 서버 없이 Service Worker의 showNotification을
-  // 직접 호출해서 진짜 OS 알림창을 띄울 수 있습니다.
-  const handleSendMockPush = async () => {
-    const registration = await navigator.serviceWorker.ready;
-    registration.showNotification('✨ 새로운 매칭 제안', {
-      body: '데이터베이스 의 1순위 과목을 찾았습니다!\n교환을 제안해보세요!',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-72.png',
-      data: { url: '/alert' },
-    });
-  };
-
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div className="sticky top-0 z-20 bg-[#fbfbfb]">
@@ -266,27 +265,6 @@ export default function AlertPage() {
           title={<span style={{ color: '#000000B2' }}>알림</span>}
         />
       </div>
-
-      {/* 개발 확인용 mock 발송 버튼 - 실제 배포 전엔 삭제하거나 조건부로 숨기세요 */}
-      {/* 우측 하단 테스트용 버튼 */}
-      <button
-        type="button"
-        onClick={handleSendMockPush}
-        className="
-          fixed
-          bottom-20
-          right-6
-          w-14
-          h-14
-          rounded-full
-          bg-blue-500
-          items-center
-          justify-center
-        "
-        aria-label="테스트 알림 보내기"
-      >
-        🔔
-      </button>
 
       <div
         ref={listRef}

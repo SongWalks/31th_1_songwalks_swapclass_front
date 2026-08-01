@@ -17,7 +17,7 @@ import { TestExtra } from '../pages/TestExtra';
 import { TestAvatar } from '../pages/TestAvatar';
 import { TestLoading } from '../pages/TestLoading';
 import LoginPage from '../pages/auth/login';
-import SignupPage from '../pages/signup';
+import SignupPage from '../pages/auth/signup';
 import FindPWPage from '../pages/auth/findPW';
 import AlertPage from '../pages/alert';
 import EPRPage from '../pages/epr';
