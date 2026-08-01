@@ -17,12 +17,18 @@ interface RequestCardProps {
   matchRank: number;
   expiresAt: string;
   remainSeconds: number;
+  // 부모 컴포넌트에서 API 호출 함수를 넘겨받는다고 가정
+  onAccept?: (proposalId: number) => void;
+  onReject?: (proposalId: number) => void;
 }
 
 export const ReceivedRequestCard = ({
+  proposalId,
   myCourse,
   partnerCourse,
   remainSeconds,
+  onAccept,
+  onReject,
 }: RequestCardProps) => {
   const formatRemainTime = (seconds: number) => {
     if (seconds <= 0) return '만료됨';
@@ -31,9 +37,7 @@ export const ReceivedRequestCard = ({
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
 
-    // 1시간 이상 남았을 때는 시간과 분만 표시
     if (h > 0) return `${h}h ${m}m`;
-
     return `${m}m ${s}s`;
   };
 
@@ -72,6 +76,7 @@ export const ReceivedRequestCard = ({
           size="md"
           fullWidth={false}
           className="flex-1 h-[30px] !rounded-[5px] !text-regular-14"
+          onClick={() => onAccept && onAccept(proposalId)}
         >
           수락
         </Button>
@@ -80,6 +85,7 @@ export const ReceivedRequestCard = ({
           size="md"
           fullWidth={false}
           className="flex-1 h-[30px] !rounded-[5px] !text-gray-500 !border-gray-200 !text-regular-14"
+          onClick={() => onReject && onReject(proposalId)}
         >
           거절
         </Button>
