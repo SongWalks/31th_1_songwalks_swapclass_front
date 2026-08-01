@@ -1,7 +1,6 @@
 import { Icon } from '@iconify/react';
 import Button from '@/components/common/Button';
 
-// 💡 1. 백엔드 Course 객체 구조 정의
 interface Course {
   courseId: number;
   name: string;
@@ -11,7 +10,6 @@ interface Course {
   courseType: string;
 }
 
-// 💡 2. API 응답(receivedProposals)에 맞춘 인터페이스
 interface RequestCardProps {
   proposalId: number;
   myCourse: Course;
@@ -26,16 +24,19 @@ export const ReceivedRequestCard = ({
   partnerCourse,
   remainSeconds,
 }: RequestCardProps) => {
-  // 💡 3. 남은 시간(초)을 "O시간 O분" 형태로 변환하는 함수
   const formatRemainTime = (seconds: number) => {
     if (seconds <= 0) return '만료됨';
+
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    if (h > 0) return `${h}시간 ${m}분`;
-    return `${m}분 남음`;
+    const s = Math.floor(seconds % 60);
+
+    // 1시간 이상 남았을 때는 시간과 분만 표시
+    if (h > 0) return `${h}h ${m}m`;
+
+    return `${m}m ${s}s`;
   };
 
-  // 💡 4. 긴급 상태 조건 로직 (예: 10분=600초 미만 남았을 때 긴급)
   const isUrgent = remainSeconds > 0 && remainSeconds < 600;
 
   const timeText = formatRemainTime(remainSeconds);
@@ -48,7 +49,6 @@ export const ReceivedRequestCard = ({
       rounded-[10px] border-[1.5px] p-4 snap-center ${borderClass}`}
       style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
     >
-      {/* 💡 5. 상대방 과목(partner)과 내 과목(my)으로 매핑 */}
       <h3 className="text-gray-900 text-semibold-18 mb-2 truncate">
         {partnerCourse?.name || '알 수 없는 과목'}
       </h3>
