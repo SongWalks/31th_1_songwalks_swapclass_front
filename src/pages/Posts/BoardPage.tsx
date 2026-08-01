@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { NotificationBell } from '@/components/common/NotificationBell';
@@ -416,7 +416,7 @@ const BoardPage = () => {
         onClick={() => navigate('/board/write')}
         icon={ICONS.PLUS}
         text="글쓰기"
-        className="!fixed !w-28 !h-14 justify-center !text-neutral-600 text-lg font-semibold font-['Pretendard'] leading-5 tracking-wide !bg-sky-200 !rounded-[30.50px] !shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
+        className="!fixed !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
       />
 
       {/* 💡 하단 네비게이션 바는 라우터의 DefaultLayout이 자동으로 렌더링하므로 여기서 별도로 넣지 않음 */}

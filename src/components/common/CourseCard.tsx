@@ -7,6 +7,7 @@ interface CourseCardProps {
   badges?: React.ReactNode;
   leftNode?: React.ReactNode;
   rightNode?: React.ReactNode;
+  bottomRightNode?: React.ReactNode;
   className?: string;
   onClick?: () => void;
 }
@@ -18,6 +19,7 @@ export const CourseCard = ({
   badges,
   leftNode,
   rightNode,
+  bottomRightNode,
   className = '',
   onClick,
 }: CourseCardProps) => {
@@ -31,24 +33,39 @@ export const CourseCard = ({
       {/* 1. 좌측 아이콘 영역 (+버튼, 1순위 등) */}
       {leftNode && <div className="mr-3 mt-0.5 shrink-0">{leftNode}</div>}
 
-      {/* 2. 중앙 텍스트 및 배지 영역 (flex-1로 남는 공간 다 차지함) */}
-      <div className="flex flex-col flex-1 gap-1.5">
-        <h4 className="font-bold text-gray-900 text-[15px]">{title}</h4>
+      {/* 2. 중앙 및 우측 전체를 감싸는 래퍼 (flex-col로 상/하단 분리) */}
+      <div className="flex flex-col flex-1 min-w-0 w-full">
+        {/* --- [상단 영역]: 타이틀, 내용 + 우측 노드(시간) --- */}
+        <div className="flex justify-between items-start w-full">
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <h4 className="font-bold text-gray-900 text-[15px]">{title}</h4>
 
-        {/* 교수, 시간 정보가 있을 때만 렌더링 (팀원 요청 스타일 반영됨) */}
-        {(professor || time) && (
-          <div className="text-neutral-500 text-sm font-light font-['Pretendard'] leading-5 whitespace-nowrap">
-            {professor && <p>교수 : {professor}</p>}
-            {time && <p>시간 : {time}</p>}
+            {(professor || time) && (
+              <div className="text-neutral-500 text-sm font-light font-['Pretendard'] leading-5 whitespace-nowrap">
+                {professor}
+                {professor && time && ' · '}
+                {time}
+              </div>
+            )}
+          </div>
+
+          {/* 우측 상단 (시간 등) */}
+          {rightNode && <div className="ml-3 shrink-0">{rightNode}</div>}
+        </div>
+
+        {/* --- [하단 영역]: 배지 + 우측 하단 노드(하트, 댓글 등) --- */}
+        {(badges || bottomRightNode) && (
+          <div className="flex items-center justify-between w-full mt-3">
+            {/* 좌측 하단 (배지) */}
+            <div className="flex flex-wrap gap-1.5 flex-1">{badges}</div>
+
+            {/* ✅ 우측 하단 (액션 아이콘) - 카드의 맨 우측 끝으로 밀려납니다 */}
+            {bottomRightNode && (
+              <div className="shrink-0 ml-2">{bottomRightNode}</div>
+            )}
           </div>
         )}
-
-        {/* 하단 배지 묶음 영역 */}
-        {badges && <div className="flex flex-wrap gap-1.5 mt-1">{badges}</div>}
       </div>
-
-      {/* 3. 우측 아이콘 영역 (X버튼 등) */}
-      {rightNode && <div className="ml-3 shrink-0">{rightNode}</div>}
     </div>
   );
 };

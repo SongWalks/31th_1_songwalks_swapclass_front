@@ -165,7 +165,7 @@ const PostWritePage: React.FC = () => {
           leftNode={
             <Icon
               icon={ICONS.CLOSE}
-              onClick={() => navigate('/my')}
+              onClick={() => navigate('/board')}
               className="w-6 h-6 text-neutral-400 cursor-pointer"
             />
           }
