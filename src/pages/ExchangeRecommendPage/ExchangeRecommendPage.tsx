@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 type RankTab = '1' | '2' | '3';
 
@@ -102,7 +103,10 @@ const ExchangeRecommendPage = () => {
       const items: RecommendationItem[] = listRes.data?.data?.posts || [];
 
       // 2. 각 후보의 게시글 상세를 병렬로 조회해서 과목명/희망과목 채우기
-      const detailed = await Promise.all(
+      // 💡 버그 수정: Promise.all은 하나라도 실패하면 전체가 다 실패 처리돼서, 후보 중 하나의
+      // 게시글 상세 조회가 실패하면(삭제된 글 등) 정상적으로 받아온 나머지 추천까지 전부 사라졌음.
+      // Promise.allSettled로 바꿔서 실패한 것만 걸러내고 나머지는 살아있게 함.
+      const results = await Promise.allSettled(
         items.map(async (item) => {
           const detailRes = await axiosInstance.get(`/api/posts/${item.id}`);
           const post: PostDetailResponse = detailRes.data?.data;
@@ -120,6 +124,21 @@ const ExchangeRecommendPage = () => {
           } satisfies RecommendPost;
         }),
       );
+
+      const detailed = results
+        .filter(
+          (r): r is PromiseFulfilledResult<RecommendPost> =>
+            r.status === 'fulfilled',
+        )
+        .map((r) => r.value);
+
+      const failedCount = results.length - detailed.length;
+      if (failedCount > 0) {
+        console.error(
+          `추천 후보 ${failedCount}개의 상세 조회 실패 (일부만 표시됨)`,
+          results.filter((r) => r.status === 'rejected'),
+        );
+      }
 
       setRecommendPosts(detailed);
     } catch (error) {
@@ -201,13 +220,7 @@ const ExchangeRecommendPage = () => {
               교환 추천 매칭함
             </div>
           }
-          rightNode={
-            <IconButton
-              icon={ICONS.BELL}
-              onClick={() => navigate('/notifications')}
-              className="text-black"
-            />
-          }
+          rightNode={<NotificationBell />}
         />
 
         <Tabs
