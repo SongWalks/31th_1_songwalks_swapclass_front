@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -24,6 +24,11 @@ import blueCheck from '@/assets/icons/blue_check.svg';
 const ExchangeRequestSpecific: React.FC = () => {
   const navigate = useNavigate();
   const { proposalId } = useParams<{ proposalId: string }>();
+  const location = useLocation();
+  // 💡 이 상세 API엔 받은 요청 개수 필드가 없어서, 목록 화면(ExchangeRequestPage)에서
+  // 카드 클릭할 때 받아온 값을 그대로 씀. 목록을 거치지 않고 바로 들어온 경우(딥링크 등)엔 undefined.
+  const receivedCount = (location.state as { receivedCount?: number } | null)
+    ?.receivedCount;
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -61,8 +66,10 @@ const ExchangeRequestSpecific: React.FC = () => {
           navigate('/my/request');
         }, 1000);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('교환 거절 실패:', error);
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || '거절 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -84,8 +91,10 @@ const ExchangeRequestSpecific: React.FC = () => {
           }
         }, 1000);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('교환 수락 실패:', error);
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || '수락 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -128,9 +137,11 @@ const ExchangeRequestSpecific: React.FC = () => {
             <div className="text-zinc-900 text-base font-semibold leading-tight tracking-wide">
               {sender?.authorNickname || '너송'}
             </div>
-            <div className="text-neutral-500 text-[12px] font-light leading-tight">
-              받은 요청 3개
-            </div>
+            {receivedCount !== undefined && (
+              <div className="text-neutral-500 text-[12px] font-light leading-tight">
+                받은 요청 {receivedCount}개
+              </div>
+            )}
           </div>
         </div>
 
