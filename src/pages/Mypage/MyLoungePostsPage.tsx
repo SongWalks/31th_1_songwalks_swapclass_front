@@ -4,7 +4,9 @@ import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Badge } from '@/components/common/Badge';
 import { getMyLoungePosts, type LoungePostItem } from '@/api/loungeApi';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 // 💡 카드 안에서만 쓰는 작은 아이콘들 (별도 svg 파일 없이 인라인으로)
 const ClockIcon = () => (
@@ -55,14 +57,6 @@ const CommentIcon = () => (
   </svg>
 );
 
-const MoreIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-neutral-400">
-    <circle cx="8" cy="3.5" r="1" fill="currentColor" />
-    <circle cx="8" cy="8" r="1" fill="currentColor" />
-    <circle cx="8" cy="12.5" r="1" fill="currentColor" />
-  </svg>
-);
-
 const MyLoungePostsPage: React.FC = () => {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<LoungePostItem[]>([]);
@@ -86,24 +80,23 @@ const MyLoungePostsPage: React.FC = () => {
     fetchPosts();
   }, []);
 
-  // 💡 API 타입('TIP' | 'CLOSURE')을 UI 태그 스타일로 변환
+  // 💡 API 타입('TIP' | 'CLOSURE')을 Badge.tsx의 variant로 변환
   const getCategoryTag = (type: string) => {
     if (type === 'CLOSURE') {
-      return {
-        label: '폐강위기',
-        style: 'bg-yellow-100 text-zinc-900 border-yellow-500 border-[0.5px]',
-      };
+      return { label: '폐강위기', variant: 'lightYellow' as const };
     }
-    return {
-      label: '강의꿀팁',
-      style: 'bg-blue-400 text-white border-transparent',
-    };
+    return { label: '강의꿀팁', variant: 'primary' as const };
   };
 
   // 💡 ISO 날짜 포맷팅 (MM/DD HH:mm)
+  // 💡 버그 수정: 서버가 createdAt 끝에 'Z'(UTC 표시)를 안 붙여서 줄 때가 있어서, 그럴 땐
+  // 브라우저가 "이미 로컬 시간(한국시간)"으로 착각해 UTC 숫자를 그대로 찍어버렸음
+  // (예: 17:45에 작성했는데 8:45로 표시됨). 'Z'가 없으면 붙여서 UTC로 인식시킨 뒤 변환함.
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
+    const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
+    const normalized = hasTimezone ? dateString : `${dateString}Z`;
+    const date = new Date(normalized);
     const month = date.getMonth() + 1;
     const day = date.getDate();
     const hours = String(date.getHours()).padStart(2, '0');
@@ -128,13 +121,7 @@ const MyLoungePostsPage: React.FC = () => {
               내 라운지 게시글
             </div>
           }
-          rightNode={
-            <IconButton
-              icon={ICONS.BELL}
-              onClick={() => navigate('/notifications')}
-              className="text-black/40"
-            />
-          }
+          rightNode={<NotificationBell />}
         />
       </div>
 
@@ -162,29 +149,17 @@ const MyLoungePostsPage: React.FC = () => {
                   onClick={() => navigate(`/lounge/${post.id}`)}
                   className="relative bg-white rounded-lg border border-zinc-400 p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                 >
-                  {/* 더보기(⋮) 버튼 */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // TODO: 게시글 수정/삭제 등 더보기 메뉴 연결
-                    }}
-                    className="absolute top-4 right-4 p-1 cursor-pointer"
-                    aria-label="더보기"
-                  >
-                    <MoreIcon />
-                  </button>
-
-                  {/* 제목 + 작성시간 */}
-                  <div className="flex items-start justify-between pr-6">
+                  {/* 제목 + 작성시간 (같은 줄, 오른쪽 정렬) */}
+                  <div className="flex items-center justify-between">
                     <h3 className="text-base font-bold text-zinc-900 leading-5 tracking-wide line-clamp-1">
                       {post.title}
                     </h3>
-                  </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <ClockIcon />
-                    <span className="text-xs font-normal text-neutral-500 leading-5 tracking-wide">
-                      {formatDate(post.createdAt)}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <ClockIcon />
+                      <span className="text-xs font-normal text-neutral-500 leading-5 tracking-wide whitespace-nowrap">
+                        {formatDate(post.createdAt)}
+                      </span>
+                    </div>
                   </div>
 
                   {/* 본문 미리보기 (API 응답에 content가 내려오면 표시) */}
@@ -197,14 +172,15 @@ const MyLoungePostsPage: React.FC = () => {
                   {/* 태그 + 반응 아이콘 */}
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`h-6 px-2.5 flex items-center justify-center rounded-lg text-xs font-normal leading-5 tracking-wide border ${categoryTag.style}`}
+                      <Badge
+                        variant={categoryTag.variant}
+                        className="!font-normal"
                       >
                         {categoryTag.label}
-                      </span>
-                      <span className="h-6 px-2.5 flex items-center justify-center bg-gray-200 rounded-lg text-xs font-normal text-zinc-900 leading-5 tracking-wide">
+                      </Badge>
+                      <Badge variant="grayOutline" className="!font-normal">
                         {post.courseName}
-                      </span>
+                      </Badge>
                     </div>
 
                     <div className="flex items-center gap-3">
