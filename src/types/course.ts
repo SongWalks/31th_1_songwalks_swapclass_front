@@ -14,3 +14,24 @@ export interface Course {
   section: string; // 분반
   credits: string; // 학점
 }
+
+export interface FetchCoursesParams {
+  keyword?: string;
+  department?: string;
+  category?: string;
+  page?: number; // 무한스크롤용 페이지 번호 허용
+}
+
+export interface PaginatedCourses {
+  content: Course[]; // 진짜 강의 데이터 배열
+  page: number; // 현재 페이지
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean; // 다음 페이지 존재 여부
+}
+
+export interface DepartmentResponse {
+  type: string;
+  value: string;
+}
