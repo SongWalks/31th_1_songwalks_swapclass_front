@@ -4,7 +4,7 @@ import { HomeHero } from '@/pages/home/components/HomeHero';
 import { ReceivedRequestCard } from '@/pages/home/components/ReceivedRequestCard';
 import { RecommendMatchItem } from '@/pages/home/components/RecommendMatchItem';
 import sooWatermark from '@/assets/images/soo-watermark.png';
-import { useHomeQuery } from '@/hooks/useHomeQuery';
+import { useHomeQuery } from '@/hooks/home/useHomeQuery';
 import { Spinner } from '@/components/common/Spinner';
 import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
@@ -12,7 +12,7 @@ import {
   useProposeMutation,
   useAcceptMutation,
   useRejectMutation,
-} from '@/hooks/useProposals';
+} from '@/hooks/home/useProposals';
 
 export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
