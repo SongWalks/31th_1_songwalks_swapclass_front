@@ -30,8 +30,6 @@ export const LoungePage = () => {
   const location = useLocation();
   const resetWriteData = useWriteStore((state) => state.resetWriteData);
   const {
-    activeTab,
-    setActiveTab,
     searchQuery,
     setSearchQuery,
     selectedType,
