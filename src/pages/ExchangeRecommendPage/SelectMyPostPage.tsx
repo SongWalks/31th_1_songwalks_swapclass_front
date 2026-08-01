@@ -121,17 +121,22 @@ const SelectMyPostPage: React.FC = () => {
       });
 
       if (response.data?.success) {
-        // 원래 게시글 상세로 돌아가면서, 그 화면에서 완료 모달을 띄우도록 상태 전달
-        navigate(`/board/${postId}`, {
-          replace: true,
-          state: { justProposed: true },
-        });
+        // 💡 "선택됨" 안내 문구를 3초 정도 보여준 뒤 이동 (그동안 다른 게시글 못 누르게
+        // isSubmitting은 계속 true로 유지 — 이동하면서 화면 자체가 사라짐)
+        setTimeout(() => {
+          navigate(`/board/${postId}`, {
+            replace: true,
+            state: { justProposed: true },
+          });
+        }, 3000);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('제안 생성 실패:', error);
-      alert('제안을 보내는 중 오류가 발생했습니다.');
+      // 💡 서버가 구체적인 이유(예: "진행 중인 교환 요청이 있습니다.")를 message로 내려주면
+      // 그걸 그대로 보여줘서, 진짜 에러인지 정상적으로 막힌 건지 사용자가 구분할 수 있게 함
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || '제안을 보내는 중 오류가 발생했습니다.');
       setSelectedId(null);
-    } finally {
       setIsSubmitting(false);
     }
   };
