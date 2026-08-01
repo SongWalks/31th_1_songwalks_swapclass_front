@@ -8,6 +8,7 @@ import { Input } from '@/components/common/Input';
 import { Textarea } from '@/components/common/Textarea';
 import { ICONS } from '@/constants/icons';
 import Button from '@/components/common/Button';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 import { getPostDetail, updatePost } from '@/api/lounge';
 // ✅ 분리해둔 타입을 가져옵니다.
@@ -68,9 +69,7 @@ export const PostEditPage = () => {
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
           title="게시글 수정"
-          rightNode={
-            <IconButton icon={ICONS.MORE_VERTICAL} onClick={() => {}} />
-          }
+          rightNode={<NotificationBell />}
         />
       </div>
 

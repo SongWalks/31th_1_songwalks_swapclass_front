@@ -12,6 +12,7 @@ import { Spinner } from '@/components/common/Spinner';
 import { useWriteStore } from '@/store/useWriteStore';
 import { createPost } from '@/api/lounge';
 import type { CreatePostRequest } from '@/types/lounge';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 export const LoungeWritePage = () => {
   const navigate = useNavigate();
@@ -89,7 +90,7 @@ export const LoungeWritePage = () => {
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
           title="글쓰기"
-          rightNode={<IconButton icon={ICONS.BELL} onClick={() => {}} />}
+          rightNode={<NotificationBell />}
         />
       </div>
 

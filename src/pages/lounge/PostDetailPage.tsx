@@ -127,6 +127,8 @@ export const PostDetailPage = () => {
 
   const postData = postResponse?.data;
 
+  const isMyPost = postData?.authorId === 1;
+
   useEffect(() => {
     if (postData) {
       setIsLiked(postData.liked);
@@ -220,48 +222,50 @@ export const PostDetailPage = () => {
           }
           title="게시글 상세"
           rightNode={
-            <div className="relative">
-              <IconButton
-                icon={ICONS.MORE_VERTICAL}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-              />
-              {isMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setIsMenuOpen(false)}
-                  />
-                  <div className="absolute top-full right-2 mt-1 w-[160px] bg-white border border-gray-200 shadow-sm z-50 flex flex-col text-[14px] text-gray-700">
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setIsDeleteModalOpen(true);
-                      }}
-                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-left"
-                    >
-                      <Icon
-                        icon={ICONS.CLOSE}
-                        className="text-[16px] text-gray-400"
-                      />
-                      삭제하기
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        navigate(`/lounge/${postId}/edit`);
-                      }}
-                      className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-left"
-                    >
-                      <Icon
-                        icon="ph:pencil-simple"
-                        className="text-[16px] text-gray-400"
-                      />
-                      게시글 수정하기
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            isMyPost ? (
+              <div className="relative">
+                <IconButton
+                  icon={ICONS.MORE_VERTICAL}
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                />
+                {isMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsMenuOpen(false)}
+                    />
+                    <div className="absolute top-full right-2 mt-1 w-[160px] bg-white border border-gray-200 shadow-sm z-50 flex flex-col text-[14px] text-gray-700">
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setIsDeleteModalOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-left"
+                      >
+                        <Icon
+                          icon={ICONS.CLOSE}
+                          className="text-[16px] text-gray-400"
+                        />
+                        삭제하기
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          navigate(`/lounge/${postId}/edit`);
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-left"
+                      >
+                        <Icon
+                          icon="ph:pencil-simple"
+                          className="text-[16px] text-gray-400"
+                        />
+                        게시글 수정하기
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null
           }
         />
       </div>
