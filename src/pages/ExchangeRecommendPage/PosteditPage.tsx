@@ -113,7 +113,6 @@ const PostEditPage: React.FC = () => {
       setLoading(false);
     }
   }, [postId]);
-
   const hasFetchedPostRef = useRef(false);
 
   useEffect(() => {
@@ -172,6 +171,7 @@ const PostEditPage: React.FC = () => {
     sessionStorage.removeItem('postEditFormState');
     sessionStorage.removeItem('selectedCourse');
     sessionStorage.removeItem('courseSearchTarget');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -189,7 +189,6 @@ const PostEditPage: React.FC = () => {
   }, []);
 
   const handleSelectWantedCourse = (index: number) => {
-    // 💡 버릴 과목은 이 페이지에서 수정 불가라 discardCourse는 안 넘김 (target도 항상 'wanted')
     sessionStorage.setItem(
       'postEditFormState',
       JSON.stringify({ wantedCourses }),
@@ -226,7 +225,6 @@ const PostEditPage: React.FC = () => {
       });
 
       if (response.data?.success) {
-        // 💡 수정된 내용이 반영된 내 게시글 상세로 돌아감
         navigate(`/board/${postId}`, { replace: true });
       }
     } catch (error) {

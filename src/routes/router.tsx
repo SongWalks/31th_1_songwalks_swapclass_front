@@ -9,7 +9,7 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
 import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
 import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
-import PostEditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
+import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
 
 export const router = createBrowserRouter([
   {
@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
             element: <SelectMyPostPage />,
           }, // 제안 보낼 내 게시글 선택
           { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
-          { path: '/board/:postId/edit', element: <PostEditPage /> }, // 게시글 수정
+          { path: '/board/:postId/edit', element: <PosteditPage /> }, // 게시글 수정
         ],
       },
     ],

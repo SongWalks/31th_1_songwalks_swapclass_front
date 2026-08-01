@@ -19,7 +19,7 @@ import {
 
 // SVG 파일
 import throwArrow from '@/assets/icons/recommend/throw_arrow.svg';
-import wantArrow from '@/assets/icons/recommden/want_arrow.svg';
+import wantArrow from '@/assets/icons/recommend/want_arrow.svg';
 
 interface CourseDetail {
   courseId: number;
@@ -46,13 +46,11 @@ interface PostDetailResponse {
   mine: boolean;
 }
 
-// 💡 GET /api/posts/me 응답 항목 (BoardPage와 동일)
 interface MyPostResponse {
   postId: number;
   status: 'MATCHABLE' | 'IN_EXCHANGE' | 'COMPLETED' | 'DELETED' | string;
 }
 
-// 💡 게시글 상태값 -> 화면 표시 문구/스타일 매핑
 const STATUS_LABEL: Record<string, string> = {
   MATCHABLE: '교환 전',
   IN_EXCHANGE: '교환 중',
@@ -68,22 +66,17 @@ const SpecificPostsPage: React.FC = () => {
   const [receivedRequestCount, setReceivedRequestCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // 💡 내 게시글 ID: BoardPage와 동일하게 /api/posts/me로 직접 조회
   const [myPostId, setMyPostId] = useState<number | null>(null);
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // 💡 SelectMyPostPage에서 제안 성공하고 돌아왔을 때 띄우는 완료 모달
   const [showProposeSuccessModal, setShowProposeSuccessModal] = useState(false);
 
-  // 💡 내가 현재 보낸 교환 요청(있다면). 이 게시글에 보낸 요청이면 "교환 요청하기"를
-  // "교환 철회하기"로 바꿔서 보여주기 위해 필요
   const [sentProposal, setSentProposal] = useState<ProposalData | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
-  // 💡 내 게시글이 없는 상태에서 교환 요청 시도했을 때 안내 모달
   const [showNoPostModal, setShowNoPostModal] = useState(false);
 
   // 💡 게시글 삭제 확인 모달
@@ -94,8 +87,6 @@ const SpecificPostsPage: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isTogglingLike, setIsTogglingLike] = useState(false);
 
-  // 💡 버그 수정: isLiked가 항상 false로 시작해서, 이미 찜한 글도 다시 들어오면
-  // 찜 해제된 것처럼 보였음. 내 찜 목록(/api/me/likes)을 확인해서 실제 상태로 맞춰줌.
   useEffect(() => {
     if (!postId) return;
 
@@ -115,7 +106,6 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     const fetchMyPostId = async () => {
       try {
-        // 🧪 TODO: 백엔드 500 버그(status 없이 호출 시) 임시 우회. 수정되면 params 제거
         const response = await axiosInstance.get('/api/posts/me', {
           params: { status: 'MATCHABLE' },
         });
@@ -168,6 +158,7 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     fetchPostDetail();
   }, [fetchPostDetail]);
+
   useEffect(() => {
     if (!post?.mine || !postId) return;
 
@@ -187,7 +178,6 @@ const SpecificPostsPage: React.FC = () => {
     fetchReceivedRequestCount();
   }, [post?.mine, postId]);
 
-  // 💡 SelectMyPostPage에서 제안 성공 후 돌아왔을 때 완료 모달 표시
   useEffect(() => {
     const state = location.state as { justProposed?: boolean } | null;
     if (state?.justProposed) {
@@ -195,7 +185,6 @@ const SpecificPostsPage: React.FC = () => {
       fetchSentProposal();
       navigate(location.pathname, { replace: true, state: {} });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   const handleRequestExchange = () => {
@@ -206,7 +195,6 @@ const SpecificPostsPage: React.FC = () => {
       return;
     }
 
-    // 💡 내 게시글이 있으면 어떤 게시글로 제안할지 고르는 화면으로 이동
     navigate(`/board/${postId}/select-my-post`);
   };
 
@@ -241,7 +229,6 @@ const SpecificPostsPage: React.FC = () => {
     navigate(`/board/${postId}/edit`);
   };
 
-  // 💡 내 게시글 삭제 (DELETE /api/posts/{postId})
   const handleDeletePost = () => {
     setShowDeleteModal(true);
   };
@@ -264,7 +251,6 @@ const SpecificPostsPage: React.FC = () => {
     }
   };
 
-  // 💡 찜하기 토글 (POST/DELETE /api/posts/{postId}/likes)
   const handleToggleLike = async () => {
     if (!postId || isTogglingLike) return;
 
@@ -289,7 +275,6 @@ const SpecificPostsPage: React.FC = () => {
     }
   };
 
-  // 💡 공유하기: 링크 복사
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -300,7 +285,6 @@ const SpecificPostsPage: React.FC = () => {
     }
   };
 
-  // 💡 신고 화면이 따로 있어서(/report), 여기선 그쪽으로 이동만 시켜주면 됨
   const handleReport = () => {
     if (!post) return;
     navigate('/report', {

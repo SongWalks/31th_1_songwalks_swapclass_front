@@ -31,13 +31,12 @@ interface MyPostListItem {
   id: number;
   title: string;
   preferredSubjects: string[];
-  // 💡 TODO: "이 게시글로 이 상대 게시글에 이미 제안했는지" 확인할 API가 아직 없어서 항상 false로 둠
   alreadyProposed: boolean;
 }
 
 const SelectMyPostPage: React.FC = () => {
   const navigate = useNavigate();
-  const { postId } = useParams<{ postId: string }>(); // 상대방(받는 쪽) 게시글 id
+  const { postId } = useParams<{ postId: string }>();
 
   const [myPosts, setMyPosts] = useState<MyPostListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +55,6 @@ const SelectMyPostPage: React.FC = () => {
         setLoading(true);
         const response = await axiosInstance.get('/api/posts/me');
         const raw: MyPostResponse[] = response.data?.data || [];
-        // 교환 가능(MATCHABLE) 상태인 내 게시글만 선택 대상으로
         const eligible = raw.filter((p) => p.status === 'MATCHABLE');
 
         const mapped: MyPostListItem[] = eligible.map((p) => {
@@ -67,7 +65,7 @@ const SelectMyPostPage: React.FC = () => {
             id: p.postId,
             title: p.discardCourse?.name ?? '',
             preferredSubjects: sorted.map((w) => w.course?.name ?? ''),
-            alreadyProposed: false, // TODO: 실제 여부 확인되면 반영
+            alreadyProposed: false,
           };
         });
 
@@ -82,7 +80,6 @@ const SelectMyPostPage: React.FC = () => {
     fetchMyPosts();
   }, []);
 
-  // 💡 상대방 게시글의 원하는 과목 목록 가져오기 (몇 순위인지 표시하는 데 사용)
   useEffect(() => {
     if (!postId) return;
 
@@ -121,8 +118,6 @@ const SelectMyPostPage: React.FC = () => {
       });
 
       if (response.data?.success) {
-        // 💡 "선택됨" 안내 문구를 3초 정도 보여준 뒤 이동 (그동안 다른 게시글 못 누르게
-        // isSubmitting은 계속 true로 유지 — 이동하면서 화면 자체가 사라짐)
         setTimeout(() => {
           navigate(`/board/${postId}`, {
             replace: true,
@@ -132,8 +127,6 @@ const SelectMyPostPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('제안 생성 실패:', error);
-      // 💡 서버가 구체적인 이유(예: "진행 중인 교환 요청이 있습니다.")를 message로 내려주면
-      // 그걸 그대로 보여줘서, 진짜 에러인지 정상적으로 막힌 건지 사용자가 구분할 수 있게 함
       const serverMessage = error?.response?.data?.message;
       alert(serverMessage || '제안을 보내는 중 오류가 발생했습니다.');
       setSelectedId(null);

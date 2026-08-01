@@ -66,9 +66,6 @@ const ExchangeRecommendPage = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // 💡 내 게시글 ID (추천 조회 + 제안 시 senderPostId로 사용)
-  // 이 페이지는 라우터에 :postId 파라미터가 없어서(경로: /exchange-recommend),
-  // BoardPage/SpecificPostsPage와 동일하게 /api/posts/me로 직접 조회해야 함
   const [myPostId, setMyPostId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -102,10 +99,6 @@ const ExchangeRecommendPage = () => {
       });
       const items: RecommendationItem[] = listRes.data?.data?.posts || [];
 
-      // 2. 각 후보의 게시글 상세를 병렬로 조회해서 과목명/희망과목 채우기
-      // 💡 버그 수정: Promise.all은 하나라도 실패하면 전체가 다 실패 처리돼서, 후보 중 하나의
-      // 게시글 상세 조회가 실패하면(삭제된 글 등) 정상적으로 받아온 나머지 추천까지 전부 사라졌음.
-      // Promise.allSettled로 바꿔서 실패한 것만 걸러내고 나머지는 살아있게 함.
       const results = await Promise.allSettled(
         items.map(async (item) => {
           const detailRes = await axiosInstance.get(`/api/posts/${item.id}`);
