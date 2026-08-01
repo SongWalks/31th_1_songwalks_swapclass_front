@@ -5,7 +5,7 @@ import sooLogo from '@/assets/icons/soo-logo.png';
 
 export const HomeHeader = ({
   isScrolled = false,
-  unreadCount = 0, // 💡 1. 안 읽은 알림 개수를 받습니다 (기본값 0)
+  unreadCount = 0,
 }: {
   isScrolled?: boolean;
   unreadCount?: number;

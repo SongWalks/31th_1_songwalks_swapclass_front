@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosInstance from '@/api/axiosInstance'; // 만들어두신 axios 인스턴스 경로
 
-// 🚀 1. 교환 제안하기 (POST)
+// 교환 제안하기 (POST)
 export const useProposeMutation = () => {
   const queryClient = useQueryClient();
 
@@ -18,7 +18,7 @@ export const useProposeMutation = () => {
   });
 };
 
-// 🚀 2. 교환 수락하기 (POST)
+// 교환 수락하기 (POST)
 export const useAcceptMutation = () => {
   const queryClient = useQueryClient();
 
@@ -28,6 +28,19 @@ export const useAcceptMutation = () => {
 
     onSuccess: () => {
       // 수락 성공 시에도 홈 데이터를 갱신하여 받은 요청함에서 해당 카드를 사라지게 함
+      queryClient.invalidateQueries({ queryKey: ['homeData'] });
+    },
+  });
+};
+
+// 교환 거절하기 (POST)
+export const useRejectMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (proposalId: number) =>
+      axiosInstance.post(`/api/proposals/${proposalId}/reject`),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['homeData'] });
     },
   });

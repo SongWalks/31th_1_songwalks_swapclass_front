@@ -9,7 +9,11 @@ import { Spinner } from '@/components/common/Spinner';
 import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
-import { useProposeMutation, useAcceptMutation } from '@/hooks/useProposals';
+import {
+  useProposeMutation,
+  useAcceptMutation,
+  useRejectMutation,
+} from '@/hooks/useProposals';
 
 export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -29,6 +33,7 @@ export default function HomePage() {
 
   const proposeMutation = useProposeMutation();
   const acceptMutation = useAcceptMutation();
+  const rejectMutation = useRejectMutation();
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -121,6 +126,14 @@ export default function HomePage() {
     });
   };
 
+  const handleReject = (proposalId: number) => {
+    if (rejectMutation.isPending) return;
+    rejectMutation.mutate(proposalId, {
+      onSuccess: () => showToast('교환 제안을 거절했습니다.'),
+      onError: () => showToast('거절 처리 중 오류가 발생했습니다.', true),
+    });
+  };
+
   return (
     <div className="relative mx-auto w-full max-w-[430px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
       {/* 화면 맨 위 투명 센서 */}
@@ -185,7 +198,8 @@ export default function HomePage() {
                   <ReceivedRequestCard
                     key={req.proposalId}
                     {...req}
-                    // onAccept={handleAccept} // 컴포넌트에 프롭 전달
+                    onAccept={handleAccept}
+                    onReject={handleReject}
                   />
                 ))}
               </div>
@@ -215,8 +229,7 @@ export default function HomePage() {
                     /* 백엔드 응답인 requestStatus 명시적 주입 (PENDING or null) */
                     requestStatus={match.requestStatus || null}
 
-                    /* 🚨 주의: API에서 내 게시글 ID를 주지 않는다면 전역 상태 등에서 가져와야 함 */
-                    senderPostId={1} // 임시 값. 실제 유저의 포스트 ID로 교체 필요
+                    senderPostId={match.senderPostId}
 
                     onPropose={handlePropose}
                   />
