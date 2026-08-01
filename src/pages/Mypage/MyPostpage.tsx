@@ -5,6 +5,7 @@ import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import axiosInstance from '@/api/axiosInstance'; // 💡 API 통신용 인스턴스 추가
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 type TabType = '전체' | '교환 전' | '교환 중' | '교환 완료';
 
@@ -40,7 +41,7 @@ const MyPostpage = () => {
           const mappedPosts: Post[] = response.data.data.map((item: any) => {
             // 💡 서버의 영문 상태값(status)을 한글 탭 메뉴(TabType)에 맞게 변환
             let mappedStatus: TabType = '교환 전';
-            if (item.status === 'IN_PROGRESS') mappedStatus = '교환 중';
+            if (item.status === 'IN_EXCHANGE') mappedStatus = '교환 중';
             if (item.status === 'COMPLETED') mappedStatus = '교환 완료';
             else if (
               item.status === '교환 전' ||
@@ -56,7 +57,7 @@ const MyPostpage = () => {
               preferredSubjects:
                 item.wantedCourses?.map((w: any) => w.course.name) || [],
               status: mappedStatus,
-              requestCount: item.requestCount || 0, // 백엔드에 requestCount가 없다면 0 처리
+              requestCount: item.proposalCount || 0, // 💡 백엔드가 proposalCount로 내려줌 (requestCount 아님)
             };
           });
           setPosts(mappedPosts);
@@ -90,13 +91,7 @@ const MyPostpage = () => {
               내 게시글
             </div>
           }
-          rightNode={
-            <IconButton
-              icon={ICONS.BELL}
-              onClick={() => navigate('/notifications')}
-              className="text-brand-lightBlue"
-            />
-          }
+          rightNode={<NotificationBell />}
         />
 
         {/* 탭 메뉴 */}
@@ -174,7 +169,11 @@ const MyPostpage = () => {
                 : 'text-black/70';
 
               return (
-                <div key={post.id} className="py-6 flex flex-col relative">
+                <div
+                  key={post.id}
+                  onClick={() => navigate(`/board/${post.id}`)}
+                  className="py-6 flex flex-col relative cursor-pointer"
+                >
                   {/* 상단 라인: 과목 타이틀 & 상태 배지 */}
                   <div className="flex items-center justify-between">
                     <h3
@@ -210,7 +209,12 @@ const MyPostpage = () => {
 
                   {/* 하단 라인: 받은 요청 수 & 이동 화살표 */}
                   <button
-                    onClick={() => navigate(`/exchange/requests/${post.id}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/my/request', {
+                        state: { initialTab: 'received' },
+                      });
+                    }}
                     className="self-end mt-2 flex items-center gap-1 hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                   >
                     <span className="text-neutral-500 text-xs font-light leading-5 tracking-tight">
