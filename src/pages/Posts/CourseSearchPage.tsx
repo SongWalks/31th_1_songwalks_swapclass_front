@@ -17,14 +17,13 @@ interface CourseListItem {
   category: string;
   area: string;
   isGraduationReq: boolean;
-  myGraduationCourse: boolean; // 💡 내가 졸업요건으로 등록해둔 과목인지 여부 (새로 추가된 필드)
-  code: string;
-  section: string;
-  credits: string;
+  myGraduationCourse: boolean;
+  code?: string;
 }
 
 // 💡 PostWritePage로 왕복할 때 실제로 필요한 필드만 담는 가벼운 타입
-// (CourseListItem 전체가 아니라 이 6개만 있으면 됨)
+// (CourseListItem 전체가 아니라 이 필드들만 있으면 됨)
+// 💡 code(학수번호) 추가: GraduationPage에서 "다른 분반이지만 같은 과목"인지 비교하는 데 씀
 interface CourseSelection {
   courseId: number;
   name: string;
@@ -32,53 +31,29 @@ interface CourseSelection {
   classTime: string;
   department: string;
   courseType: string;
+  code?: string;
 }
 
-// 💡 과목유형 필터 (교양/전공 필수·선택). 학과/영역 필터와 함께(AND) 적용됨
-const COURSE_TYPE_OPTIONS = [
-  { value: 'ALL', label: '전체' },
-  { value: '교양필수', label: '교양필수' },
-  { value: '교양선택', label: '교양선택' },
-  { value: '전공선택', label: '전공선택' },
-  { value: '전공필수', label: '전공필수' },
-];
-
-// 💡 학과/영역: 나중에 백엔드에서 실제 크롤링 데이터로 대체 예정. 지금은 화면 확인용 목업.
-const DEPARTMENT_OPTIONS = [
-  { value: 'ALL', label: '전체' },
-  { value: 'BUSINESS', label: '경영학부' },
-  { value: 'ECONOMICS', label: '경제학부' },
-  { value: 'CS', label: '컴퓨터과학전공' },
-  { value: 'SW_CONVERGENCE', label: '소프트웨어융합전공' },
-  { value: 'AI', label: '인공지능공학부' },
-  { value: 'DATA_SCIENCE', label: '데이터사이언스전공' },
-  { value: 'IT', label: 'IT공학전공' },
-  { value: 'MEDIA', label: '미디어학부' },
-  { value: 'PR_AD', label: '홍보광고학과' },
-  { value: 'CONSUMER_ECON', label: '소비자경제학과' },
-  { value: 'PUBLIC_ADMIN', label: '행정학과' },
-  { value: 'POLITICS', label: '정치외교학과' },
-  { value: 'ENGLISH', label: '영어영문학부' },
-  { value: 'JAPANESE', label: '일본학과' },
-  { value: 'HISTORY', label: '역사문화학과' },
-  { value: 'EDUCATION', label: '교육학부' },
-  { value: 'VISUAL_DESIGN', label: '시각·영상디자인과' },
-  { value: 'INDUSTRIAL_DESIGN', label: '산업디자인과' },
-  { value: 'CLOTHING', label: '의류학과' },
-  { value: 'FOOD_NUTRITION', label: '식품영양학과' },
-];
+// 💡 과목유형(category)과 학과/영역(department) 둘 다 이제 실제 API에서 받아옴
+// (예전엔 하드코딩된 목업 값이라 실제 데이터랑 안 맞았음)
+interface DepartmentOption {
+  type: string;
+  value: string;
+}
 
 const CourseSearchPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 💡 PostWritePage에서 navigate(state)로 넘겨준 "어느 슬롯을 채울지" + "지금까지의 전체 선택 상태"
+  // 💡 호출한 페이지에서 navigate(state)로 넘겨준 "돌아갈 경로" + "어느 슬롯을 채울지" + "지금까지의 전체 선택 상태"
   const {
+    returnPath,
     target,
     priority,
     discardCourse: incomingDiscardCourse,
     wantedCourses: incomingWantedCourses,
   } = (location.state as {
+    returnPath?: string;
     target?: 'discard' | 'wanted';
     priority?: number;
     discardCourse?: CourseSelection | null;
@@ -87,6 +62,8 @@ const CourseSearchPage: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(true);
+  // 💡 department state는 이제 'ALL' 이거나 "type:value" 형태의 합성 키를 가짐
+  // (department 파라미터로 보낼지 area 파라미터로 보낼지, type 보고 구분하기 위함)
   const [department, setDepartment] = useState('ALL');
   // 💡 UI 없이 항상 false로 고정 (졸업요건 필터 UI는 사용 안 하기로 함)
   const graduationOnly = false;
@@ -95,39 +72,83 @@ const CourseSearchPage: React.FC = () => {
 
   const [courses, setCourses] = useState<CourseListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  // 💡 응답에 페이지네이션 정보가 새로 생겨서 같이 보관해둬요 (지금은 안 쓰지만, "더보기"/무한스크롤 붙일 때 바로 쓸 수 있게)
-  const [pageInfo, setPageInfo] = useState({
-    page: 0,
-    totalPages: 0,
-    totalElements: 0,
-    hasNext: false,
-  });
 
-  // 💡 검색어 + 학과 + 졸업요건만 보기 옵션으로 실제 API 조회 (300ms 디바운스)
+  // 💡 필터 옵션(과목유형/학과·영역) 목록을 실제 API에서 받아옴 (한 번만)
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<
+    DepartmentOption[]
+  >([]);
+
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const [categoriesRes, departmentsRes] = await Promise.all([
+          axiosInstance.get('/api/lectures/categories'),
+          axiosInstance.get('/api/lectures/departments'),
+        ]);
+        setCategoryOptions(categoriesRes.data?.data || []);
+        setDepartmentOptions(departmentsRes.data?.data || []);
+      } catch (error) {
+        console.error('필터 옵션 조회 실패:', error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
+
+  const COURSE_TYPE_OPTIONS = [
+    { value: 'ALL', label: '전체' },
+    ...categoryOptions.map((c) => ({ value: c, label: c })),
+  ];
+
+  // 💡 Swagger로 확인 완료: department.type은 정확히 'DEPARTMENT' 또는 'AREA'(대문자)로 옴
+  const DEPARTMENT_DROPDOWN_OPTIONS = [
+    { value: 'ALL', label: '전체' },
+    ...departmentOptions.map((d) => ({
+      value: `${d.type}:${d.value}`,
+      label: d.value,
+    })),
+  ];
+
+  // 💡 검색어 + 학과·영역 + 과목유형 + 졸업요건만 보기 옵션으로 실제 API 조회 (300ms 디바운스)
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
+
+        // department state는 'ALL' 또는 "type:value" 합성 키
+        let departmentParam: string | undefined;
+        let areaParam: string | undefined;
+        if (department !== 'ALL') {
+          const [type, ...rest] = department.split(':');
+          const value = rest.join(':'); // 값 자체에 ':'가 섞여있을 가능성 방지
+          if (type === 'AREA') {
+            areaParam = value;
+          } else {
+            departmentParam = value;
+          }
+        }
+
         const response = await axiosInstance.get('/api/lectures', {
           params: {
             keyword: searchQuery.trim() || undefined,
-            department: department !== 'ALL' ? department : undefined,
+            department: departmentParam,
+            area: areaParam,
+            category: courseTypeFilter !== 'ALL' ? courseTypeFilter : undefined,
             graduationOnly,
+            page: 0,
+            // 💡 페이지네이션 API라 완전히 없앨 순 없어서, 사실상 "전부 다"가 되도록 크게 잡음
+            size: 1000,
           },
         });
-        // 💡 크롤링 데이터로 바뀌면서 응답이 페이지네이션 형태(data.content)로 변경됨
+        // 💡 응답이 GET /api/posts처럼 페이지네이션 구조(data.content)로 바뀜
         const rawCourses: CourseListItem[] = response.data?.data?.content || [];
-        // 💡 졸업요건에 해당하는 과목(isGraduationReq: true)이 맨 위로 오도록 정렬
+        // 💡 isGraduationReq는 크롤링 데이터가 아직 다 false라 못 씀 (확인됨).
+        // myGraduationCourse(내가 등록한 졸업요건 과목)가 실제로 값이 오고 있어서 이걸로 정렬
         const sortedCourses = [...rawCourses].sort(
-          (a, b) => Number(b.isGraduationReq) - Number(a.isGraduationReq),
+          (a, b) => Number(b.myGraduationCourse) - Number(a.myGraduationCourse),
         );
         setCourses(sortedCourses);
-        setPageInfo({
-          page: response.data?.data?.page ?? 0,
-          totalPages: response.data?.data?.totalPages ?? 0,
-          totalElements: response.data?.data?.totalElements ?? 0,
-          hasNext: response.data?.data?.hasNext ?? false,
-        });
       } catch (error) {
         console.error('과목 검색 실패:', error);
         setCourses([]);
@@ -137,7 +158,7 @@ const CourseSearchPage: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, department, graduationOnly]);
+  }, [searchQuery, department, courseTypeFilter, graduationOnly]);
 
   const handleSelectCourse = (course: CourseListItem) => {
     const selectedCourse = {
@@ -147,6 +168,7 @@ const CourseSearchPage: React.FC = () => {
       classTime: course.classTime,
       department: course.department,
       courseType: course.courseType,
+      code: course.code,
     };
 
     // 💡 기존에 선택돼있던 전체 상태에 이번에 고른 과목만 끼워넣어서 되돌려줌
@@ -161,8 +183,11 @@ const CourseSearchPage: React.FC = () => {
       updatedWantedCourses[priority] = selectedCourse;
     }
 
-    navigate('/board/write', {
+    // 💡 호출한 페이지가 넘겨준 returnPath로 돌아감 (안 넘겼으면 예전처럼 /board/write로 기본 처리)
+    // selectedCourse는 discard/wanted 슬롯 개념이 없는 페이지(예: GraduationPage)를 위해 항상 같이 실어보냄
+    navigate(returnPath || '/board/write', {
       state: {
+        selectedCourse,
         discardCourse: updatedDiscardCourse,
         wantedCourses: updatedWantedCourses,
       },
@@ -170,11 +195,19 @@ const CourseSearchPage: React.FC = () => {
     });
   };
 
-  // 💡 GET /api/lectures엔 courseType 파라미터가 없어서, 받아온 결과를 클라이언트에서 한 번 더 필터링
-  const displayedCourses =
-    courseTypeFilter !== 'ALL'
-      ? courses.filter((course) => course.courseType === courseTypeFilter)
-      : courses;
+  // 💡 과목유형별 뱃지 색상: 교양(선택/필수)=하늘색 아웃라인, 전공(선택/필수)=노란색, 그 외=파란 아웃라인
+  const getCourseTypeBadgeVariant = (courseType: string) => {
+    if (courseType === '교양선택' || courseType === '교양필수') {
+      return 'lightBlueOutline' as const;
+    }
+    if (courseType === '전공선택' || courseType === '전공필수') {
+      return 'lightYellow' as const;
+    }
+    return 'outlineBlue' as const;
+  };
+
+  // 💡 이제 courseType(category) 필터는 서버에서 처리하므로, 받아온 결과를 그대로 씀
+  const displayedCourses = courses;
 
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
@@ -228,7 +261,7 @@ const CourseSearchPage: React.FC = () => {
                 학과/영역
               </p>
               <Dropdown
-                options={DEPARTMENT_OPTIONS}
+                options={DEPARTMENT_DROPDOWN_OPTIONS}
                 value={department}
                 onChange={setDepartment}
                 className="[&>div:last-child]:!max-h-64 [&>div:last-child]:!overflow-y-auto"
@@ -253,14 +286,13 @@ const CourseSearchPage: React.FC = () => {
         ) : (
           <div className="flex flex-col gap-3">
             {displayedCourses.map((course) => {
-              const isMajorRequired = course.courseType === '전공필수';
               return (
                 <button
                   key={course.courseId}
                   onClick={() => handleSelectCourse(course)}
                   className="relative w-full text-left bg-white rounded-lg border border-zinc-400 p-4 hover:bg-gray-50 transition-colors"
                 >
-                  {course.isGraduationReq && (
+                  {course.myGraduationCourse && (
                     <Badge
                       variant="bluesolid"
                       className="!absolute !top-3 !right-3 !rounded-lg !font-light !border-brand-lightBlue"
@@ -277,23 +309,16 @@ const CourseSearchPage: React.FC = () => {
                   </p>
 
                   <div className="flex gap-2 mt-3">
-                    {isMajorRequired ? (
-                      <Badge variant="lightBlueOutline" className="!rounded-lg">
-                        {course.courseType}
-                      </Badge>
-                    ) : (
+                    {course.category !== '학과전공' && (
                       <Badge
-                        variant="outlineGray"
-                        className="!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg"
+                        variant={getCourseTypeBadgeVariant(course.category)}
+                        className="!rounded-lg !font-normal"
                       >
-                        {course.courseType}
+                        {course.category}
                       </Badge>
                     )}
                     {course.department && (
-                      <Badge
-                        variant="outlineGray"
-                        className="!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg"
-                      >
+                      <Badge variant="grayOutline" className="!font-normal">
                         {course.department}
                       </Badge>
                     )}
