@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance';
+import axiosInstance from '@/api/axiosInstance';
 
 // 1. 타입 정의
 export interface GraduationCourseItem {

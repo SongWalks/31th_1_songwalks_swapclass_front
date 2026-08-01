@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { CourseCard } from '@/components/common/CourseCard';
@@ -8,15 +8,13 @@ import { Icon } from '@iconify/react';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Toast } from '@/components/common/Toast';
-import axiosInstance from '@/api/axiosInstance'; // 💡 프로젝트의 Axios 인스턴스 경로로 맞춰주세요!
+import axiosInstance from '@/api/axiosInstance';
 
 // API Response 데이터 타입 정의 (명세서 기준)
 interface CourseDetail {
   name: string;
   courseType?: string; // 예: '교양필수' | '전공필수' 등
   code?: string;
-  // 💡 category: '학과전공'처럼 뭉뚱그려진 courseType 대신, '교양선택' 등 세부 분류가 담긴 필드.
-  // department와 함께 /api/me/graduation-courses 응답엔 아직 없어서(백엔드 추가 요청함) 대부분 undefined일 것.
   category?: string;
   department?: string;
 }
@@ -27,7 +25,6 @@ interface GraduationCourse {
   completed: boolean;
 }
 
-// 💡 저장 전 미리보기용: CourseSearchPage가 넘겨주는 selectedCourse에서 필요한 정보만
 interface PendingCourse {
   courseId: number;
   name: string;
@@ -37,8 +34,6 @@ interface PendingCourse {
   department?: string;
 }
 
-// 💡 과목유형별 뱃지 색상: 교양(선택/필수)=하늘색 아웃라인, 전공(선택/필수)=노란색, 그 외=파란 아웃라인
-// (CourseSearchPage.tsx랑 동일한 규칙. '학과전공'처럼 뭉뚱그려진 값은 아예 안 보여줌)
 const getCourseTypeBadgeVariant = (courseType: string) => {
   if (courseType === '교양선택' || courseType === '교양필수') {
     return 'lightBlueOutline' as const;
@@ -51,7 +46,6 @@ const getCourseTypeBadgeVariant = (courseType: string) => {
 
 const GraduationPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [registeredCourses, setRegisteredCourses] = useState<
     GraduationCourse[]
@@ -66,8 +60,6 @@ const GraduationPage = () => {
         params: query ? { q: query } : {},
       });
       if (response.data?.success) {
-        // 💡 실제 API 응답은 course: {...}로 중첩돼있지 않고 평평한 구조라 화면이 기대하는
-        // 형태로 매핑해줌. courseType/code/category는 백엔드에 추가 요청해둔 필드라 아직 안 오면 undefined.
         const mapped: GraduationCourse[] = (
           response.data.data.courses || []
         ).map((c: any) => ({
@@ -99,8 +91,6 @@ const GraduationPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery, fetchGraduationCourses]);
 
-  // 💡 버튼 눌러야 실제로 저장되게 구조 변경: 과목 검색에서 돌아오면 바로 등록 API를 부르지 않고,
-  // "저장 대기 중"인 과목 정보만 들고 있다가, "저장하기" 버튼을 눌렀을 때 그때 등록함
   const [pendingCourse, setPendingCourse] = useState<PendingCourse | null>(
     null,
   );
@@ -108,34 +98,28 @@ const GraduationPage = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // 💡 CourseSearchPage(/search)에서 과목 선택하고 돌아왔을 때, 일단 "저장 대기" 상태로만 둠
-  // (name/courseType까지 같이 받아서 저장 전에도 리스트에 미리 보여줄 수 있게 함)
   useEffect(() => {
-    const state = location.state as {
-      selectedCourse?: {
-        courseId: number;
-        name: string;
-        courseType?: string;
-        code?: string;
-        category?: string;
-        department?: string;
-      };
-    } | null;
-    if (!state?.selectedCourse) return;
+    const raw = sessionStorage.getItem('selectedCourse');
 
-    setPendingCourse({
-      courseId: state.selectedCourse.courseId,
-      name: state.selectedCourse.name,
-      courseType: state.selectedCourse.courseType,
-      code: state.selectedCourse.code,
-      category: state.selectedCourse.category,
-      department: state.selectedCourse.department,
-    });
+    if (!raw) return;
 
-    // 새로고침/뒤로가기 시 같은 값이 중복 반영되지 않도록 state 비우기
-    navigate(location.pathname, { replace: true, state: {} });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
+    try {
+      const selected = JSON.parse(raw);
+      setPendingCourse({
+        courseId: selected.courseId,
+        name: selected.name ?? selected.title,
+        courseType: selected.courseType,
+        code: selected.code,
+        category: selected.category,
+        department: selected.department,
+      });
+    } catch (error) {
+      console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+    } finally {
+      // 새로고침/뒤로가기 시 같은 값이 중복 반영되지 않도록 한 번 읽으면 바로 비움
+      sessionStorage.removeItem('selectedCourse');
+    }
+  }, []);
 
   // 💡 저장 안 하고 미리보기 카드만 취소 (아직 서버에 저장 전이라 API 호출 없이 그냥 지움)
   const handleCancelPending = () => setPendingCourse(null);
@@ -144,8 +128,6 @@ const GraduationPage = () => {
   const handleSaveCourse = useCallback(async () => {
     if (!pendingCourse || isRegistering) return;
 
-    // 💡 학수번호(code)가 같으면 분반(교수/시간)이 달라도 같은 과목으로 취급 —
-    // 이미 등록된 과목이랑 code가 같으면 서버 호출 없이 바로 막음
     if (
       pendingCourse.code &&
       registeredCourses.some(
@@ -187,16 +169,11 @@ const GraduationPage = () => {
     searchQuery,
   ]);
 
-  // 💡 졸업요건 과목 삭제. item.id는 위 매핑에서 c.courseId로 채워져 있어서
-  // DELETE 엔드포인트의 {courseId} 경로 파라미터에 그대로 사용 가능
   const handleDeleteCourse = useCallback(
     async (courseId: number) => {
       if (!window.confirm('이 과목을 졸업요건에서 삭제하시겠습니까?')) return;
       try {
         await axiosInstance.delete(`/api/me/graduation-courses/${courseId}`);
-        // 삭제 성공하면 목록 새로고침 (과목 검색 화면의 "졸업요건" 표시는
-        // 백엔드가 isGraduationReq를 등록 상태 기준으로 다시 계산해줄 거라
-        // 별도 프론트 작업 없이 다음 조회부터 자동으로 반영될 것으로 예상)
         fetchGraduationCourses(searchQuery);
       } catch (error) {
         console.error('졸업요건 과목 삭제 실패:', error);
@@ -205,13 +182,6 @@ const GraduationPage = () => {
     },
     [fetchGraduationCourses, searchQuery],
   );
-
-  // 2. 이수 완료 토글은 별도 페이지에서 처리하기로 해서 이 화면에선 관련 이벤트를 지웠어요.
-  // (해당 페이지 만들 때 아래 형태로 axiosInstance.patch(`/graduation/courses/${courseId}/complete`) 호출하면 돼요.)
-
-  // 3. 등록된 졸업 요건 과목 삭제 API
-  // 💡 이 화면에선 삭제 버튼을 없앴다고 하셔서 handleDeleteCourse는 지웠어요.
-  // 나중에 다시 필요해지면 위 handleToggleComplete 옆에 axiosInstance.delete(`/graduation/courses/${courseId}`) 형태로 추가하시면 돼요.
 
   return (
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
@@ -383,11 +353,7 @@ const GraduationPage = () => {
         </p>
         <button
           onClick={() =>
-            pendingCourse
-              ? handleSaveCourse()
-              : navigate('/course-search', {
-                  state: { returnPath: '/my/graduation' },
-                })
+            pendingCourse ? handleSaveCourse() : navigate('/course-search')
           }
           disabled={isRegistering}
           className="w-full h-14 bg-brand-lightBlue hover:opacity-90 active:scale-[0.99] disabled:opacity-60 transition-all rounded-md text-white text-lg font-semibold font-['Pretendard'] leading-5 tracking-tight"

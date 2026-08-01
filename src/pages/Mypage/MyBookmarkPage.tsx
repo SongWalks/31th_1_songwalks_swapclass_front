@@ -4,58 +4,12 @@ import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Badge } from '@/components/common/Badge';
-import { getMyLoungeBookmarks, type LoungePostItem } from '@/api/loungeApi';
+import { PostCard, type Post } from '@/components/common/PostCard';
+import {
+  getMyLoungeBookmarks,
+  type LoungePostItem,
+} from '@/api/mypage/myloungeApi';
 import { NotificationBell } from '@/components/common/NotificationBell';
-
-// 카드 내 인라인 아이콘 컴포넌트들
-const ClockIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 text-zinc-400">
-    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
-    <path
-      d="M8 4.5V8l2.5 1.5"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const HeartIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-neutral-500">
-    <path
-      d="M8 13.5S1.75 9.86 1.75 5.75a3.25 3.25 0 0 1 6.25-1.32A3.25 3.25 0 0 1 14.25 5.75c0 4.11-6.25 7.75-6.25 7.75Z"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinejoin="round"
-      fill="none"
-    />
-  </svg>
-);
-
-const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
-  <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-neutral-500">
-    <path
-      d="M3.5 2.5h9v11l-4.5-3-4.5 3v-11Z"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinejoin="round"
-      fill={filled ? 'currentColor' : 'none'}
-    />
-  </svg>
-);
-
-const CommentIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-neutral-500">
-    <path
-      d="M2 3.5h12v7.5H6.5L3.5 13.5v-2.5H2v-7.5Z"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 const MyBookmarkPage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,14 +34,6 @@ const MyBookmarkPage: React.FC = () => {
     fetchBookmarks();
   }, []);
 
-  // 💡 API 타입('TIP' | 'CLOSURE')을 Badge.tsx의 variant로 변환
-  const getCategoryTag = (type: string) => {
-    if (type === 'CLOSURE') {
-      return { label: '폐강위기', variant: 'lightYellow' as const };
-    }
-    return { label: '강의꿀팁', variant: 'primary' as const };
-  };
-
   // 💡 ISO 날짜 포맷팅 (MM/DD HH:mm)
   // 💡 버그 수정: 서버가 createdAt 끝에 'Z'(UTC 표시)를 안 붙여서 줄 때가 있어서, 그럴 땐
   // 브라우저가 "이미 로컬 시간(한국시간)"으로 착각해 UTC 숫자를 그대로 찍어버렸음.
@@ -103,6 +49,22 @@ const MyBookmarkPage: React.FC = () => {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${month}/${day} ${hours}:${minutes}`;
   };
+
+  // 💡 API 응답(LoungePostItem)을 PostCard가 기대하는 Post 형태로 변환
+  // 💡 PostCard의 postType은 '강의꿀팁'/'폐강과목' 문자열을 정확히 봐서 뱃지를 고름 (기존에
+  // 쓰던 '폐강위기' 라벨과 다름 — PostCard 쪽 규칙에 맞춤)
+  const toPostCardData = (post: LoungePostItem): Post => ({
+    id: post.id,
+    title: post.title,
+    content: (post as any).content || '',
+    date: formatDate(post.createdAt),
+    postType: post.type === 'CLOSURE' ? '폐강과목' : '강의꿀팁',
+    courseTag: post.courseName,
+    likes: post.likeCount,
+    comments: post.commentCount,
+    // 💡 내 북마크 목록이므로 항상 true 고정 (원래 filled={true}였던 것과 동일)
+    bookmarked: true,
+  });
 
   return (
     <div className="relative w-full h-full min-h-0 flex flex-col font-['Pretendard']">
@@ -138,67 +100,13 @@ const MyBookmarkPage: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-3 px-4 pt-4 pb-24">
-            {posts.map((post) => {
-              const categoryTag = getCategoryTag(post.type);
-
-              return (
-                <div
-                  key={post.id}
-                  onClick={() => navigate(`/lounge/${post.id}`)}
-                  className="relative bg-white rounded-lg border border-zinc-400 p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                >
-                  {/* 제목 + 작성시간 (같은 줄, 오른쪽 정렬) */}
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-bold text-zinc-900 leading-5 tracking-wide line-clamp-1">
-                      {post.title}
-                    </h3>
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
-                      <ClockIcon />
-                      <span className="text-xs font-normal text-neutral-500 leading-5 tracking-wide whitespace-nowrap">
-                        {formatDate(post.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 목록 API 응답에 content 필드가 포함된다면 아래 렌더링, 없다면 제목을 활용하거나 공란 처리 */}
-                  {(post as any).content && (
-                    <p className="text-xs font-light text-neutral-500 leading-5 tracking-wide mt-1 line-clamp-1">
-                      {(post as any).content}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={categoryTag.variant}
-                        className="!font-normal"
-                      >
-                        {categoryTag.label}
-                      </Badge>
-                      <Badge variant="grayOutline" className="!font-normal">
-                        {post.courseName}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        <HeartIcon />
-                        <span className="text-xs font-normal text-neutral-500 leading-5 tracking-wide">
-                          {post.likeCount}
-                        </span>
-                      </div>
-                      {/* 내 북마크 목록이므로 true 고정, 만약 API가 bookmarked 상태를 준다면 post.bookmarked 사용 가능 */}
-                      <BookmarkIcon filled={true} />
-                      <div className="flex items-center gap-1">
-                        <CommentIcon />
-                        <span className="text-xs font-normal text-neutral-500 leading-5 tracking-wide">
-                          {post.commentCount}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={toPostCardData(post)}
+                onClick={() => navigate(`/lounge/${post.id}`)}
+              />
+            ))}
           </div>
         )}
       </div>

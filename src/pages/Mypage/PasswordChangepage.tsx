@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/common/Input';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import Header from '@/components/layout/Header';
 import { Modal } from '@/components/common/Modal';
-import defaultEyeIcon from '@/assets/icons/eye_icon.svg';
-import cautionEyeIcon from '@/assets/icons/Caution_eye_icon.svg';
-
-// 💡 1. 미리 만들어둔 mypageApi에서 updatePassword 함수를 가져옵니다.
-import { updatePassword } from '@/api/mypageApi';
+import defaultEyeIcon from '@/assets/icons/mypage/eye_icon.svg';
+import cautionEyeIcon from '@/assets/icons/mypage/Caution_eye_icon.svg';
+import { updatePassword } from '@/api/mypage/mypageApi';
 
 const PasswordChangepage = () => {
   const navigate = useNavigate();

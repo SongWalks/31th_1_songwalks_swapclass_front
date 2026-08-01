@@ -3,20 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { Avatar } from '@/components/common/Avatar';
-import { IconButton } from '@/components/common/IconButton';
 import { Modal } from '@/components/common/Modal';
 import { NotificationBell } from '@/components/common/NotificationBell';
-import postIcon from '@/assets/icons/post_icon.svg';
-import exchangeIcon from '@/assets/icons/exchange_recommend_icon.svg';
-import likeIcon from '@/assets/icons/like_icon.svg';
-import bookmarkIcon from '@/assets/icons/bookmark_icon.svg';
-import graduationIcon from '@/assets/icons/graduation_icon.svg';
-import chatIcon from '@/assets/icons/chat_icon.svg';
-import lockIcon from '@/assets/icons/lock_icon.svg';
-import logoutIcon from '@/assets/icons/logout_icon.svg';
-import deleteIcon from '@/assets/icons/delete_icon.svg';
-import finalAlertIcon from '@/assets/icons/final_alert.svg';
-import movementIcon from '@/assets/icons/movement.svg';
+import postIcon from '@/assets/icons/mypage/post_icon.svg';
+import exchangeIcon from '@/assets/icons/mypage/exchange_recommend_icon.svg';
+import likeIcon from '@/assets/icons/mypage/like_icon.svg';
+import bookmarkIcon from '@/assets/icons/mypage/bookmark_icon.svg';
+import graduationIcon from '@/assets/icons/mypage/graduation_icon.svg';
+import chatIcon from '@/assets/icons/mypage/chat_icon.svg';
+import lockIcon from '@/assets/icons/mypage/lock_icon.svg';
+import logoutIcon from '@/assets/icons/mypage/logout_icon.svg';
+import deleteIcon from '@/assets/icons/mypage/delete_icon.svg';
+import finalAlertIcon from '@/assets/icons/mypage/final_alert.svg';
+import movementIcon from '@/assets/icons/mypage/movement.svg';
 
 // 💡 API 통신 함수들 임포트
 import {
@@ -24,7 +23,7 @@ import {
   updateNotification,
   deleteAccount,
   type UserProfile,
-} from '@/api/mypageApi';
+} from '@/api/mypage/mypageApi';
 import axiosInstance from '@/api/axiosInstance';
 
 interface MenuItem {

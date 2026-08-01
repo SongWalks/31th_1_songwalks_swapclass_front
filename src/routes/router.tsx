@@ -36,8 +36,6 @@ export const router = createBrowserRouter([
               { path: 'likes', element: <LikeListPage /> },
               { path: 'lounge', element: <MyLoungePostsPage /> },
               { path: 'bookmarks', element: <MyBookmarkPage /> },
-
-              // 💡 ExchangeRequestPage는 DefaultLayout에 유지 (/my/request)
               { path: 'request', element: <ExchangeRequestPage /> },
             ],
           },

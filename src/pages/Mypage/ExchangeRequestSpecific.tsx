@@ -15,18 +15,16 @@ import {
   acceptProposal,
   rejectProposal,
   type ProposalData,
-} from '@/api/proposalApi';
+} from '@/api/mypage/proposalApi';
 
 // SVG 파일
-import throwArrow from '@/assets/icons/throw_arrow.svg';
-import blueCheck from '@/assets/icons/blue_check.svg';
+import throwArrow from '@/assets/icons/mypage/throw_arrow.svg';
+import blueCheck from '@/assets/icons/mypage/blue_check.svg';
 
 const ExchangeRequestSpecific: React.FC = () => {
   const navigate = useNavigate();
   const { proposalId } = useParams<{ proposalId: string }>();
   const location = useLocation();
-  // 💡 이 상세 API엔 받은 요청 개수 필드가 없어서, 목록 화면(ExchangeRequestPage)에서
-  // 카드 클릭할 때 받아온 값을 그대로 씀. 목록을 거치지 않고 바로 들어온 경우(딥링크 등)엔 undefined.
   const receivedCount = (location.state as { receivedCount?: number } | null)
     ?.receivedCount;
 

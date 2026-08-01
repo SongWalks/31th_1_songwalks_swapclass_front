@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance';
+import axiosInstance from '@/api/axiosInstance';
 
 // 1. 찜 목록 조회 API
 export const getLikePosts = async () => {

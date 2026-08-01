@@ -6,12 +6,11 @@ import { ICONS } from '@/constants/icons';
 import { Tabs } from '../../components/common/Tabs';
 import { EmptyState } from '../../components/common/EmptyState';
 import { Toast } from '@/components/common/Toast';
-import { getLikePosts, deleteLikePost } from '@/api/likeApi';
+import { getLikePosts, deleteLikePost } from '@/api/mypage/likeApi';
 import { NotificationBell } from '@/components/common/NotificationBell';
-
-import searchIcon from '@/assets/icons/search_icon.svg';
-import redHeartIcon from '@/assets/icons/red_heart.svg';
-import grayHeartIcon from '@/assets/icons/gray_heart.svg';
+import redHeartIcon from '@/assets/icons/mypage/red_heart.svg';
+import grayHeartIcon from '@/assets/icons/mypage/gray_heart.svg';
+import { Icon } from '@iconify/react';
 
 interface CourseInfo {
   courseId: number;
@@ -149,9 +148,8 @@ const LikeListPage = () => {
             placeholder="검색어를 입력해주세요"
             className="flex-1 bg-transparent border-none outline-none text-sm font-light text-black placeholder-neutral-400 leading-5 tracking-wide"
           />
-          <img
-            src={searchIcon}
-            alt="검색"
+          <Icon
+            icon={ICONS.SEARCH}
             className="w-[18px] h-[18px] cursor-pointer"
           />
         </div>

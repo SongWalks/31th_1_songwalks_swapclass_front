@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance';
+import axiosInstance from '@/api/axiosInstance';
 
 // ==========================================
 // 💡 Swagger 기반 상세 타입 정의

@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { NotificationBell } from '@/components/common/NotificationBell';
 import { ICONS } from '@/constants/icons';
-import { Badge } from '@/components/common/Badge';
 import { Toast } from '@/components/common/Toast';
 import { Tabs } from '@/components/common/Tabs';
 import { Modal } from '@/components/common/Modal';
@@ -14,21 +13,17 @@ import {
   getSentProposal,
   withdrawProposal,
   type ProposalData,
-} from '@/api/proposalApi';
+} from '@/api/mypage/proposalApi';
 
 // 탭 메뉴용 아이콘
-import ActiveBoxIcon from '@/assets/icons/box.svg'; // 액티브: 받은 요청
-import InactiveBoxIcon from '@/assets/icons/gray_box.svg'; // 인액티브: 받은 요청
-import InactivSendIcon from '@/assets/icons/blue_send.svg'; // 액티브: 보낸 요청
-import ActiveSendIcon from '@/assets/icons/send.svg'; // 인액티브: 보낸 요청
-import movementIcon from '@/assets/icons/movement.svg';
-import requestCommentIcon from '@/assets/icons/request_comment.svg';
-import finalAlertIcon from '@/assets/icons/final_alert.svg';
+import ActiveBoxIcon from '@/assets/icons/mypage/box.svg'; // 액티브: 받은 요청
+import InactiveBoxIcon from '@/assets/icons/mypage/gray_box.svg'; // 인액티브: 받은 요청
+import InactivSendIcon from '@/assets/icons/mypage/blue_send.svg'; // 액티브: 보낸 요청
+import ActiveSendIcon from '@/assets/icons/mypage/send.svg'; // 인액티브: 보낸 요청
+import movementIcon from '@/assets/icons/mypage/movement.svg';
+import requestCommentIcon from '@/assets/icons/mypage/request_comment.svg';
+import finalAlertIcon from '@/assets/icons/mypage/final_alert.svg';
 
-// 💡 버그 수정: 백엔드가 만료 시각 문자열 끝에 'Z'(UTC 표시)를 안 붙여서 줄 때가 있음.
-// 'Z'가 없으면 브라우저가 이걸 "내 로컬 시간(한국이면 KST)"으로 잘못 해석해서, 실제보다
-// 9시간이나 이르게(이미 지난 시각으로) 계산되는 바람에 남은 시간이 항상 0으로 떴음.
-// 'Z'나 '+09:00' 같은 시간대 표시가 없으면 UTC로 간주하고 'Z'를 붙여서 파싱함.
 const parseAsUtcMs = (dateString?: string): number | undefined => {
   if (!dateString) return undefined;
   const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
@@ -56,8 +51,6 @@ const ExchangeRequestPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 1. 공통 상태 관리
-  // 💡 MyPostpage의 "받은 요청 N개" 버튼처럼, 특정 탭을 지정해서 넘어온 경우 그 탭으로 바로 열림
   const [activeTabId, setActiveTabId] = useState<string>(
     (location.state as { initialTab?: string } | null)?.initialTab ??
       'received',
@@ -71,11 +64,9 @@ const ExchangeRequestPage = () => {
     unranked: false,
   });
 
-  // 💡 뒤로가기/새로고침 시 같은 initialTab이 중복 반영되지 않도록 state 비우기
   useEffect(() => {
     if (!location.state) return;
     navigate(location.pathname, { replace: true, state: {} });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 2. 데이터 상태 관리 (서버 통신용)
@@ -83,7 +74,7 @@ const ExchangeRequestPage = () => {
     [],
   );
   const [sentProposal, setSentProposal] = useState<ProposalData | null>(null);
-  // 💡 status === 'PENDING' 확인됨 (Swagger로 직접 확인함). 대기 중일 때만 "보낸 요청" 카드/철회 버튼 노출
+
   const isSentProposalActive = sentProposal?.status === 'PENDING';
 
   // 💡 받은 요청 카드마다 남은 시간을 실시간으로 보여주기 위한 공용 틱(1초마다 갱신)
@@ -101,7 +92,7 @@ const ExchangeRequestPage = () => {
   const hasReceivedRequests = receivedProposals.length > 0;
 
   // 4. 데이터 불러오기
-  // 💡 백엔드에서 counterpartPost(상대 게시글 정보)/receiverPostId/receivedCount 필드 추가해줌
+
   const fetchData = async () => {
     try {
       const [receivedRes, sentRes] = await Promise.all([
@@ -110,7 +101,6 @@ const ExchangeRequestPage = () => {
       ]);
 
       if (receivedRes.success) {
-        // expiresAt(ISO 문자열)을 타임스탬프(ms)로 변환해서 카운트다운 계산에 바로 쓸 수 있게 함
         const withExpiry = (receivedRes.data || []).map((item: any) => ({
           ...item,
           expiresAt: parseAsUtcMs(item.expiresAt),
@@ -199,7 +189,6 @@ const ExchangeRequestPage = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard'] pb-28 relative">
-      {/* 💡 1 & 2. [헤더 + 탭 영역]을 하나의 sticky 컨테이너로 감싸서 고정 */}
       <div className="sticky top-0 z-50 bg-[#FBFBFB]">
         {/* 상단 헤더 */}
         <div className="[&>*]:!border-none">
@@ -231,8 +220,6 @@ const ExchangeRequestPage = () => {
       {activeTabId === 'received' ? (
         /* --- [받은 요청] 탭 내용 --- */
         <div className="px-5 pt-6 flex flex-col gap-4">
-          {/* 💡 matchRank가 1/2/3이 아닌 null인 경우(백엔드에서 실제로 확인됨)도 놓치지 않도록
-              '순위 미정' 그룹을 추가했어요. 안 그러면 데이터는 있는데 화면 어디에도 안 보이는 문제가 생겨요. */}
           {([1, 2, 3, 'unranked'] as const).map((priority) => {
             const isOpen = openSections[priority];
             const isUnranked = priority === 'unranked';
