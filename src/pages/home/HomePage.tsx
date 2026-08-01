@@ -134,7 +134,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-[430px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
+    <div className="relative mx-auto w-full max-w-[480px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
       {/* 화면 맨 위 투명 센서 */}
       <div
         ref={sensorRef}
@@ -174,7 +174,7 @@ export default function HomePage() {
 
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
-        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50">
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50">
           <HomeHeader isScrolled={isScrolled} unreadCount={unreadCount} />
         </div>
 
