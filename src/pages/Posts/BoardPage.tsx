@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-
+import { NotificationBell } from '@/components/common/NotificationBell';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -49,21 +49,10 @@ interface BoardPost {
   preferredSubjects: string[];
   proposalCount: number;
   alreadyProposed: boolean;
-  mine: boolean;
 }
 
-// 💡 TODO: 실제로는 내 게시글(myPostId)의 "원하는 과목"/"버릴 과목" 데이터를 불러와서 채워야 함
-const TARGET_COURSE_OPTIONS = [
-  { value: 'ALL', label: '전체' },
-  { value: 'OS', label: '운영체제' },
-  { value: 'SW_UNDERSTANDING', label: '소프트웨어이해' },
-  { value: 'PL_THEORY', label: '프로그래밍언어론' },
-];
-
-const MY_DISCARD_COURSE_OPTIONS = [
-  { value: 'ALL', label: '전체' },
-  { value: 'ENGLISH_CONVERSATION', label: '영어회화' },
-];
+// 💡 드롭다운 옵션은 고정 목업이 아니라, 내가 올린 모든 게시글(GET /api/posts/me)의
+// discardCourse/wantedCourses에서 실시간으로 모아서 채움 (게시글 여러 개 올렸으면 그 과목들 다 포함)
 
 const BoardPage = () => {
   const navigate = useNavigate();
@@ -71,10 +60,11 @@ const BoardPage = () => {
   const [searchQuery, setSearchQuery] = useState(''); // 💡 GET /api/posts의 dept 파라미터로 사용됨 (자유 검색어 아님)
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [loading, setLoading] = useState(true);
+  // 💡 "진짜로 게시글이 0개"인지 "API 호출 자체가 실패한 건지" 구분하기 위한 에러 상태
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // 💡 내 게시글 정보: /api/posts/me로 조회
   const [myPostId, setMyPostId] = useState<number | null>(null); // 제안 보낼 때 senderPostId로 사용
-  const [myPostIds, setMyPostIds] = useState<Set<number>>(new Set()); // "내 글" 여부 판별용
 
   // 💡 비로그인 상태에서 스크롤 시 로그인/가입 유도 모달
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -83,13 +73,19 @@ const BoardPage = () => {
   // 💡 게시글 미등록 상태에서 메뉴(필터) 버튼 클릭 시 안내 모달
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // 💡 맞춤 필터 (내 타겟 과목 / 내 버릴 과목)
+  // 💡 맞춤 필터: 드롭다운으로 특정 과목 하나를 골라서 필터링 (둘 중 하나만 선택 가능 — 고르면 반대쪽은 '전체'로 리셋)
   const [targetCourseFilter, setTargetCourseFilter] = useState('ALL');
   const [discardCourseFilter, setDiscardCourseFilter] = useState('ALL');
-  const isFilterApplied =
-    targetCourseFilter !== 'ALL' || discardCourseFilter !== 'ALL';
 
-  // 1. 내 게시글 목록 조회 (senderPostId 확보 + "내 글" 판별용)
+  // 💡 드롭다운에 뿌릴 옵션: 내가 올린 모든 게시글에서 모은 과목명들 (중복 제거)
+  const [myTargetOptions, setMyTargetOptions] = useState([
+    { value: 'ALL', label: '내 타겟 과목' },
+  ]);
+  const [myDiscardOptions, setMyDiscardOptions] = useState([
+    { value: 'ALL', label: '내 버릴 과목' },
+  ]);
+
+  // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
   useEffect(() => {
     const fetchMyPosts = async () => {
       try {
@@ -99,11 +95,34 @@ const BoardPage = () => {
         });
         const myPosts: MyPostResponse[] = response.data?.data || [];
 
-        setMyPostIds(new Set(myPosts.map((p) => p.postId)));
-
         // 제안을 보낼 때 쓸 postId: 교환 가능(MATCHABLE) 상태인 첫 게시글 기준
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
         setMyPostId(activePost ? activePost.postId : null);
+
+        // 💡 게시글을 여러 개 올렸을 수 있으니, 그 안의 원하는 과목/버릴 과목을 전부 모아서
+        // 드롭다운 옵션으로 채움 (하나만 있다고 가정하지 않음)
+        const wantedNames = new Set<string>();
+        const discardNames = new Set<string>();
+        myPosts.forEach((p) => {
+          if (p.discardCourse?.name) discardNames.add(p.discardCourse.name);
+          (p.wantedCourses || []).forEach((w) => {
+            if (w.course?.name) wantedNames.add(w.course.name);
+          });
+        });
+        setMyTargetOptions([
+          { value: 'ALL', label: '내 타겟 과목' },
+          ...Array.from(wantedNames).map((name) => ({
+            value: name,
+            label: name,
+          })),
+        ]);
+        setMyDiscardOptions([
+          { value: 'ALL', label: '내 버릴 과목' },
+          ...Array.from(discardNames).map((name) => ({
+            value: name,
+            label: name,
+          })),
+        ]);
       } catch (error) {
         console.error('내 게시글 조회 실패:', error);
         setMyPostId(null);
@@ -113,17 +132,36 @@ const BoardPage = () => {
     fetchMyPosts();
   }, []);
 
-  // 2. 게시글 목록 조회 (dept 필터 + 페이지네이션)
+  // 2. 게시글 목록 조회 (특정 과목 필터가 걸려있으면 클라이언트에서 그 과목만 추려냄)
   const fetchPosts = useCallback(
-    async (dept: string) => {
+    async (dept: string, targetFilter: string, discardFilter: string) => {
       try {
         setLoading(true);
-        const response = await axiosInstance.get('/api/posts', {
-          params: { dept: dept || undefined, page: 0, size: 20 },
-        });
+        setLoadError(null);
 
-        const rawPosts: BoardPostResponse[] =
-          response.data?.data?.content || [];
+        let rawPosts: BoardPostResponse[] = [];
+
+        if (targetFilter !== 'ALL') {
+          // 내가 want로 등록한 과목 중 하나를 골랐을 때: my-targets 받아서 그 과목만 추림
+          const response = await axiosInstance.get('/api/posts/my-targets');
+          const all: BoardPostResponse[] = response.data?.data || [];
+          rawPosts = all.filter((p) => p.discardCourse?.name === targetFilter);
+        } else if (discardFilter !== 'ALL') {
+          // 내가 버릴 과목 중 하나를 골랐을 때: my-seekers 받아서 그 과목만 추림
+          const response = await axiosInstance.get('/api/posts/my-seekers');
+          const all: BoardPostResponse[] = response.data?.data || [];
+          rawPosts = all.filter((p) =>
+            (p.wantedCourses || []).some(
+              (w) => w.course?.name === discardFilter,
+            ),
+          );
+        } else {
+          // 필터 없음: 전체 게시판 (dept 검색 + 페이지네이션)
+          const response = await axiosInstance.get('/api/posts', {
+            params: { dept: dept || undefined, page: 0, size: 20 },
+          });
+          rawPosts = response.data?.data?.content || [];
+        }
 
         const mapped: BoardPost[] = rawPosts.map((post) => {
           const sortedWanted = [...(post.wantedCourses || [])].sort(
@@ -133,30 +171,38 @@ const BoardPage = () => {
             id: post.postId,
             title: post.discardCourse?.name ?? '',
             preferredSubjects: sortedWanted.map((w) => w.course?.name ?? ''),
-            proposalCount: post.proposalCount,
+            // 💡 my-targets/my-seekers 응답엔 proposalCount가 없어서 0으로 기본값 처리
+            proposalCount: post.proposalCount ?? 0,
             alreadyProposed: false,
-            mine: myPostIds.has(post.postId),
           };
         });
 
         setPosts(mapped);
-      } catch (error) {
+      } catch (error: any) {
+        // 💡 콘솔에만 남기지 않고, 실제 상태코드/메시지를 화면에서도 바로 확인할 수 있게 함
+        const status = error?.response?.status;
+        const serverMessage = error?.response?.data?.message;
         console.error('게시글 목록 조회 실패:', error);
+        setLoadError(
+          serverMessage
+            ? `(${status ?? '?'}) ${serverMessage}`
+            : `목록을 불러오지 못했습니다${status ? ` (${status})` : ''}.`,
+        );
         setPosts([]);
       } finally {
         setLoading(false);
       }
     },
-    [myPostIds],
+    [],
   );
 
-  // 검색(dept) 입력 시 디바운스 처리 (300ms)
+  // 검색(dept) 또는 과목 필터 변경 시 디바운스 처리 (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPosts(searchQuery);
+      fetchPosts(searchQuery, targetCourseFilter, discardCourseFilter);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, fetchPosts]);
+  }, [searchQuery, targetCourseFilter, discardCourseFilter, fetchPosts]);
 
   // 💡 로그인 안 한 상태(accessToken 없음)에서 스크롤하면 안내 모달을 한 번 띄움
   // (DefaultLayout의 실제 스크롤 컨테이너는 window가 아니라 #main-scroll-container)
@@ -169,7 +215,7 @@ const BoardPage = () => {
 
     const handleScroll = () => {
       if (hasShownLoginModal.current) return;
-      if (scrollContainer.scrollTop > 1000) {
+      if (scrollContainer.scrollTop > 100) {
         hasShownLoginModal.current = true;
         setShowLoginModal(true);
       }
@@ -178,6 +224,17 @@ const BoardPage = () => {
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // 💡 비로그인 상태면 로그인/가입 모달을, 로그인은 했는데 게시글이 없으면
+  // 기존의 "게시글 먼저 등록해주세요" 모달을 띄움
+  const handleFilterButtonClick = () => {
+    const isLoggedIn = !!localStorage.getItem('accessToken');
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    setShowFilterModal(true);
+  };
 
   return (
     <div className="relative w-full min-h-screen bg-neutral-50 flex flex-col font-['Pretendard']">
@@ -190,12 +247,8 @@ const BoardPage = () => {
             </div>
           }
           rightNode={
-            <div className="flex items-center gap-3">
-              <IconButton
-                icon={ICONS.BELL}
-                onClick={() => navigate('/notifications')}
-                className="text-black"
-              />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
               <IconButton
                 icon="mdi:menu"
                 className="text-black"
@@ -222,48 +275,51 @@ const BoardPage = () => {
           </div>
         </div>
 
-        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 */}
+        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 (드롭다운, 서로 배타적) */}
         <div className="px-5 pb-3 flex items-center gap-3">
-          <div className="flex">
-            {myPostId ? (
+          {myPostId ? (
+            <>
               <Dropdown
-                options={TARGET_COURSE_OPTIONS}
+                options={myTargetOptions}
                 value={targetCourseFilter}
-                onChange={setTargetCourseFilter}
+                onChange={(v) => {
+                  setTargetCourseFilter(v);
+                  setDiscardCourseFilter('ALL');
+                }}
                 placeholder="내 타겟 과목"
                 className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
               />
-            ) : (
+              <Dropdown
+                options={myDiscardOptions}
+                value={discardCourseFilter}
+                onChange={(v) => {
+                  setDiscardCourseFilter(v);
+                  setTargetCourseFilter('ALL');
+                }}
+                placeholder="내 버릴 과목"
+                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
+              />
+            </>
+          ) : (
+            <>
               <button
                 type="button"
-                onClick={() => setShowFilterModal(true)}
+                onClick={handleFilterButtonClick}
                 className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
               >
                 <span>내 타겟 과목</span>
                 <Icon icon="ph:caret-down" className="text-cyan-900" />
               </button>
-            )}
-          </div>
-          <div className="flex">
-            {myPostId ? (
-              <Dropdown
-                options={MY_DISCARD_COURSE_OPTIONS}
-                value={discardCourseFilter}
-                onChange={setDiscardCourseFilter}
-                placeholder="내 버릴 과목"
-                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
-              />
-            ) : (
               <button
                 type="button"
-                onClick={() => setShowFilterModal(true)}
+                onClick={handleFilterButtonClick}
                 className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
               >
                 <span>내 버릴 과목</span>
                 <Icon icon="ph:caret-down" className="text-cyan-900" />
               </button>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -273,6 +329,31 @@ const BoardPage = () => {
           <div className="py-20 text-center text-gray-400 text-sm">
             목록을 불러오는 중입니다...
           </div>
+        ) : loadError ? (
+          <div className="flex h-[60vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center px-6">
+              <Icon
+                icon="mdi:alert-circle-outline"
+                className="w-9 h-9 text-rose-400"
+              />
+              <p className="text-zinc-700 text-sm font-medium">
+                게시글 목록을 불러오지 못했어요.
+              </p>
+              <p className="text-neutral-400 text-xs">{loadError}</p>
+              <button
+                onClick={() =>
+                  fetchPosts(
+                    searchQuery,
+                    targetCourseFilter,
+                    discardCourseFilter,
+                  )
+                }
+                className="mt-1 px-4 py-2 bg-brand-lightBlue text-white text-xs font-medium rounded-full hover:opacity-90 transition-opacity"
+              >
+                다시 시도
+              </button>
+            </div>
+          </div>
         ) : posts.length === 0 ? (
           <div className="flex h-[60vh] items-center justify-center">
             <EmptyState
@@ -280,33 +361,6 @@ const BoardPage = () => {
               title="등록된 교환 게시글이 없어요."
               description="첫 번째 교환 게시글을 작성해보세요!"
             />
-          </div>
-        ) : isFilterApplied ? (
-          // 💡 맞춤 필터 적용 시: 와이어프레임 스타일(인디고 테두리 박스)로 렌더링
-          <div className="flex flex-col px-4 gap-3 pb-28">
-            {posts.map((post) => (
-              <div
-                key={post.id}
-                onClick={() => navigate(`/board/${post.id}`)}
-                className="bg-white rounded-lg border-2 border-brand-lightBlue p-6 cursor-pointer hover:bg-blue-50/30 transition-colors"
-              >
-                <h3 className="text-zinc-900 text-xl font-normal leading-8">
-                  {post.title}
-                </h3>
-                <p className="text-zinc-900 text-base font-normal leading-6 mt-3">
-                  {post.preferredSubjects.map((subject, index) => (
-                    <React.Fragment key={index}>
-                      {index + 1}순위 : {subject}
-                      {index < post.preferredSubjects.length - 1 && <br />}
-                    </React.Fragment>
-                  ))}
-                </p>
-                <div className="flex items-center justify-end gap-1 mt-3 text-neutral-500 text-sm">
-                  <Icon icon="mdi:eye-outline" className="w-5 h-5" />
-                  받은 요청 {post.proposalCount}개
-                </div>
-              </div>
-            ))}
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-gray-100 pb-28">
