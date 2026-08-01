@@ -164,7 +164,7 @@ export default function HomePage() {
       </div>
 
       {/* 워터마크 */}
-      <div className="absolute top-[100px] left-[60px] w-96 h-48 pointer-events-none z-0 select-none">
+      <div className="absolute top-[110px] left-[115px] w-96 h-48 pointer-events-none z-0 select-none">
         <img
           src={sooWatermark}
           alt="SOO 워터마크"

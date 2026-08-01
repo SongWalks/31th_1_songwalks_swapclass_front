@@ -14,7 +14,7 @@ export const HomeHeader = ({
 
   return (
     <header
-      className={`sticky top-0 z-50 flex justify-between items-center w-full max-w-[402px] mx-auto h-[56px] px-2 transition-all duration-300 ${
+      className={`sticky top-0 z-50 flex justify-between items-center w-full h-[56px] px-2 transition-all duration-300 ${
         isScrolled ? 'bg-white/80 backdrop-blur-md shadow-sm' : 'bg-transparent'
       }`}
     >

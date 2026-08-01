@@ -2,7 +2,11 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { fetchCourses, fetchDepartments, fetchCategories } from '@/api/course';
+import {
+  fetchCourses,
+  fetchDepartments,
+  fetchCategories,
+} from '@/api/common/course';
 import { Badge } from '@/components/common/Badge';
 import { Input } from '@/components/common/Input';
 import { CourseCard } from '@/components/common/CourseCard';
