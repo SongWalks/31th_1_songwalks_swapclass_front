@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -21,15 +21,8 @@ interface CourseSelection {
   courseType: string;
 }
 
-// 💡 CourseSearchPage와 왕복할 때 실어 보내는 "지금까지의 전체 선택 상태"
-interface WriteFormState {
-  discardCourse?: CourseSelection | null;
-  wantedCourses?: (CourseSelection | null)[];
-}
-
 const PostWritePage: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [discardCourse, setDiscardCourse] = useState<CourseSelection | null>(
     null,
@@ -43,44 +36,95 @@ const PostWritePage: React.FC = () => {
   // 💡 등록 성공 모달
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // 💡 PostWritePage가 다시 마운트될 때(CourseSearchPage에서 돌아올 때 포함),
-  // location.state에 실려온 "전체 선택 상태"로 복원
+  // 💡 팀원분이 만든 CourseSearchPage.tsx는 location.state가 아니라
+  // sessionStorage('selectedCourse')에 저장하고 navigate(-1)만 하는 방식이라, 여기서도 그거에 맞춤.
+  // - postWriteFormState: 검색 페이지로 나가기 직전의 전체 선택 상태(버릴과목+원하는과목)를 저장해뒀다가 복원
+  // - courseSearchTarget: 방금 고른 과목을 "버릴 과목"에 넣을지 "원하는 과목 몇 순위"에 넣을지
+  // - selectedCourse: 팀원분 컴포넌트가 저장하는 실제 고른 과목 (공용 키라 이름 그대로 씀)
   useEffect(() => {
-    const state = location.state as WriteFormState | null;
-    if (!state || Object.keys(state).length === 0) return;
+    let restoredDiscard: CourseSelection | null = discardCourse;
+    let restoredWanted: (CourseSelection | null)[] = wantedCourses;
 
-    if (state.discardCourse !== undefined) {
-      setDiscardCourse(state.discardCourse);
-    }
-    if (state.wantedCourses) {
-      setWantedCourses(state.wantedCourses);
+    const rawForm = sessionStorage.getItem('postWriteFormState');
+    if (rawForm) {
+      try {
+        const form = JSON.parse(rawForm);
+        restoredDiscard = form.discardCourse ?? null;
+        restoredWanted = form.wantedCourses ?? [null, null, null];
+      } catch (error) {
+        console.error('작성 중이던 내용을 복원하지 못했습니다.', error);
+      }
     }
 
-    // 새로고침/뒤로가기 시 같은 값이 중복 반영되지 않도록 state 비우기
-    navigate(location.pathname, { replace: true, state: {} });
+    const rawCourse = sessionStorage.getItem('selectedCourse');
+    if (rawCourse) {
+      try {
+        const selected = JSON.parse(rawCourse);
+        const rawTarget = sessionStorage.getItem('courseSearchTarget');
+        const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
+        const courseSelection: CourseSelection = {
+          courseId: selected.courseId,
+          // 💡 팀원분 코드가 title: course.name으로도 같이 저장해두니, name 없으면 title로 대체
+          name: selected.name ?? selected.title,
+          professor: selected.professor,
+          classTime: selected.classTime,
+          department: selected.department,
+          courseType: selected.courseType,
+        };
+
+        if (targetInfo?.target === 'discard') {
+          restoredDiscard = courseSelection;
+        } else if (
+          targetInfo?.target === 'wanted' &&
+          typeof targetInfo.priority === 'number'
+        ) {
+          restoredWanted = [...restoredWanted];
+          restoredWanted[targetInfo.priority] = courseSelection;
+        }
+      } catch (error) {
+        console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+      }
+    }
+
+    if (rawForm || rawCourse) {
+      setDiscardCourse(restoredDiscard);
+      setWantedCourses(restoredWanted);
+    }
+
+    // 한 번 읽으면 바로 비워서, 다음에 새로 글쓰기 들어왔을 때 예전 값이 안 남게 함
+    sessionStorage.removeItem('postWriteFormState');
+    sessionStorage.removeItem('selectedCourse');
+    sessionStorage.removeItem('courseSearchTarget');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
+  }, []);
 
   // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부
   const canSubmit =
     !!discardCourse && wantedCourses.every((course) => course !== null);
 
   const handleSelectDiscardCourse = () => {
-    // 💡 지금까지의 전체 선택 상태를 같이 들고 검색 페이지로 이동
-    navigate('/board/write/search', {
-      state: { target: 'discard', discardCourse, wantedCourses },
-    });
+    // 💡 지금까지의 전체 선택 상태 + 어느 슬롯을 채울지 sessionStorage에 저장해두고 이동
+    sessionStorage.setItem(
+      'postWriteFormState',
+      JSON.stringify({ discardCourse, wantedCourses }),
+    );
+    sessionStorage.setItem(
+      'courseSearchTarget',
+      JSON.stringify({ target: 'discard' }),
+    );
+    navigate('/course-search');
   };
 
   const handleSelectWantedCourse = (index: number) => {
-    navigate('/board/write/search', {
-      state: {
-        target: 'wanted',
-        priority: index,
-        discardCourse,
-        wantedCourses,
-      },
-    });
+    sessionStorage.setItem(
+      'postWriteFormState',
+      JSON.stringify({ discardCourse, wantedCourses }),
+    );
+    sessionStorage.setItem(
+      'courseSearchTarget',
+      JSON.stringify({ target: 'wanted', priority: index }),
+    );
+    navigate('/course-search');
   };
 
   const handleRemoveWantedCourse = (index: number) => {
@@ -126,7 +170,7 @@ const PostWritePage: React.FC = () => {
           leftNode={
             <Icon
               icon={ICONS.CLOSE}
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/my')}
               className="w-6 h-6 text-neutral-400 cursor-pointer"
             />
           }
@@ -150,9 +194,9 @@ const PostWritePage: React.FC = () => {
               title={discardCourse.name}
               professor={discardCourse.professor}
               time={discardCourse.classTime}
-              className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl min-h-[112px] flex items-center"
+              className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
               leftNode={
-                <div className="relative w-7 h-7 shrink-0 mb-12 flex items-center justify-center">
+                <div className="relative w-7 h-7 shrink-0 mt-0.5 flex items-center justify-center">
                   <div className="size-6 bg-rose-200 rounded-full" />
                   <img
                     src={throwArrow}
@@ -162,22 +206,31 @@ const PostWritePage: React.FC = () => {
                 </div>
               }
               rightNode={
-                <div className="flex flex-col items-end justify-between h-[68px]">
-                  <IconButton
-                    icon="ph:x"
-                    variant="ghost"
-                    className="p-1 -mr-1 -mt-1 text-gray-400"
-                    onClick={() => setDiscardCourse(null)}
-                  />
+                <IconButton
+                  icon="ph:x"
+                  variant="ghost"
+                  className="p-1 -mr-1 -mt-1 text-gray-400"
+                  onClick={() => setDiscardCourse(null)}
+                />
+              }
+              badges={
+                <div className="flex flex-wrap gap-1.5">
                   <Badge
                     variant="lightRed"
                     className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
                   >
                     {discardCourse.courseType}
                   </Badge>
+                  {discardCourse.department && (
+                    <Badge
+                      variant="lightRed"
+                      className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                    >
+                      {discardCourse.department}
+                    </Badge>
+                  )}
                 </div>
               }
-              badges={undefined}
             />
           ) : (
             <button
@@ -210,7 +263,6 @@ const PostWritePage: React.FC = () => {
           <div className="flex flex-col gap-4">
             {[0, 1, 2].map((index) => {
               const course = wantedCourses[index];
-              const isMajorRequired = course?.courseType?.startsWith('전공');
               return (
                 <div key={index}>
                   <div className="text-zinc-900 text-xs font-medium mb-2 ml-1">
@@ -222,9 +274,9 @@ const PostWritePage: React.FC = () => {
                       title={course.name}
                       professor={course.professor}
                       time={course.classTime}
-                      className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl min-h-[112px]"
+                      className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
                       leftNode={
-                        <div className="relative w-7 h-6 shrink-0 mb-14 flex items-center justify-center">
+                        <div className="relative w-7 h-6 shrink-0 mt-0.5 flex items-center justify-center">
                           <div className="size-6 bg-sky-200 rounded-full" />
                           <img
                             src={wantArrow}
@@ -234,40 +286,31 @@ const PostWritePage: React.FC = () => {
                         </div>
                       }
                       rightNode={
-                        <div className="flex flex-col items-end justify-between h-[80px]">
-                          <IconButton
-                            icon="ph:x"
-                            variant="ghost"
-                            className="p-1 -mr-1 -mt-1 text-gray-400"
-                            onClick={() => handleRemoveWantedCourse(index)}
-                          />
-                          <div className="flex flex-row gap-1.5">
+                        <IconButton
+                          icon="ph:x"
+                          variant="ghost"
+                          className="p-1 -mr-1 -mt-1 text-gray-400"
+                          onClick={() => handleRemoveWantedCourse(index)}
+                        />
+                      }
+                      badges={
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge
+                            variant="lightBlueOutline"
+                            className="!font-normal !rounded-lg"
+                          >
+                            {course.courseType}
+                          </Badge>
+                          {course.department && (
                             <Badge
-                              variant={
-                                isMajorRequired
-                                  ? 'lightBlueOutline'
-                                  : 'outlineGray'
-                              }
-                              className={
-                                isMajorRequired
-                                  ? '!rounded-lg'
-                                  : '!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg'
-                              }
+                              variant="lightBlueOutline"
+                              className="!font-normal !rounded-lg"
                             >
-                              {course.courseType}
+                              {course.department}
                             </Badge>
-                            {course.department && (
-                              <Badge
-                                variant="outlineGray"
-                                className="!bg-gray-200 !border-neutral-500 !text-zinc-900 !rounded-lg"
-                              >
-                                {course.department}
-                              </Badge>
-                            )}
-                          </div>
+                          )}
                         </div>
                       }
-                      badges={undefined}
                     />
                   ) : (
                     <button
