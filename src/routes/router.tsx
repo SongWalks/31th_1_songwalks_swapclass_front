@@ -45,12 +45,7 @@ export const router = createBrowserRouter([
           }, // 제안 보낼 내 게시글 선택
           { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
 
-          // 🧪 임시 테스트용 경로 - board 페이지 없이 바로 확인할 때 사용, 나중에 지우세요
-          // postId가 없으면 SpecificPostsPage가 자동으로 목업 데이터를 보여줍니다
-          { path: '/test-specific-post', element: <SpecificPostsPage /> },
-          { path: '/test-select-my-post', element: <SelectMyPostPage /> },
-          // { path: '/board/:postId/edit', element: <PostEditPage />},
-          { path: '/test-post-edit', element: <PostEditPage /> },
+          
         ],
       },
     ],
