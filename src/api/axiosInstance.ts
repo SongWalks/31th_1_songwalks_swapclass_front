@@ -32,14 +32,18 @@ axiosInstance.interceptors.response.use(
 
     // 2. 403 에러: 권한 없음 (정지된 사용자 처리)
     if (error.response?.status === 403) {
+      // Axios는 서버 응답을 항상 'data' 객체로 감싸기 때문에
+      // error.response.data가 백엔드에서 보낸 전체 JSON이 됩니다.
       const message =
         error.response?.data?.message || '이용이 정지된 계정입니다.';
 
-      // ✅ data 객체 안의 data로 한 번 더 접근하도록 수정
+      // 백엔드 JSON 구조에 맞춰서 data.data.suspendedUntil 로 접근
       const suspendedUntil = error.response?.data?.data?.suspendedUntil;
 
       if (suspendedUntil) {
-        alert(`${message}\n정지 해제일: ${suspendedUntil}`);
+        // "2026-08-01T00:00:00" -> "2026-08-01" 로 깔끔하게 변환
+        const formattedDate = suspendedUntil.split('T')[0];
+        alert(`${message}\n정지 해제일: ${formattedDate}`);
       } else {
         alert(message);
       }
