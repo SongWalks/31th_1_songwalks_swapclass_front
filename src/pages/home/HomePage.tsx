@@ -8,7 +8,6 @@ import { useHomeQuery } from '@/hooks/useHomeQuery';
 import { Spinner } from '@/components/common/Spinner';
 import { Toast } from '@/components/common/Toast';
 import { ICONS } from '@/constants/icons';
-import axiosInstance from '@/api/axiosInstance';
 import {
   useProposeMutation,
   useAcceptMutation,
@@ -22,7 +21,7 @@ export default function HomePage() {
   const [toast, setToast] = useState<{
     isVisible: boolean;
     message: string;
-    icon: string; // 아이콘은 어떤 문자열이든 될 수 있다고 알려줌
+    icon: string;
   }>({
     isVisible: false,
     message: '',
@@ -220,7 +219,6 @@ export default function HomePage() {
                   <RecommendMatchItem
                     key={match.postId}
 
-                    /* ✨ 타입 에러 해결: API 필드를 컴포넌트 프롭에 맞게 수동 매핑 */
                     id={match.postId}
                     discardCourse={match.discardCourse}
                     wantedCourses={match.wantedCourses}
