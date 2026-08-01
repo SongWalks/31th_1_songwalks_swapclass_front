@@ -9,8 +9,8 @@ import { Avatar } from '@/components/common/Avatar';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 
-import throwArrow from '@/assets/icons/throw_arrow.svg';
-import wantArrow from '@/assets/icons/want_arrow.svg';
+import throwArrow from '@/assets/icons/recommend/throw_arrow.svg';
+import wantArrow from '@/assets/icons/recommend/want_arrow.svg';
 
 interface CourseDetail {
   courseId: number;
@@ -73,12 +73,6 @@ const PostEditPage: React.FC = () => {
   >([null, null, null]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 💡 경쟁 상태(race condition) 버그 수정: /search에서 새 과목 고르고 돌아오면 이 페이지가
-  // 통째로 언마운트→재마운트되면서, fetchPost()(서버의 예전 데이터)랑 location.state(방금
-  // 고른 새 과목)가 동시에 wantedCourses를 채우려고 함. fetchPost는 네트워크 요청이라 항상
-  // 늦게 끝나서, 방금 고른 새 과목을 서버의 예전 값이 덮어써버렸음.
-  // ref로 "방금 과목 선택하고 돌아온 값"을 기억해뒀다가, fetchPost 응답이 늦게 와도
-  // 그 값을 우선시하도록 함.
   const pendingWantedCoursesRef = useRef<(CourseSelection | null)[] | null>(
     null,
   );
@@ -120,10 +114,6 @@ const PostEditPage: React.FC = () => {
     }
   }, [postId]);
 
-  // 💡 StrictMode(개발 모드)에서 이 useEffect가 두 번 실행되면 fetchPost도 두 번 나가서,
-  // 첫 번째 응답이 pendingWantedCoursesRef를 정상적으로 소비(비움)한 뒤에 두 번째(중복) 응답이
-  // 뒤늦게 도착해 ref가 이미 비어있는 걸 보고 서버의 예전 값으로 다시 덮어써버렸음.
-  // ref로 "이 마운트에서 이미 fetchPost를 시작했는지"를 기억해서, 실제 요청은 한 번만 나가게 함.
   const hasFetchedPostRef = useRef(false);
 
   useEffect(() => {
@@ -132,11 +122,6 @@ const PostEditPage: React.FC = () => {
     fetchPost();
   }, [fetchPost]);
 
-  // 💡 CourseSearchPage에서 과목 선택하고 돌아왔을 때 반영
-  // 팀원분이 만든 CourseSearchPage.tsx는 location.state가 아니라
-  // sessionStorage('selectedCourse')에 저장하고 navigate(-1)만 하는 방식이라 그거에 맞춤.
-  // (pendingWantedCoursesRef는 그대로 유지 — fetchPost의 서버 응답이 늦게 와서
-  // 방금 고른 과목을 덮어쓰는 문제를 막아주는 장치라 여전히 필요함)
   useEffect(() => {
     let restoredWanted: (CourseSelection | null)[] | null = null;
 
@@ -187,11 +172,8 @@ const PostEditPage: React.FC = () => {
     sessionStorage.removeItem('postEditFormState');
     sessionStorage.removeItem('selectedCourse');
     sessionStorage.removeItem('courseSearchTarget');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 💡 받은 요청 개수: GET /api/proposals/received는 "내가 받은 요청"만 알려주므로
-  // 내 게시글(이 페이지는 항상 내 게시글)에 한해서만 정확히 계산 가능
   useEffect(() => {
     const fetchReceivedRequestCount = async () => {
       try {

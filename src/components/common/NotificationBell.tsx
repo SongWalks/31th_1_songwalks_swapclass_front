@@ -44,14 +44,11 @@ export const NotificationBell = () => {
   }, []);
 
   return (
-    <div
-      className="relative cursor-pointer mt-1"
-      onClick={() => navigate('/alert')}
-    >
-      <IconButton icon={ICONS.BELL} />
+    <div className="relative inline-flex mt-1">
+      <IconButton icon={ICONS.BELL} onClick={() => navigate('/alert')} />
 
       {unreadCount > 0 && (
-        <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full" />
+        <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full pointer-events-none" />
       )}
     </div>
   );

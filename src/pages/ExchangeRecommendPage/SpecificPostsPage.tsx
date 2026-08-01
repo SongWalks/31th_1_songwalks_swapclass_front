@@ -15,11 +15,11 @@ import {
   getSentProposal,
   withdrawProposal,
   type ProposalData,
-} from '@/api/proposalApi';
+} from '@/api/mypage/proposalApi';
 
 // SVG 파일
-import throwArrow from '@/assets/icons/throw_arrow.svg';
-import wantArrow from '@/assets/icons/want_arrow.svg';
+import throwArrow from '@/assets/icons/recommend/throw_arrow.svg';
+import wantArrow from '@/assets/icons/recommden/want_arrow.svg';
 
 interface CourseDetail {
   courseId: number;
@@ -131,8 +131,6 @@ const SpecificPostsPage: React.FC = () => {
     fetchMyPostId();
   }, []);
 
-  // 💡 현재 내가 보낸 교환 요청 조회: PENDING 상태로 이 게시글(receiverPost)에 보낸 요청이 있으면
-  // "교환 요청하기" 버튼을 "교환 철회하기"로 바꿔서 보여줌
   const fetchSentProposal = useCallback(async () => {
     try {
       const response = await getSentProposal();
@@ -170,9 +168,6 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     fetchPostDetail();
   }, [fetchPostDetail]);
-
-  // 💡 받은 요청 개수: GET /api/proposals/received는 "내가 받은 모든 요청"을 다 주기 때문에
-  // (게시글별로 안 나눠줌), receiverPostId로 이 게시글(postId)에 온 것만 걸러서 세야 함
   useEffect(() => {
     if (!post?.mine || !postId) return;
 

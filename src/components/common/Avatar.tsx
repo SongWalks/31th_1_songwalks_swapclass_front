@@ -34,7 +34,7 @@ export const Avatar = ({
       ) : (
         // 이미지가 없을 경우 (시안의 둥근 사람 실루엣 기본 아이콘)
         // Iconify의 기본 user 아이콘을 하얀색으로 띄웁니다.
-        <Icon icon="ph:user-fill" className="text-white" />
+        <Icon icon="healthicons:person" className="text-white" />
       )}
     </div>
   );
