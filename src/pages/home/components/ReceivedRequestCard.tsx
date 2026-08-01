@@ -35,8 +35,8 @@ export const ReceivedRequestCard = ({
     return `${m}분 남음`;
   };
 
-  // 💡 4. 긴급 상태 조건 로직 (예: 1시간=3600초 미만 남았을 때 긴급)
-  const isUrgent = remainSeconds > 0 && remainSeconds < 3600;
+  // 💡 4. 긴급 상태 조건 로직 (예: 10분=600초 미만 남았을 때 긴급)
+  const isUrgent = remainSeconds > 0 && remainSeconds < 600;
 
   const timeText = formatRemainTime(remainSeconds);
   const borderClass = isUrgent ? 'border-[#F2994A]' : 'border-[#8FB6D9]';
