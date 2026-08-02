@@ -8,7 +8,7 @@ const axiosInstance = axios.create({
   },
 });
 
-// 요청 인터셉터 — 토큰 자동 첨부
+// TODO: 요청 인터셉터 — 토큰 자동 첨부 (나중에 채워야 됨)
 axiosInstance.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -17,14 +17,13 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
+// TODO: 응답 인터셉터 — 401 처리 등 (나중에 채워야 됨)
 // 응답 인터셉터 — 전역 에러 처리
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    const hadToken = !!localStorage.getItem('accessToken');
-
     // 1. 401 에러: 토큰 만료 또는 로그인 안 된 상태
-    if (error.response?.status === 401 && hadToken) {
+    if (error.response?.status === 401) {
       alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
       // 인증 정보 지우고 로그인 페이지로 쫓아내기
       localStorage.removeItem('accessToken');
@@ -32,7 +31,7 @@ axiosInstance.interceptors.response.use(
     }
 
     // 2. 403 에러: 권한 없음 (정지된 사용자 처리)
-    if (error.response?.status === 403 && hadToken) {
+    if (error.response?.status === 403) {
       // Axios는 서버 응답을 항상 'data' 객체로 감싸기 때문에
       // error.response.data가 백엔드에서 보낸 전체 JSON이 됩니다.
       const message =
