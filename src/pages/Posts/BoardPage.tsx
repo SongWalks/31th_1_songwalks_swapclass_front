@@ -84,6 +84,9 @@ const BoardPage = () => {
 
   // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
   useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
     const fetchMyPosts = async () => {
       try {
         const response = await axiosInstance.get('/api/posts/me', {
@@ -171,9 +174,17 @@ const BoardPage = () => {
         });
 
         setPosts(mapped);
-      } catch (error: any) {
-        const status = error?.response?.status;
-        const serverMessage = error?.response?.data?.message;
+      } catch (error) {
+        const axiosError = error as {
+          response?: {
+            status?: number;
+            data?: { message?: string };
+          };
+        };
+
+        const status = axiosError.response?.status;
+        const serverMessage = axiosError.response?.data?.message;
+
         console.error('게시글 목록 조회 실패:', error);
         setLoadError(
           serverMessage

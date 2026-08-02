@@ -99,9 +99,12 @@ export default function HomePage() {
         onSuccess: () => {
           showToast('교환 제안을 성공적으로 보냈습니다!');
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
+          const axiosError = error as {
+            response?: { data?: { message?: string } };
+          };
           const errorMessage =
-            error.response?.data?.message ||
+            axiosError.response?.data?.message ||
             '제안 처리 중 오류가 발생했습니다.';
           showToast(errorMessage, true);
         },
@@ -117,9 +120,13 @@ export default function HomePage() {
       onSuccess: () => {
         showToast('교환 제안을 수락했습니다!');
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const axiosError = error as {
+          response?: { data?: { message?: string } };
+        };
         const errorMessage =
-          error.response?.data?.message || '수락 처리 중 오류가 발생했습니다.';
+          axiosError.response?.data?.message ||
+          '수락 처리 중 오류가 발생했습니다.';
         showToast(errorMessage, true);
       },
     });
@@ -215,20 +222,15 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {recommendedMatches.map((match: any) => (
+                {recommendedMatches.map((match) => (
                   <RecommendMatchItem
-                    key={match.postId}
-
-                    id={match.postId}
+                    key={match.id}
+                    id={match.id}
                     discardCourse={match.discardCourse}
                     wantedCourses={match.wantedCourses}
                     proposalCount={match.proposalCount}
-
-                    /* 백엔드 응답인 requestStatus 명시적 주입 (PENDING or null) */
                     requestStatus={match.requestStatus || null}
-
                     senderPostId={match.senderPostId}
-
                     onPropose={handlePropose}
                   />
                 ))}
