@@ -9,6 +9,10 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import HomePage from '@/pages/home/HomePage';
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
+import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
+import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
+import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
+import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
 import Mypage from '@/pages/Mypage/Mypage';
 import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
 import MyPostpage from '@/pages/Mypage/MyPostpage';
@@ -39,6 +43,11 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <HomePage /> },
           {
+            //나중에 다 머지한 뒤에 라우터 수정
+            path: 'my/exchange-recommend',
+            element: <ExchangeRecommendPage />,
+          },
+          {
             path: 'my',
             children: [
               { index: true, element: <Mypage /> },
@@ -62,6 +71,12 @@ export const router = createBrowserRouter([
         children: [
           { path: '/report', element: <ReportPage /> },
           { path: '/report/success', element: <ReportSuccessPage /> }, // 신고 완료 페이지 (임시)
+          {
+            path: '/board/:postId/select-my-post',
+            element: <SelectMyPostPage />,
+          }, // 제안 보낼 내 게시글 선택
+          { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
+          { path: '/board/:postId/edit', element: <PosteditPage /> }, // 게시글 수정
           {
             path: '/my/graduation',
             children: [
