@@ -9,6 +9,8 @@ import FullScreenLayout from '@/components/layout/FullScreenLayout';
 import HomePage from '@/pages/home/HomePage';
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
+import BoardPage from '@/pages/Posts/BoardPage';
+import PostWritePage from '@/pages/Posts/PostWritePage';
 import { LoungePage } from '@/pages/lounge/LoungePage';
 import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
@@ -26,6 +28,7 @@ export const router = createBrowserRouter([
         element: <DefaultLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/board', element: <BoardPage /> }, // /board (교환게시판)
           { path: '/lounge', element: <LoungePage /> },
         ],
       },
@@ -37,6 +40,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/report', element: <ReportPage /> },
           { path: '/report/success', element: <ReportSuccessPage /> }, // 신고 완료 페이지 (임시)
+          { path: '/board/write', element: <PostWritePage /> },
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
           { path: '/course-search', element: <CourseSearchPage /> },
