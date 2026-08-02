@@ -11,16 +11,26 @@ export default function BottomNav() {
       id: 'board',
       label: '게시판',
       path: '/board',
-      icon: 'mdi:text-box-outline',
+      icon: 'streamline-ultimate:notes-paper-text',
     },
     {
       id: 'chat',
       label: '교환채팅방',
       path: '/chat',
-      icon: 'ph:chat-circle-dots',
+      icon: 'hugeicons:bubble-chat',
     },
-    { id: 'lounge', label: '라운지', path: '/lounge', icon: 'mdi:snowflake' },
-    { id: 'my', label: '마이페이지', path: '/my', icon: 'ph:user' },
+    {
+      id: 'lounge',
+      label: '라운지',
+      path: '/lounge',
+      icon: 'material-symbols-light:snowflake',
+    },
+    {
+      id: 'my',
+      label: '마이페이지',
+      path: '/my',
+      icon: 'healthicons:person-outline',
+    },
   ];
 
   return (
@@ -48,7 +58,9 @@ export default function BottomNav() {
             >
               <Icon
                 icon={item.icon}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 block"
+                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 block ${
+                  item.id === 'board' ? 'w-5 h-5' : 'w-6 h-6'
+                }`}
               />
             </div>
 

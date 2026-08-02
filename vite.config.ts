@@ -10,4 +10,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://swapclass.duckdns.org',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 });
