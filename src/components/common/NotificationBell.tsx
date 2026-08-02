@@ -8,7 +8,7 @@ export const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // 컴포넌트가 그려질 때 토큰이 있는지 확인
-  const token = localStorage.getItem('accessToken');
+  const token = localStorage.getItem('soo_access_token');
 
   useEffect(() => {
     const fetchUnreadCount = async () => {

@@ -13,7 +13,7 @@ export const HomeHeader = ({
   const navigate = useNavigate();
 
   // 컴포넌트가 렌더링될 때 로그인 토큰 여부 확인
-  const token = localStorage.getItem('accessToken');
+  const token = localStorage.getItem('soo_access_token');
 
   return (
     <header
