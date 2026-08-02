@@ -16,6 +16,11 @@ import MyLoungePostsPage from '@/pages/Mypage/MyLoungePostsPage';
 import MyBookmarkPage from '@/pages/Mypage/MyBookmarkPage';
 import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
+import { LoungePage } from '@/pages/lounge/LoungePage';
+import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
+import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
+import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
+import { PostEditPage } from '@/pages/lounge/PostEditPage';
 
 export const router = createBrowserRouter([
   {
@@ -54,11 +59,15 @@ export const router = createBrowserRouter([
               { path: 'modify', element: <GraduationAddPage /> },
             ],
           },
+          { path: '/lounge', element: <LoungePage /> },
           {
-            // 💡 뚱땅뚱땅 수정할 부분: :proposalId 파라미터 추가!
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
           },
+          { path: '/post/:postId', element: <PostDetailPage /> },
+          { path: '/lounge/write', element: <LoungeWritePage /> },
+          { path: '/course-search', element: <CourseSearchPage /> },
+          { path: '/lounge/:postId/edit', element: <PostEditPage /> },
         ],
       },
     ],
