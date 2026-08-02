@@ -1,4 +1,3 @@
-import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
@@ -207,7 +206,14 @@ export default function AlertPage() {
               <IconButton icon={ICONS.BACK} onClick={handleBack} />
             </div>
           }
-          title={<span style={{ color: '#000000B2' }}>알림</span>}
+          title={
+            <span
+              style={{ color: '#000000B2', marginLeft: 50 }}
+              className="text-semibold-18"
+            >
+              알림
+            </span>
+          }
         />
       </div>
 
