@@ -15,7 +15,7 @@ import {
   getSentProposal,
   withdrawProposal,
   type ProposalData,
-} from '@/api/mypage/proposalApi';
+} from '@/api/recommend/proposalApi';
 
 // SVG 파일
 import throwArrow from '@/assets/icons/recommend/throw_arrow.svg';

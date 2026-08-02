@@ -11,6 +11,12 @@ import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
 import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
 import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
 
+import { LoungePage } from '@/pages/lounge/LoungePage';
+import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
+import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
+import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
+import { PostEditPage } from '@/pages/lounge/PostEditPage';
+
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
@@ -22,13 +28,12 @@ export const router = createBrowserRouter([
         element: <DefaultLayout />,
 
         children: [
-          // 예시: { path: '/board', element: <BoardPage /> },    // /board (교환게시판)
-
           {
             //나중에 다 머지한 뒤에 라우터 수정
             path: 'my/exchange-recommend',
             element: <ExchangeRecommendPage />,
           },
+          { path: '/lounge', element: <LoungePage /> },
         ],
       },
       {
@@ -43,6 +48,10 @@ export const router = createBrowserRouter([
           }, // 제안 보낼 내 게시글 선택
           { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
           { path: '/board/:postId/edit', element: <PosteditPage /> }, // 게시글 수정
+          { path: '/post/:postId', element: <PostDetailPage /> },
+          { path: '/lounge/write', element: <LoungeWritePage /> },
+          { path: '/course-search', element: <CourseSearchPage /> },
+          { path: '/lounge/:postId/edit', element: <PostEditPage /> },
         ],
       },
     ],
