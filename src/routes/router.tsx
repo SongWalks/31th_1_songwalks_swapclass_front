@@ -14,8 +14,11 @@ import EPRPage from '../pages/chat/EPR';
 import CRPPage from '../pages/chat/CRP';
 import SDPPage from '../pages/chat/SDP';
 import TDPPage from '../pages/chat/TDP';
-
 // --- 2. 페이지 불러오기  ---
+import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
+import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
+import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
+import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
 // 💡 마이페이지
 import Mypage from '@/pages/Mypage/Mypage';
 import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
@@ -52,6 +55,11 @@ export const router = createBrowserRouter([
           { path: '/chat', element: <EPRPage /> },
           // 예시: { path: '/board', element: <BoardPage /> },    // /board (교환게시판)
           {
+            //나중에 다 머지한 뒤에 라우터 수정
+            path: 'my/exchange-recommend',
+            element: <ExchangeRecommendPage />,
+          },
+          {
             path: 'my',
             children: [
               { index: true, element: <Mypage /> },
@@ -73,6 +81,12 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          {
+            path: '/board/:postId/select-my-post',
+            element: <SelectMyPostPage />,
+          }, // 제안 보낼 내 게시글 선택
+          { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
+          { path: '/board/:postId/edit', element: <PosteditPage /> }, // 게시글 수정
           {
             path: '/my/graduation',
             children: [
