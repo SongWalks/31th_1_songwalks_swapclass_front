@@ -4,7 +4,6 @@ import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
-<<<<<<< HEAD
 
 // 💡 마이페이지
 import Mypage from '@/pages/Mypage/Mypage';
@@ -50,10 +49,8 @@ export const router = createBrowserRouter([
             ],
           },
 
-     
           { path: '/board', element: <BoardPage /> }, // /board (교환게시판)
           { path: '/lounge', element: <LoungePage /> },
-
         ],
       },
       {
@@ -62,7 +59,6 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
-
           {
             path: '/my/graduation',
             children: [
@@ -79,7 +75,6 @@ export const router = createBrowserRouter([
           // :id 나 :roomId 는 동적 라우팅 기법입니다. (ex. /board/123)
           // 예시: { path: '/board/:id', element: <DetailPage /> },    // 상세 게시글
           { path: '/board/write', element: <PostWritePage /> },
-
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
           { path: '/course-search', element: <CourseSearchPage /> },
