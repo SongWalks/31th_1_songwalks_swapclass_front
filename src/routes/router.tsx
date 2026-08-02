@@ -4,14 +4,13 @@ import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
-
-// --- 2. 페이지 불러오기  ---
+import BoardPage from '@/pages/Posts/BoardPage';
+import PostWritePage from '@/pages/Posts/PostWritePage';
 import { LoungePage } from '@/pages/lounge/LoungePage';
 import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
 import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
 import { PostEditPage } from '@/pages/lounge/PostEditPage';
-
 import HomePage from '@/pages/home/HomePage';
 
 export const router = createBrowserRouter([
@@ -25,6 +24,7 @@ export const router = createBrowserRouter([
         element: <DefaultLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/board', element: <BoardPage /> }, // /board (교환게시판)
           { path: '/lounge', element: <LoungePage /> },
         ],
       },
@@ -34,6 +34,7 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          { path: '/board/write', element: <PostWritePage /> },
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
           { path: '/course-search', element: <CourseSearchPage /> },
