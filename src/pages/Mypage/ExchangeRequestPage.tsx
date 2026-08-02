@@ -64,6 +64,12 @@ const ExchangeRequestPage = () => {
     unranked: false,
   });
 
+  // 💡 컴포넌트가 처음 뜰 때 딱 한 번만, 이전 화면에서 넘어온 location.state가 남아있으면
+  // 지우기 위한 effect. location.state를 의존성 배열에 넣으면 무한 루프에 빠짐 —
+  // navigate(..., { state: {} })로 지운 뒤에도 {}는 truthy라서 가드가 안 걸러지고,
+  // {} 자체가 "새로운 값"이라 effect가 계속 재실행되기 때문. 그래서 일부러 마운트 시
+  // 한 번만 실행되게 둠(exhaustive-deps 규칙을 의도적으로 무시함).
+   
   useEffect(() => {
     if (!location.state) return;
     navigate(location.pathname, { replace: true, state: {} });
