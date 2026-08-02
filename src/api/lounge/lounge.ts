@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance'; // 실제 axios 인스턴스 경로
+import axiosInstance from '@/api/axiosInstance'; // 실제 axios 인스턴스 경로
 import type {
   CreatePostRequest,
   CreatePostResponse,
@@ -11,7 +11,7 @@ import type {
   CreateCommentRequest,
   CreateCommentResponse,
   DeleteCommentResponse,
-} from '@/types/lounge';
+} from '@/types/lounge/lounge';
 
 // 1. 게시글 작성 API
 export const createPost = async (

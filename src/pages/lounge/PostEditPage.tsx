@@ -10,9 +10,9 @@ import { ICONS } from '@/constants/icons';
 import Button from '@/components/common/Button';
 import { NotificationBell } from '@/components/common/NotificationBell';
 
-import { getPostDetail, updatePost } from '@/api/lounge';
+import { getPostDetail, updatePost } from '@/api/lounge/lounge';
 // ✅ 분리해둔 타입을 가져옵니다.
-import type { UpdatePostRequest } from '@/types/lounge';
+import type { UpdatePostRequest } from '@/types/lounge/lounge';
 
 export const PostEditPage = () => {
   const navigate = useNavigate();

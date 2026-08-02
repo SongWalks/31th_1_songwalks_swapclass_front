@@ -12,7 +12,7 @@ import { ICONS } from '@/constants/icons';
 import { NotificationBell } from '@/components/common/NotificationBell';
 import { useWriteStore } from '@/store/useWriteStore';
 import { PostCard } from '@/components/common/PostCard';
-import { getLoungePosts } from '@/api/lounge.ts';
+import { getLoungePosts } from '@/api/lounge/lounge.ts';
 import type { Post } from '@/components/common/PostCard';
 
 const formatDate = (dateString: string) => {

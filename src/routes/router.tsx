@@ -19,7 +19,6 @@ import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecomme
 import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
 import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
 import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
-// 💡 마이페이지
 import Mypage from '@/pages/Mypage/Mypage';
 import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
 import MyPostpage from '@/pages/Mypage/MyPostpage';
@@ -32,12 +31,12 @@ import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
 import BoardPage from '@/pages/Posts/BoardPage';
 import PostWritePage from '@/pages/Posts/PostWritePage';
-
 import { LoungePage } from '@/pages/lounge/LoungePage';
 import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
 import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
 import { PostEditPage } from '@/pages/lounge/PostEditPage';
+import HomePage from '@/pages/home/HomePage';
 
 export const router = createBrowserRouter([
   {
@@ -48,12 +47,12 @@ export const router = createBrowserRouter([
         // 💡 1번 그룹: 하단 네비게이션(BottomNav)이 있는 화면들
         // ==========================================
         element: <DefaultLayout />,
-
         children: [
           // 예시: { path: 'board', element: <BoardPage /> },    // /board (교환게시판)
           { path: '/alert', element: <AlertPage /> },
           { path: '/chat', element: <EPRPage /> },
           // 예시: { path: '/board', element: <BoardPage /> },    // /board (교환게시판)
+          { path: '/', element: <HomePage /> },
           {
             //나중에 다 머지한 뒤에 라우터 수정
             path: 'my/exchange-recommend',
