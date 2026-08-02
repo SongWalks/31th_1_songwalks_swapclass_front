@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
-import { IconButton } from '@/components/common/IconButton';
-import { ICONS } from '@/constants/icons';
 import clockIcon from '@/assets/icons/clock.svg';
 import { NotificationBell } from '@/components/common/NotificationBell';
 
@@ -61,17 +59,12 @@ export default function ExchangeRoomListPage() {
     void fetchRooms();
   }, []);
 
-  const handleBack = () => navigate(-1);
   const handleRoomClick = (roomId: number) => navigate(`/chat/${roomId}`);
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
-        <Header
-          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
-          title="교환준비방"
-          rightNode={<NotificationBell />}
-        />
+        <Header title="교환준비방" rightNode={<NotificationBell />} />
       </div>
 
       <div className="flex flex-col overflow-y-auto flex-1 min-h-0">
