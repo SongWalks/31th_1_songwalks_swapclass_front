@@ -55,8 +55,6 @@ const MyLoungePostsPage: React.FC = () => {
     courseTag: post.courseName,
     likes: post.likeCount,
     comments: post.commentCount,
-    // 💡 목록 API 응답에 bookmarked가 내려오면 그 값 그대로 사용 (기본은 false)
-    bookmarked: (post as any).bookmarked,
   });
 
   return (

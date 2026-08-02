@@ -63,7 +63,6 @@ const MyBookmarkPage: React.FC = () => {
     likes: post.likeCount,
     comments: post.commentCount,
     // 💡 내 북마크 목록이므로 항상 true 고정 (원래 filled={true}였던 것과 동일)
-    bookmarked: true,
   });
 
   return (

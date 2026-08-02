@@ -65,7 +65,7 @@ export const PostCard = ({ post, onClick }: PostCardProps) => {
             <Icon icon="ph:heart" className="text-[16px]" />
             <span>{post.likes}</span>
           </div>
-          <Icon icon={'ph:bookmark-simple'} className="text-[16px]" />
+          <Icon icon="ph:bookmark-simple" className="text-[16px]" />
           <div className="flex items-center gap-0.5">
             <Icon icon="ph:chat-circle" className="text-[16px]" />
             <span>{post.comments}</span>
