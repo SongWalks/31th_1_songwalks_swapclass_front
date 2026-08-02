@@ -15,16 +15,19 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* JS 파일 허용 (마이그레이션 중) */
+    "allowJs": true,
+    "checkJs": false,
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* 절대 경로 설정 추가 */
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "src/global.d.ts"]
 }
