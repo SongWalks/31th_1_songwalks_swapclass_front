@@ -3,7 +3,7 @@ import type {
   FetchCoursesParams,
   PaginatedCourses,
   DepartmentResponse,
-} from '@/types/course';
+} from '@/types/common/course';
 
 export const fetchCourses = async (
   params: FetchCoursesParams,

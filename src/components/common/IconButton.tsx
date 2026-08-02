@@ -28,7 +28,7 @@ export const IconButton = ({
         ${className}
       `}
     >
-      {/* 💡 아이콘 크기는 무조건 24px(text-2xl) 또는 20px(text-xl)로 고정 */}
+      {/* 아이콘 크기는 무조건 24px(text-2xl) 또는 20px(text-xl)로 고정 */}
       <Icon icon={icon} className="text-[22px] text-gray-800" />
     </button>
   );
