@@ -5,7 +5,7 @@ import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
-// --- 2. 페이지 불러오기 (임시 예시) ---
+// --- 2. 페이지 불러오기 ---
 import LoginPage from '../pages/auth/login';
 import SignupPage from '../pages/auth/signup';
 import FindPWPage from '../pages/auth/findPW';
@@ -14,7 +14,6 @@ import EPRPage from '../pages/chat/EPR';
 import CRPPage from '../pages/chat/CRP';
 import SDPPage from '../pages/chat/SDP';
 import TDPPage from '../pages/chat/TDP';
-// --- 2. 페이지 불러오기  ---
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';

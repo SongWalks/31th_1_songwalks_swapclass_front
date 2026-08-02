@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import Button from '@/components/common/Button';
 
 interface SimpleCourse {
@@ -19,6 +20,8 @@ interface HomeHeroProps {
 }
 
 export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
+  const navigate = useNavigate();
+
   const formatTime = (isoString?: string) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -39,8 +42,17 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
   const formattedTime = formatTime(heroBanner?.scheduledAt);
   const courseName = heroBanner?.partnerCourse?.name || '과목명 로딩중';
 
-  // 💡 교환 약속(디데이)이 있는지 확인하는 조건 추가
   const hasAppointment = heroBanner != null && heroBanner.remainSeconds > 0;
+
+  const handleButtonClick = () => {
+    if (!hasAppointment) {
+      navigate('/board');
+    } else {
+      // TODO: 데이터에 chatRoomId가 있다면 특정 채팅방으로 바로 이동하게 할 수도 있습니다.
+      // 예: navigate(`/chat/${heroBanner.chatRoomId}`);
+      navigate('/chat');
+    }
+  };
 
   return (
     <section className="relative w-full pt-4 pb-6 flex flex-col">
@@ -137,8 +149,8 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         variant="light"
         size="lg"
         className="mt-9 backdrop-blur-sm border border-[#A8D4EF]/50 !h-[44px]"
+        onClick={handleButtonClick}
       >
-        {/* 💡 교환 약속이 없으면 '둘러보기', 있으면 '입장하기' */}
         {!hasAppointment ? '교환 게시글 둘러보기' : '교환채팅방 입장하기'}
       </Button>
     </section>
