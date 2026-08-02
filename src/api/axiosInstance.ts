@@ -8,14 +8,18 @@ const axiosInstance = axios.create({
   },
 });
 
-// TODO: 요청 인터셉터 — 토큰 자동 첨부 (나중에 채워야 됨)
-axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('soo_access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 // TODO: 응답 인터셉터 — 401 처리 등 (나중에 채워야 됨)
 // 응답 인터셉터 — 전역 에러 처리
