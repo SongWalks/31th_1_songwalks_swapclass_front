@@ -10,9 +10,8 @@ import { ICONS } from '@/constants/icons';
 import Button from '@/components/common/Button';
 import { NotificationBell } from '@/components/common/NotificationBell';
 
-import { getPostDetail, updatePost } from '@/api/lounge';
-// ✅ 분리해둔 타입을 가져옵니다.
-import type { UpdatePostRequest } from '@/types/lounge';
+import { getPostDetail, updatePost } from '@/api/lounge/lounge';
+import type { UpdatePostRequest } from '@/types/lounge/lounge';
 
 export const PostEditPage = () => {
   const navigate = useNavigate();
@@ -35,7 +34,6 @@ export const PostEditPage = () => {
     }
   }, [postResponse]);
 
-  // 🚀 타입을 하드코딩하지 않고 Import 해온 UpdatePostRequest 사용
   const { mutate: editPost, isPending } = useMutation({
     mutationFn: (updateData: UpdatePostRequest) =>
       updatePost({ postId: Number(postId), data: updateData }),
@@ -112,7 +110,6 @@ export const PostEditPage = () => {
               <Icon icon="ph:x" className="text-[20px]" />
             </button>
             <div className="text-[16px] font-bold text-gray-800 pr-6">
-              {/* ✅ 서버에서 전달받은 과목명 사용 */}
               {postData?.courseName || '과목명 없음'}
             </div>
           </div>
