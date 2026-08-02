@@ -1,6 +1,6 @@
 // pages/chat/TerminateDealPage.tsx
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -8,16 +8,20 @@ import Button from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
-import { mockExchangeStore } from '../mockExcn';
+
+import { chatRoomApi } from '@/api/chat/chatRoomApi';
+import { exchangeApi, type CancelReason } from '@/api/chat/exchangeApi';
+import { ApiError } from '@/api/chat/apiClient';
 
 interface ReasonGroup {
-  key: string;
+  key: CancelReason;
   label: string;
   subReasons?: string[];
   freeText?: boolean;
   blocked?: boolean;
 }
 
+// ⚠️ 백엔드 enum에는 MONEY_DEMAND도 있지만, 디자인상 선택 UI가 없어 프론트에는 노출하지 않는다.
 const REASON_GROUPS: ReasonGroup[] = [
   {
     key: 'MUTUAL',
@@ -34,72 +38,85 @@ const REASON_GROUPS: ReasonGroup[] = [
     label: '상대방이 거래를 진행하지 않음',
     subReasons: ['과목을 버리지 않음', '거래를 일방적으로 중단함'],
   },
-  { key: 'NO_RESPONSE', label: '상대방과 연락이 원활하지 않음', blocked: true },
+  { key: 'OTHER', label: '상대방과 연락이 원활하지 않음', blocked: true },
   { key: 'OTHER', label: '기타', freeText: true },
 ];
 
 export default function TerminateDealPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { roomId = '' } = useParams();
 
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  const [exchangeId, setExchangeId] = useState<number | null>(
+    (location.state as { exchangeId?: number } | null)?.exchangeId ?? null,
+  );
+
+  useEffect(() => {
+    if (exchangeId != null) return;
+    chatRoomApi
+      .getRoom(roomId, { size: 1 })
+      .then((data) => setExchangeId(data.room.exchangeId))
+      .catch(() => setExchangeId(null));
+  }, [roomId, exchangeId]);
+
+  // NO_RESPONSE(연락 두절) 항목과 OTHER(기타) 항목이 둘 다 키가 'OTHER'라 openKey 구분을 위해 인덱스도 함께 관리
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [selectedSubReason, setSelectedSubReason] = useState<string | null>(
     null,
   );
   const [otherDetail, setOtherDetail] = useState('');
   const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(
+    '거래를 파기하지 못했습니다. 다시 시도해주세요.',
+  );
 
   const handleBack = () => navigate(-1);
 
-  const handleToggleGroup = (group: ReasonGroup) => {
+  const handleToggleGroup = (group: ReasonGroup, index: number) => {
     if (group.blocked) {
       setIsBlockedModalOpen(true);
       return;
     }
-    setOpenKey((prev) => (prev === group.key ? null : group.key));
-    setSelectedGroupKey(group.key);
+    setOpenIndex((prev) => (prev === index ? null : index));
+    setSelectedIndex(index);
     setSelectedSubReason(null);
   };
 
-  const handleSelectSubReason = (groupKey: string, sub: string) => {
-    setSelectedGroupKey(groupKey);
+  const handleSelectSubReason = (index: number, sub: string) => {
+    setSelectedIndex(index);
     setSelectedSubReason(sub);
   };
 
+  const selectedGroup =
+    selectedIndex != null ? REASON_GROUPS[selectedIndex] : null;
   const canSubmit =
-    selectedGroupKey !== null &&
-    (selectedGroupKey === 'OTHER'
+    selectedGroup != null &&
+    (selectedGroup.freeText
       ? otherDetail.trim().length > 0
       : selectedSubReason !== null);
 
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-    // TODO: 실제로는 2번 API(거래 파기) 호출
-    // reason: selectedGroupKey를 서버 enum(MUTUAL|FRAUD|MONEY_DEMAND|ABUSE|OTHER)에 맞게 매핑
-    // detail: selectedGroupKey === 'OTHER' ? otherDetail : selectedSubReason
-    //
-    // 💡 실제 API 연동 로직 - 백엔드 거래 파기 API 붙으면 아래 주석 블록 해제
-    /*
-    const reason = selectedGroupKey;
-    const detail =
-      selectedGroupKey === 'OTHER' ? otherDetail : selectedSubReason;
-    const res = await fetch(`${API_BASE}/api/exchange/${roomId}/terminate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason, detail }),
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      // TODO: 실패 시 에러 토스트/모달 처리
-      return;
+  const handleSubmit = async () => {
+    if (!canSubmit || !selectedGroup || !exchangeId) return;
+    setIsSubmitting(true);
+    try {
+      const detail = selectedGroup.freeText
+        ? otherDetail
+        : (selectedSubReason ?? undefined);
+      await exchangeApi.cancel(exchangeId, selectedGroup.key, detail);
+      navigate(`/chat/${roomId}`);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof ApiError
+          ? err.message
+          : '거래를 파기하지 못했습니다. 다시 시도해주세요.',
+      );
+      setIsErrorModalOpen(true);
+    } finally {
+      setIsSubmitting(false);
     }
-    */
-
-    // 💡 목업: 파기 상태로 전환 → ChatRoomPage에서 이 status를 보고
-    // 안내 문구 노출 + 입력창 잠금 처리를 한다.
-    mockExchangeStore.setStatus(roomId, 'TERMINATED');
-    navigate(`/chat/${roomId}`);
   };
 
   return (
@@ -111,7 +128,7 @@ export default function TerminateDealPage() {
               <IconButton icon={ICONS.BACK} onClick={handleBack} />
             </div>
           }
-          title={<span className="text-[#000000B2]">거래 파기/원상복구</span>}
+          title={<span className="text-[#000000B2]">거래 파기</span>}
           rightNode={
             <div style={{ opacity: 0.6 }} className="z-10">
               <IconButton icon={ICONS.CLOSE} onClick={handleBack} />
@@ -143,18 +160,18 @@ export default function TerminateDealPage() {
         </div>
 
         <div className="px-5 py-5 flex flex-col gap-3">
-          {REASON_GROUPS.map((group) => {
-            const isOpen = openKey === group.key;
+          {REASON_GROUPS.map((group, index) => {
+            const isOpen = openIndex === index;
             return (
               <div
-                key={group.key}
+                key={`${group.key}-${group.label}`}
                 className="border border-gray-200 rounded-lg overflow-hidden"
               >
                 <button
                   type="button"
-                  onClick={() => handleToggleGroup(group)}
+                  onClick={() => handleToggleGroup(group, index)}
                   className={`w-full flex items-center justify-between px-4 py-3 text-sm ${
-                    selectedGroupKey === group.key
+                    selectedIndex === index
                       ? 'bg-brand-bg text-brand-lightBlue font-semibold'
                       : 'bg-white text-gray-900'
                   }`}
@@ -175,12 +192,11 @@ export default function TerminateDealPage() {
                       >
                         <input
                           type="radio"
-                          name={group.key}
+                          name={`reason-${index}`}
                           checked={
-                            selectedSubReason === sub &&
-                            selectedGroupKey === group.key
+                            selectedSubReason === sub && selectedIndex === index
                           }
-                          onChange={() => handleSelectSubReason(group.key, sub)}
+                          onChange={() => handleSelectSubReason(index, sub)}
                         />
                         {sub}
                       </label>
@@ -215,10 +231,10 @@ export default function TerminateDealPage() {
         <Button
           variant="primary"
           size="lg"
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
           onClick={handleSubmit}
         >
-          거래 파기하기
+          {isSubmitting ? '처리 중...' : '거래 파기하기'}
         </Button>
       </div>
 
@@ -251,6 +267,31 @@ export default function TerminateDealPage() {
         자동 종료 전 거래를 일방적으로 파기하면{'\n'}
         파기한 사용자에게 귀책사유가 인정되어{'\n'}
         페널티가 부여될 수 있습니다.
+      </Modal>
+
+      <Modal
+        isOpen={isErrorModalOpen}
+        onClose={() => setIsErrorModalOpen(false)}
+        icon={
+          <span className="w-10 h-10 rounded-full bg-point-red/10 flex items-center justify-center">
+            <Icon
+              icon="mdi:alert-circle"
+              className="text-[24px] text-point-red"
+            />
+          </span>
+        }
+        title="거래 파기에 실패했습니다"
+        footer={
+          <Button
+            variant="danger"
+            size="md"
+            onClick={() => setIsErrorModalOpen(false)}
+          >
+            확인
+          </Button>
+        }
+      >
+        {errorMessage}
       </Modal>
     </div>
   );

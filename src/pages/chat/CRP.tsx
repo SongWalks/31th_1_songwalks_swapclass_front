@@ -1,6 +1,6 @@
-// pages/chat/ChatRoomPage.tsx (crp.tsx)
+// pages/chat/ChatRoomPage.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -8,76 +8,25 @@ import { Input } from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
-import { useScheduledAt } from '../mockChat';
-import { mockExchangeStore, useExchangeState } from '../mockExcn';
 import sendIcon from '@/assets/icons/send.svg';
 import disputeIcon from '@/assets/icons/dispute.svg';
 
-const CURRENT_USER_ID = 1; // TODO: 실제 로그인 유저 id로 교체
-const COUNTERPART_ID = 2;
+import { chatRoomApi, type ChatMessageDto } from '@/api/chat/chatRoomApi';
+import { exchangeApi } from '@/api/chat/exchangeApi';
+import { ApiError } from '@/api/chat/apiClient';
+import { useChatSocket } from '@/api/chat/useChatSocket';
 
-const VERIFY_WINDOW_SECONDS = 5 * 60;
+// TODO: 실제 로그인 유저 id로 교체 (인증/세션 연동 후)
+const CURRENT_USER_ID = 1;
+
 const COUNTDOWN_START = 10;
 const COUNTDOWN_RED_THRESHOLD = 3;
 
-interface ChatMessage {
-  id: number;
-  senderId: number;
-  content: string;
-  createdAt: string;
-}
-
-const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    id: 1,
-    senderId: CURRENT_USER_ID,
-    content: '내일 오전 4시에 교환해요',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    senderId: COUNTERPART_ID,
-    content: '좋아요',
-    createdAt: new Date().toISOString(),
-  },
-];
-
-// TODO: 실제 room 상세 API로 대체 (내 과목명 / 상대 과목명)
-const MOCK_ROOM_COURSES: Record<string, { my: string; counterpart: string }> = {
-  '1': { my: '마케팅과 소비자 이슈', counterpart: '프로그래밍언어론' },
-  '2': { my: '자바프로그래밍', counterpart: '소비자 경제' },
-};
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('ko-KR', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-
-const formatScheduledDate = (iso: string) => {
-  const d = new Date(iso);
-  const days = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
-};
-
-// 채팅방 내부에서 전환되는 화면 단계
-// CHAT: 평소 채팅 화면
-// GUIDE: 캡쳐 인증 방법 안내 화면
-// VERIFY: 5분 전 강의 보유 인증 (이미지1)
-// COUNTDOWN: 카운트다운 + 성공/실패 선택 (이미지2, 전체 오버레이)
-// DISPUTE: 분쟁 조정(사후 인증) (이미지3)
-//
-// ⚠️ 위 단계들은 "페이지 전환"이 아니라 채팅방이라는 하나의 화면 위에
-// 카드 형태로 얹히는 콘텐츠일 뿐이다. 따라서 헤더/푸터는 flowStep과
-// 무관하게 항상 기본으로 노출되어야 한다. (COUNTDOWN도 예외 아님 -
-// 다만 카운트다운 중에는 Modal 오버레이가 위에 뜨면서 헤더/푸터는
-// "보이기만" 하고 기능은 동작하지 않아도 된다.)
-//
-// ⚠️ 단, 채팅 입력(푸터)은 VERIFY(5분 전 인증)가 시작된 순간부터 완전히 잠긴다.
-// VERIFY -> COUNTDOWN -> DISPUTE 로 이어지는 동안 계속 잠금 상태이며,
-// CHAT/GUIDE 단계에서만 입력창이 노출된다.
-// ⚠️ 거래가 파기(TERMINATED)된 경우에도 flowStep과 무관하게 입력창은 잠긴다.
+// 채팅방(room.status)에서 파생되는 화면 단계
+// CHAT / GUIDE 는 프론트 로컬 전용 화면(서버 status 없음)
+// VERIFY / COUNTDOWN / DISPUTE 는 서버 room.status 를 기준으로 진입한다.
+// ⚠️ 아래 문자열들은 스웨거에 정확한 enum이 명시돼 있지 않아 기존 기획 문서의
+//    상태값을 그대로 가정한 것. 백엔드 실제 enum과 다르면 STATUS_TO_FLOW_STEP 만 고치면 된다.
 type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
 type VerifySubStep =
   | 'INTRO'
@@ -86,10 +35,20 @@ type VerifySubStep =
   | 'CONFIRM_COUNTERPART'
   | 'READY';
 type CountdownPhase = 'COUNTING' | 'RESULT_SELECT';
-// DISPUTE 화면 내부 단계 - CAPTURE: 인증 시작 카드, SUBMITTED: 인증 제출 완료 카드
 type DisputeSubStep = 'CAPTURE' | 'SUBMITTED';
 
-// 채팅 입력창(푸터)이 노출되는 flowStep 목록. VERIFY부터는 잠금.
+const STATUS_TO_FLOW_STEP: Record<string, FlowStep> = {
+  CHATTING: 'CHAT',
+  VERIFYING: 'VERIFY',
+  READY: 'VERIFY',
+  COUNTDOWN: 'COUNTDOWN',
+  RESULT_SELECT: 'COUNTDOWN',
+  DISPUTE: 'DISPUTE',
+  DISPUTE_SUBMITTED: 'CHAT',
+  COMPLETED: 'CHAT',
+  TERMINATED: 'CHAT',
+};
+
 const CHAT_INPUT_UNLOCKED_STEPS: FlowStep[] = ['CHAT', 'GUIDE'];
 
 const GUIDE_STEPS = [
@@ -130,102 +89,158 @@ const GUIDE_STEPS = [
   },
 ];
 
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('ko-KR', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+const formatScheduledDate = (iso: string) => {
+  const d = new Date(iso);
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+};
+
+const MOCK_ROOM_COURSES: Record<string, { my: string; counterpart: string }> = {
+  // TODO: 실제 room 상세 API로 대체 (내 과목명 / 상대 과목명) - 현재 스웨거에 과목명 필드가 없어 임시 유지
+  '1': { my: '마케팅과 소비자 이슈', counterpart: '프로그래밍언어론' },
+  '2': { my: '자바프로그래밍', counterpart: '소비자 경제' },
+};
+
 export default function ChatRoomPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { roomId = '' } = useParams();
-  const scheduledAt = useScheduledAt(roomId);
-  const exchange = useExchangeState(roomId);
 
   const myCourseName = MOCK_ROOM_COURSES[roomId]?.my ?? '알 수 없음';
   const counterpartCourseName =
     MOCK_ROOM_COURSES[roomId]?.counterpart ?? '알 수 없음';
 
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    scheduledAt ? INITIAL_MESSAGES : [],
+  // ===== 서버 연동 상태 =====
+  const [exchangeId, setExchangeId] = useState<number | null>(null);
+  const [roomStatus, setRoomStatus] = useState<string>('CHATTING');
+  const [messages, setMessages] = useState<ChatMessageDto[]>([]);
+  const [isLoadingRoom, setIsLoadingRoom] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // 교환 확정 시각. 스웨거에는 room 정보에 scheduledAt 필드가 없어,
+  // (1) 스케줄 페이지에서 방금 확정하고 돌아온 경우 location.state로 전달받고
+  // (2) 그 외에는 시스템 메시지(type: 'SYSTEM') 내용에서 파싱해 복원한다.
+  // ⚠️ 시스템 메시지 문구 포맷을 백엔드와 맞춰야 정확히 파싱된다 - 현재는 방어적으로만 시도.
+  const [scheduledAt, setScheduledAt] = useState<string | null>(
+    (location.state as { scheduledAt?: string } | null)?.scheduledAt ?? null,
   );
+
   const [inputValue, setInputValue] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
 
-  // 💡 왼쪽(상대)/오른쪽(나) 채팅을 둘 다 테스트할 수 있도록 하는 개발용 토글
-  const [senderRole, setSenderRole] = useState<'ME' | 'OTHER'>('ME');
+  // ===== 화면 전환 로컬 상태 =====
+  const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null); // GUIDE 처럼 서버 status 없는 화면 진입용
+  const flowStep: FlowStep =
+    localFlowStep ?? STATUS_TO_FLOW_STEP[roomStatus] ?? 'CHAT';
 
-  // ===== 화면 전환 state =====
-  const [flowStep, setFlowStep] = useState<FlowStep>('CHAT');
-
-  // 카드(GUIDE/VERIFY/DISPUTE)가 대화 타임라인의 어느 시점에 끼어들었는지 기록.
-  // 이 인덱스 "이전" 메시지들만 접혀서 "이전 채팅 보기" 안에 들어가고,
-  // 이 인덱스 "이후"에 보낸 새 메시지는 카드 아래에 항상 펼쳐진 채로 보인다.
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
-
-  // "교환 시간 확정" 카드가 대화 타임라인의 어느 시점에 끼어들었는지 기록.
-  // 이 인덱스 이전 메시지 -> 확정 카드 -> 이후에 보낸 새 메시지 순으로 CHAT 화면에 렌더링한다.
-  const [scheduleInsertIndex, setScheduleInsertIndex] = useState(() =>
-    scheduledAt ? INITIAL_MESSAGES.length : 0,
-  );
+  const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
   const prevScheduledAtRef = useRef(scheduledAt);
-
-  // ----- 이전 채팅 보기 토글 (GUIDE / VERIFY / DISPUTE 화면 공통) -----
   const [showPreviousChat, setShowPreviousChat] = useState(false);
 
-  // ----- VERIFY 관련 state -----
+  // ----- VERIFY 관련 상태 -----
   const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
-  const [verifySecondsLeft, setVerifySecondsLeft] = useState(
-    VERIFY_WINDOW_SECONDS,
-  );
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
+  const [verifySecondsLeft, setVerifySecondsLeft] = useState(0);
   const [isCaptureFailModalOpen, setIsCaptureFailModalOpen] = useState(false);
   const [isCounterpartConfirmedChecked, setIsCounterpartConfirmedChecked] =
     useState(false);
-  const [mockCaptureSucceeds, setMockCaptureSucceeds] = useState(true); // 💡 개발용
+  const [myVerified, setMyVerified] = useState(false);
 
-  // ----- COUNTDOWN 관련 state -----
+  // ----- COUNTDOWN 관련 상태 -----
   const [countdownPhase, setCountdownPhase] =
     useState<CountdownPhase>('COUNTING');
   const [countdownSecondsLeft, setCountdownSecondsLeft] =
     useState(COUNTDOWN_START);
 
-  // ----- DISPUTE 관련 state -----
+  // ----- DISPUTE 관련 상태 -----
   const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
   const [disputeStep, setDisputeStep] = useState<DisputeSubStep>('CAPTURE');
 
-  // ----- 거래 파기/원상복구 관련 state -----
-  // 파기 직전의 exchange.status를 기억해뒀다가, 원상복구 시 그 상태로 되돌리기 위함.
-  // (예: READY 상태에서 파기했다면 원상복구 시 다시 READY로 복귀)
-  const statusBeforeTerminateRef = useRef<typeof exchange.status | null>(null);
-  const prevExchangeStatusRef = useRef(exchange.status);
-  const [isRestoring, setIsRestoring] = useState(false);
-  void setIsRestoring; // 연동하면 지우기
+  const isTerminated = roomStatus === 'TERMINATED';
+  const isCompleted = roomStatus === 'COMPLETED';
 
-  // 교환 시간이 방금 확정된 시점(false -> true 전환)의 메시지 개수를 기록해
-  // "확정 카드" 위/아래로 메시지를 나눠 보여줄 수 있게 한다.
+  // ============ 채팅방/교환 정보 최초 로딩 ============
+  const loadRoom = async () => {
+    try {
+      const data = await chatRoomApi.getRoom(roomId, { size: 50 });
+      setExchangeId(data.room.exchangeId);
+      setRoomStatus(data.room.status);
+      setMessages(data.messages);
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '채팅방 정보를 불러오지 못했습니다.',
+      );
+    } finally {
+      setIsLoadingRoom(false);
+    }
+  };
+
+  useEffect(() => {
+    // 마운트 시 1회 데이터 페칭 - 의도된 패턴이라 룰 예외 처리
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
+  // ============ 실시간 채팅 (STOMP) ============
+  const handleIncomingMessage = (message: ChatMessageDto) => {
+    setMessages((prev) => [...prev, message]);
+
+    if (message.type === 'SYSTEM') {
+      // 시스템 메시지 도착 = 서버측 상태가 바뀌었을 가능성이 높으므로 room을 재조회해 동기화한다.
+      // ⚠️ 정확한 트리거 방식은 백엔드와 재확인 필요 (별도 상태 변경 이벤트가 없기 때문에 임시로 재조회 방식 사용)
+      loadRoom();
+
+      // "N월 N일 (요일)" + "오전/오후 h:mm" 패턴이 포함된 시스템 메시지라면 확정 시각으로 간주해 파싱 시도
+      const match = message.content.match(
+        /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/,
+      );
+      if (match) {
+        const [, mm, dd, ampm, hh, min] = match;
+        const now = new Date();
+        let hour = Number(hh);
+        if (ampm === '오후' && hour !== 12) hour += 12;
+        if (ampm === '오전' && hour === 12) hour = 0;
+        const iso = new Date(
+          now.getFullYear(),
+          Number(mm) - 1,
+          Number(dd),
+          hour,
+          Number(min),
+        ).toISOString();
+        setScheduledAt(iso);
+      }
+    }
+  };
+
+  const { sendMessage } = useChatSocket({
+    roomId,
+    onMessage: handleIncomingMessage,
+    enabled: !isLoadingRoom,
+  });
+
+  // 교환 시간이 방금 확정된 시점(false -> true 전환)의 메시지 개수를 기록
   useEffect(() => {
     if (!prevScheduledAtRef.current && scheduledAt) {
       setScheduleInsertIndex(messages.length);
     }
     prevScheduledAtRef.current = scheduledAt;
-  }, [scheduledAt]);
+  }, [scheduledAt, messages.length]);
 
-  // exchange.status가 TERMINATED로 "막 바뀐 시점"의 이전 상태를 기억해둔다.
-  // /chat/:roomId/terminate 페이지에서 사유를 골라 파기를 확정하면
-  // mockExchangeStore.setStatus(roomId, 'TERMINATED')가 호출되고,
-  // 그 결과 exchange.status가 바뀌면서 이 effect가 이전 상태를 저장한다.
-  // TODO: 실제 API 연동 시에는 서버가 파기 이전 status를 함께 내려주거나,
-  //       "원상복구" 시 서버가 알아서 이전 상태로 되돌려주는 API를 호출하면 되므로
-  //       이 ref 로직 자체는 제거하고 서버 응답값을 그대로 반영하면 된다.
-  useEffect(() => {
-    if (
-      exchange.status === 'TERMINATED' &&
-      prevExchangeStatusRef.current !== 'TERMINATED'
-    ) {
-      statusBeforeTerminateRef.current = prevExchangeStatusRef.current;
-    }
-    prevExchangeStatusRef.current = exchange.status;
-  }, [exchange.status]);
-
-  // 새 카드/메시지가 생기면 맨 아래로 자동 스크롤한다.
-  // 단, GUIDE(강의 보유 인증 안내)로 "막 진입"한 순간에는 안내문을 위에서부터
-  // 볼 수 있도록 예외적으로 맨 위로 스크롤한다.
+  // 새 카드/메시지가 생기면 맨 아래로 자동 스크롤 (GUIDE 진입 시엔 맨 위로)
   const prevFlowStepRef = useRef(flowStep);
   useEffect(() => {
     const justEnteredGuide =
@@ -248,25 +263,52 @@ export default function ChatRoomPage() {
     scheduleInsertIndex,
   ]);
 
-  const handleBack = () => {
-    // VERIFY/GUIDE/COUNTDOWN/DISPUTE 등 어떤 화면이든 뒤로가기는
-    // 항상 채팅방을 나가서 목록 화면으로 이동
-    navigate(-1);
-  };
+  // ============ VERIFY: 서버 status 폴링으로 상대방 인증 완료 감지 ============
+  // ⚠️ 스웨거에 "상대방 인증 완료 여부"를 알려주는 전용 API/이벤트가 없어
+  //    임시로 폴링 방식을 사용한다. 백엔드가 시스템 메시지나 별도 API로 알려줄 수 있다면 교체할 것.
+  useEffect(() => {
+    if (
+      flowStep !== 'VERIFY' ||
+      !myVerified ||
+      verifyStep !== 'WAITING_COUNTERPART'
+    )
+      return;
+    const timer = setInterval(async () => {
+      try {
+        const data = await chatRoomApi.getRoom(roomId, { size: 1 });
+        setRoomStatus(data.room.status);
+        if (data.room.status !== 'VERIFYING') {
+          setVerifyStep('CONFIRM_COUNTERPART');
+        }
+      } catch {
+        // 폴링 실패는 조용히 무시하고 다음 tick에 재시도
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [flowStep, myVerified, verifyStep, roomId]);
 
-  const handleSend = () => {
+  const handleBack = () => navigate(-1);
+
+  const handleSend = async () => {
     const content = inputValue.trim();
     if (!content) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        senderId: senderRole === 'ME' ? CURRENT_USER_ID : COUNTERPART_ID,
-        content,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    setInputValue('');
+    const ok = sendMessage(content);
+    if (ok) {
+      setInputValue('');
+      return;
+    }
+    // STOMP 연결 실패 시 REST로 1회 재시도
+    try {
+      await chatRoomApi.sendMessage(roomId, content);
+      setInputValue('');
+      loadRoom(); // 실시간 push가 안 오니 재조회로 동기화
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '메시지를 전송하지 못했습니다. 연결 상태를 확인해주세요.',
+      );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -275,65 +317,19 @@ export default function ChatRoomPage() {
     }
   };
 
-  const handleCloseGuide = () => {
-    setFlowStep('CHAT');
+  // GUIDE 종료 = VERIFY 진입이므로 상태 재확인 + QR 발급까지 이어서 처리한다.
+  const handleConfirmGuideAndEnterVerify = () => {
+    handleEnterVerify();
   };
 
   const handleGoSchedule = () => {
     setIsMenuOpen(false);
-    navigate(`/chat/${roomId}/schedule`);
+    navigate(`/chat/${roomId}/schedule`, { state: { exchangeId } });
   };
 
-  // 거래 파기 페이지로 이동. 실제 파기 확정(사유 선택 후 제출)은
-  // /chat/:roomId/terminate 페이지에서 이루어지고, 그 페이지가
-  // mockExchangeStore.setStatus(roomId, 'TERMINATED')를 호출한다.
-  // TODO: 실제 API 연동 시 terminate 페이지에서
-  //   await fetch(`${API_BASE}/api/exchange/${roomId}/terminate`, {
-  //     method: 'POST',
-  //     body: JSON.stringify({ reason }),
-  //     credentials: 'include',
-  //   });
-  //   성공 응답을 받은 뒤 status를 TERMINATED로 반영하도록 구현하면 된다.
   const handleGoTerminate = () => {
     setIsMenuOpen(false);
-    navigate(`/chat/${roomId}/terminate`);
-  };
-
-  // 거래 파기 상태를 원상복구(취소)한다.
-  // 채팅방을 나가지 않고, 파기 이전 상태로 되돌려 마치 파기가 없었던 것처럼 만든다.
-  const handleRestoreDeal = async () => {
-    setIsMenuOpen(false);
-
-    // 💡 실제 API 연동 로직 - 백엔드 원상복구 API 붙으면 아래 주석 블록 해제
-    /*
-    setIsRestoring(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/exchange/${roomId}/terminate/restore`,
-        {
-          method: 'POST',
-          credentials: 'include',
-        },
-      );
-      if (!res.ok) throw new Error('원상복구에 실패했습니다.');
-      const data = await res.json();
-      // 서버가 내려주는 복구된 status를 그대로 반영
-      mockExchangeStore.setStatus(roomId, data.data.status);
-    } catch (err) {
-      // TODO: 실패 시 에러 토스트/모달 처리
-      console.error(err);
-    } finally {
-      setIsRestoring(false);
-    }
-    return;
-    */
-
-    // 💡 목업: 파기 직전에 기억해둔 상태로 되돌린다. (없으면 기본값 READY)
-    mockExchangeStore.setStatus(
-      roomId,
-      statusBeforeTerminateRef.current ?? 'READY',
-    );
-    statusBeforeTerminateRef.current = null;
+    navigate(`/chat/${roomId}/terminate`, { state: { exchangeId } });
   };
 
   const handleReport = () => {
@@ -341,8 +337,7 @@ export default function ChatRoomPage() {
     // TODO: 신고하기 - 다음 단계에서 구현
   };
 
-  // 메시지 리스트 렌더링 (카드 삽입 전/후 구간을 나눠서 재사용)
-  const renderMessages = (msgs: ChatMessage[] = messages) =>
+  const renderMessages = (msgs: ChatMessageDto[] = messages) =>
     msgs.map((msg) => {
       const isMine = msg.senderId === CURRENT_USER_ID;
       const timeNode = (
@@ -370,7 +365,6 @@ export default function ChatRoomPage() {
       );
     });
 
-  // 교환 시간 확정 노란 박스 (CHAT 화면 + VERIFY/DISPUTE의 "이전 채팅 보기"에서 재사용)
   const renderScheduledBox = () =>
     scheduledAt && (
       <div className="mx-4 mt-7 bg-yellow-light border-[0.70px] border-[#D1B422] rounded-lg px-4 py-8 flex flex-col gap-5">
@@ -396,9 +390,9 @@ export default function ChatRoomPage() {
 
         <ul className="flex flex-col gap-1.5">
           {[
-            '교환 5분 전 강의 보유 인증이 진행됩니다',
-            'PC에서 수강신청(내역) 페이지를 미리 열어주세요',
-            '모바일 인증은 지원되지 않습니다',
+            '교환 5분 전 강의 보유 인증이 진행됩니다.',
+            'PC에서 수강신청(내역) 페이지를 미리 열어주세요.',
+            '모바일 인증은 지원되지 않습니다.',
           ].map((text) => (
             <li
               key={text}
@@ -423,10 +417,6 @@ export default function ChatRoomPage() {
       </div>
     );
 
-  // VERIFY/DISPUTE의 "이전 채팅 보기"에서 쓰는 히스토리 렌더링.
-  // 단순히 메시지 다 보여주고 확정 카드를 맨 뒤에 붙이는 게 아니라,
-  // 확정 카드가 실제로 끼어든 시점(scheduleInsertIndex)을 기준으로
-  // 메시지 사이 정확한 위치에 카드를 끼워 넣는다.
   const renderPreviousChatHistory = (uptoIndex: number) => {
     const boxIndex = Math.min(scheduleInsertIndex, uptoIndex);
     return (
@@ -438,43 +428,60 @@ export default function ChatRoomPage() {
     );
   };
 
-  // ============ GUIDE 로직 (캡쳐 인증 방법 안내) ============
+  // ============ GUIDE ============
   const handleShowGuide = () => {
     setCardInsertIndex(messages.length);
     setShowPreviousChat(false);
-    setFlowStep('GUIDE');
+    setLocalFlowStep('GUIDE');
   };
 
-  // ============ VERIFY 로직 (이미지1) ============
-  const handleEnterVerify = () => {
+  // ============ VERIFY ============
+  const handleEnterVerify = async () => {
     setCardInsertIndex(messages.length);
     setShowPreviousChat(false);
-    setFlowStep('VERIFY');
+    setLocalFlowStep(null);
     setVerifyStep('INTRO');
-    setVerifySecondsLeft(VERIFY_WINDOW_SECONDS);
-    mockExchangeStore.generateQrToken(roomId);
-    mockExchangeStore.setStatus(roomId, 'VERIFYING');
+    setMyVerified(false);
+    if (!exchangeId) return;
+    try {
+      // QR 발급은 서버가 VERIFYING 상태일 때만 허용하므로, 발급 전에 최신 상태를 한 번 확인한다.
+      const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
+      setRoomStatus(roomData.room.status);
+      if (
+        roomData.room.status !== 'VERIFYING' &&
+        roomData.room.status !== 'READY'
+      ) {
+        setApiError(
+          '아직 인증을 시작할 수 없는 상태입니다. 잠시 후 다시 시도해주세요.',
+        );
+        return;
+      }
+      const qr = await exchangeApi.createQr(exchangeId);
+      setQrImageUrl(qr.qrImageUrl);
+      setQrExpiresAt(qr.expiresAt);
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : 'QR 코드를 발급받지 못했습니다.',
+      );
+    }
   };
 
+  // 서버가 내려준 expiresAt 기준으로 남은 시간 계산 (로컬 타이머가 아니라 서버 시각과 동기화)
   useEffect(() => {
-    if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO') return;
-    const timer = setInterval(
-      () => setVerifySecondsLeft((prev) => (prev > 0 ? prev - 1 : 0)),
-      1000,
-    );
+    if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO' || !qrExpiresAt) return;
+    const tick = () => {
+      const remain = Math.max(
+        0,
+        Math.floor((new Date(qrExpiresAt).getTime() - Date.now()) / 1000),
+      );
+      setVerifySecondsLeft(remain);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [flowStep, verifyStep]);
-
-  useEffect(() => {
-    if (flowStep !== 'VERIFY') return;
-    if (exchange.myVerified && exchange.counterpartVerified) {
-      if (verifyStep === 'WAITING_COUNTERPART')
-        setVerifyStep('CONFIRM_COUNTERPART');
-    } else if (exchange.myVerified) {
-      if (verifyStep === 'INTRO' || verifyStep === 'CAPTURING')
-        setVerifyStep('WAITING_COUNTERPART');
-    }
-  }, [flowStep, exchange.myVerified, exchange.counterpartVerified, verifyStep]);
+  }, [flowStep, verifyStep, qrExpiresAt]);
 
   const formatVerifyTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -482,10 +489,10 @@ export default function ChatRoomPage() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // 💡 실제 화면 캡처 로직 - 백엔드 업로드 API 붙으면 아래 주석 블록 해제
-  const startRealCapture = async (): Promise<boolean> => {
-    /*
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+  const captureScreen = async (): Promise<Blob | null> => {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+    });
     const video = document.createElement('video');
     video.srcObject = stream;
     await video.play();
@@ -494,60 +501,51 @@ export default function ChatRoomPage() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, 'image/png'),
+    );
     stream.getTracks().forEach((track) => track.stop());
-    if (!blob) return false;
-
-    const formData = new FormData();
-    formData.append('image', blob);
-    const res = await fetch(`${API_BASE}/api/exchange/${roomId}/verify-capture`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
-    const data = await res.json();
-    return Boolean(data?.data?.qrValid);
-    */
-    return mockCaptureSucceeds;
+    return blob;
   };
 
   const handleStartCapture = async () => {
+    if (!exchangeId) return;
     setVerifyStep('CAPTURING');
-    await new Promise((r) => setTimeout(r, 1200));
-    const ok = await startRealCapture();
-    if (!ok) {
+    try {
+      const blob = await captureScreen();
+      if (!blob) throw new Error('화면 캡처에 실패했습니다.');
+      const result = await exchangeApi.uploadCapture(exchangeId, blob);
+      if (!result.qrValid || result.status !== 'PASSED') {
+        setIsCaptureFailModalOpen(true);
+        setVerifyStep('INTRO');
+        return;
+      }
+      setMyVerified(true);
+      setVerifyStep('WAITING_COUNTERPART');
+    } catch (err) {
       setIsCaptureFailModalOpen(true);
       setVerifyStep('INTRO');
-      return;
+      setApiError(err instanceof ApiError ? err.message : null);
     }
-    mockExchangeStore.setMyVerified(roomId, true);
   };
 
-  const handleConfirmCounterpart = () => {
-    mockExchangeStore.setStatus(roomId, 'READY');
-    setVerifyStep('READY');
-  };
+  const handleConfirmCounterpart = () => setVerifyStep('READY');
 
-  const handleToggleCounterpartVerified = () => {
-    mockExchangeStore.setCounterpartVerified(
-      roomId,
-      !exchange.counterpartVerified,
-    );
-  };
-
-  // ============ COUNTDOWN 로직 (이미지2) ============
+  // ============ COUNTDOWN ============
+  // ⚠️ 카운트다운 시작/진행에 대응하는 서버 API가 스웨거에 없어 클라이언트 로컬 진행으로 처리한다.
+  //    (백엔드가 별도 이벤트를 제공하면 두 클라이언트 동기화 로직으로 교체 필요)
   const handleEnterCountdown = () => {
-    setFlowStep('COUNTDOWN');
+    setLocalFlowStep('COUNTDOWN');
     setCountdownPhase('COUNTING');
     setCountdownSecondsLeft(COUNTDOWN_START);
-    mockExchangeStore.setStatus(roomId, 'COUNTDOWN');
   };
 
   useEffect(() => {
     if (flowStep !== 'COUNTDOWN' || countdownPhase !== 'COUNTING') return;
     if (countdownSecondsLeft <= 0) {
+      // 카운트다운 종료 → 결과 선택 단계로 전환하는 의도된 상태 변경
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdownPhase('RESULT_SELECT');
-      mockExchangeStore.setStatus(roomId, 'RESULT_SELECT');
       return;
     }
     const timer = setTimeout(
@@ -555,44 +553,62 @@ export default function ChatRoomPage() {
       1000,
     );
     return () => clearTimeout(timer);
-  }, [flowStep, countdownPhase, countdownSecondsLeft, roomId]);
+  }, [flowStep, countdownPhase, countdownSecondsLeft]);
 
-  const handleExchangeResult = (result: 'SUCCESS' | 'FAIL') => {
-    // TODO: 실제로는 5번 API(교환 결과 선택) 호출 { result }
-    if (result === 'SUCCESS') {
-      mockExchangeStore.setStatus(roomId, 'COMPLETED');
-      setFlowStep('CHAT');
-    } else {
-      mockExchangeStore.setStatus(roomId, 'DISPUTE');
-      setCardInsertIndex(messages.length);
-      setShowPreviousChat(false);
-      setFlowStep('DISPUTE');
+  const handleExchangeResult = async (result: 'SUCCESS' | 'FAIL') => {
+    if (!exchangeId) return;
+    try {
+      const res = await exchangeApi.submitResult(exchangeId, result);
+      setRoomStatus(res.exchangeStatus);
+      setLocalFlowStep(null);
+      if (result === 'FAIL') {
+        setCardInsertIndex(messages.length);
+        setShowPreviousChat(false);
+        setDisputeStep('CAPTURE');
+      }
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '교환 결과를 전달하지 못했습니다.',
+      );
     }
   };
 
-  // ============ DISPUTE 로직 (이미지3) ============
-  const handleEnterDispute = () => {
-    setCardInsertIndex(messages.length);
-    setShowPreviousChat(false);
-    setFlowStep('DISPUTE');
-    setDisputeStep('CAPTURE');
-  };
-
+  // ============ DISPUTE ============
+  // ⚠️ 분쟁 조정 전용 인증 API가 스웨거에 별도로 없어, 강의 보유 인증과 동일한
+  //    verifications/capture 엔드포인트를 재사용한다. 백엔드가 별도 엔드포인트를 두면 교체할 것.
   const handleStartDisputeCapture = async () => {
+    if (!exchangeId) return;
     setIsDisputeSubmitting(true);
-    // TODO: 실제로는 getDisplayMedia 캡처 + 1번 API(캡처 업로드-QR 검증) 호출
-    await new Promise((r) => setTimeout(r, 1000));
-    mockExchangeStore.setMyDisputeVerified(roomId, true);
-    setIsDisputeSubmitting(false);
-    setDisputeStep('SUBMITTED');
+    try {
+      const blob = await captureScreen();
+      if (!blob) throw new Error('화면 캡처에 실패했습니다.');
+      await exchangeApi.uploadCapture(exchangeId, blob);
+      setDisputeStep('SUBMITTED');
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '인증 제출에 실패했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsDisputeSubmitting(false);
+    }
   };
 
   const handleConfirmDisputeSubmitted = () => {
-    mockExchangeStore.setStatus(roomId, 'DISPUTE_SUBMITTED');
-    setFlowStep('CHAT');
+    setLocalFlowStep(null);
+    loadRoom();
   };
 
-  const isTerminated = exchange.status === 'TERMINATED';
+  if (isLoadingRoom) {
+    return (
+      <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden h-full flex items-center justify-center text-sm text-gray-400">
+        불러오는 중...
+      </div>
+    );
+  }
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden h-full flex flex-col">
@@ -634,19 +650,16 @@ export default function ChatRoomPage() {
             onClick={() => setIsMenuOpen(false)}
           />
           <div className="absolute top-[84px] right-4 z-40 w-56 bg-white rounded-xl border border-gray-100 py-2">
-            <button
-              type="button"
-              onClick={isTerminated ? handleRestoreDeal : handleGoTerminate}
-              disabled={isRestoring}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Icon icon="mdi:alert-circle-outline" className="text-[18px]" />
-              {isTerminated
-                ? isRestoring
-                  ? '원상복구 중...'
-                  : '원상복구하기'
-                : '거래 파기하기'}
-            </button>
+            {!isTerminated && !isCompleted && (
+              <button
+                type="button"
+                onClick={handleGoTerminate}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Icon icon="mdi:alert-circle-outline" className="text-[18px]" />
+                거래 파기하기
+              </button>
+            )}
             <button
               type="button"
               onClick={handleReport}
@@ -666,7 +679,7 @@ export default function ChatRoomPage() {
           className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4 bg-[#fbfbfb]"
         >
           <p className="text-center text-xs text-[#727272] font-light font-['Pretendard'] mt-2 mb-2">
-            {myCourseName.replace(' ', '')} 교환 준비방이 생성되었습니다
+            {myCourseName.replace(' ', '')} 교환 준비방이 생성되었습니다.
           </p>
 
           {!scheduledAt && (
@@ -674,7 +687,7 @@ export default function ChatRoomPage() {
               <p className="text-sm font-bold text-[#194059BF] leading-relaxed">
                 강의를 교환할 시간을 정해
                 <br />
-                교환 시간 결정 버튼을 눌러 확정해주세요
+                교환 시간 결정 버튼을 눌러 확정해주세요.
               </p>
               <p className="text-xs text-gray-700">
                 다른 학우들이 수강 정정을
@@ -701,62 +714,31 @@ export default function ChatRoomPage() {
           {isTerminated && (
             <div className="mx-4 mt-4 flex flex-col items-center gap-2 text-center">
               <p className="text-sm font-bold text-gray-700">
-                거래가 파기되었습니다
+                거래가 파기되었습니다.
               </p>
               <p className="text-xs text-gray-500 leading-relaxed">
-                파기 사유는 관리자에게 전달되었습니다
+                파기 사유는 관리자에게 전달되었습니다.
                 <br />
-                검토 후 귀책 여부에 따라 페널티가 부여됩니다
+                검토 후 귀책 여부에 따라 페널티가 부여됩니다.
               </p>
             </div>
           )}
 
-          {/* 개발용: 발신자 전환 + 단계 바로가기 - 실배포 전 삭제 */}
-          <div className="flex flex-wrap justify-end gap-1.5 pt-2">
-            <button
-              type="button"
-              onClick={() =>
-                setSenderRole((prev) => (prev === 'ME' ? 'OTHER' : 'ME'))
-              }
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              테스트 발신자:{' '}
-              {senderRole === 'ME' ? '나 (오른쪽)' : '상대방 (왼쪽)'}
-            </button>
-            <button
-              type="button"
-              onClick={handleShowGuide}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              [TEST] 인증 안내
-            </button>
-            <button
-              type="button"
-              onClick={handleEnterVerify}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              [TEST] 5분전 인증
-            </button>
-            <button
-              type="button"
-              onClick={handleEnterCountdown}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              [TEST] 카운트다운
-            </button>
-            <button
-              type="button"
-              onClick={handleEnterDispute}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              [TEST] 분쟁조정
-            </button>
-          </div>
+          {/* 교환 완료 안내 텍스트 */}
+          {isCompleted && (
+            <div className="mx-4 mt-4 flex flex-col items-center gap-2 text-center">
+              <p className="text-sm font-bold text-gray-700">
+                교환이 완료되었습니다.
+              </p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                강의 교환이 정상적으로 마무리되었습니다.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
       {/* ============ GUIDE 화면 (캡쳐 인증 방법 안내) ============ */}
-      {/* 인증 안내 카드는 처음 보는 안내문이므로 이전 채팅을 숨기지 않고 그냥 노출하지 않는다 (요청: 이전 채팅 안 보이게) */}
       {flowStep === 'GUIDE' && (
         <div
           ref={scrollRef}
@@ -828,13 +810,12 @@ export default function ChatRoomPage() {
 
           <button
             type="button"
-            onClick={handleCloseGuide}
+            onClick={handleConfirmGuideAndEnterVerify}
             className="mx-4 mt-2 py-2.5 rounded-md bg-yellow-main border-[0.50px] border-[#D1B422] text-[#D1B422] text-sm font-semibold"
           >
             확인했어요, 인증 시작하기
           </button>
 
-          {/* 인증 안내가 뜬 이후에 보낸 새 메시지 - 카드 아래에 계속 이어짐 */}
           {messages.slice(cardInsertIndex).length > 0 && (
             <div className="mx-4 flex flex-col gap-4 pt-2">
               {renderMessages(messages.slice(cardInsertIndex))}
@@ -846,23 +827,6 @@ export default function ChatRoomPage() {
       {/* ============ VERIFY 화면 (이미지1) ============ */}
       {flowStep === 'VERIFY' && (
         <>
-          <div className="fixed top-3 right-3 z-50 flex flex-col gap-1 items-end">
-            <button
-              type="button"
-              onClick={() => setMockCaptureSucceeds((prev) => !prev)}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              캡처 mock: {mockCaptureSucceeds ? '성공' : '실패'}
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleCounterpartVerified}
-              className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-            >
-              상대방 인증: {exchange.counterpartVerified ? '완료' : '대기'}
-            </button>
-          </div>
-
           <div
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4"
@@ -937,12 +901,13 @@ export default function ChatRoomPage() {
                   완료됩니다.
                 </p>
 
-                {exchange.qrToken && (
+                {qrImageUrl && (
                   <div className="flex justify-center py-2">
-                    <div className="w-36 h-36 bg-white border border-gray-200 rounded-lg flex items-center justify-center">
-                      <Icon
-                        icon="mdi:qrcode"
-                        className="text-[100px] text-gray-800"
+                    <div className="w-36 h-36 bg-white border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                      <img
+                        src={qrImageUrl}
+                        alt="인증 QR 코드"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                   </div>
@@ -990,7 +955,6 @@ export default function ChatRoomPage() {
                     교환 대상 강의 확인
                   </p>
                 </div>
-
                 <div className="bg-white rounded-xl h-32 flex flex-col items-center justify-center gap-1 text-gray-400">
                   <Icon icon="mdi:monitor" className="text-[36px]" />
                   <span className="text-sm">상대방의 공유 화면</span>
@@ -1014,7 +978,7 @@ export default function ChatRoomPage() {
                     }
                     className="accent-[#D1B422]"
                   />
-                  상대방의 강의 정보를 확인했습니다
+                  상대방의 강의 정보를 확인했습니다.
                 </label>
 
                 <Button
@@ -1046,7 +1010,7 @@ export default function ChatRoomPage() {
                 <p className="text-xs text-[#727272] leading-relaxed">
                   양측이 모두 [카운트다운 시작] 버튼을 누르면
                   <br />
-                  10초 후 강의 교환이 시작됩니다
+                  10초 후 강의 교환이 시작됩니다.
                 </p>
                 <p className="text-xs text-[#727272] leading-relaxed">
                   카운트다운이 종료되면 현재 강의를 버리고
@@ -1054,7 +1018,7 @@ export default function ChatRoomPage() {
                   상대방의 강의를 신청해 주세요!
                 </p>
                 <p className="text-[11px] text-[#D1B422]">
-                  ※ 카운트다운이 시작되면 취소할 수 없습니다
+                  ※ 카운트다운이 시작되면 취소할 수 없습니다.
                 </p>
 
                 <label className="flex items-center gap-2 text-xs text-[#D1B422]">
@@ -1064,7 +1028,7 @@ export default function ChatRoomPage() {
                     checked
                     readOnly
                   />
-                  강의를 버리고 잡을 준비가 되었습니다
+                  강의를 버리고 잡을 준비가 되었습니다.
                 </label>
 
                 <Button
@@ -1078,7 +1042,6 @@ export default function ChatRoomPage() {
               </div>
             )}
 
-            {/* 5분 전 인증이 뜬 이후에 보낸 새 메시지 - 카드 아래에 계속 이어짐 */}
             {messages.slice(cardInsertIndex).length > 0 && (
               <div className="flex flex-col gap-4 pt-2">
                 {renderMessages(messages.slice(cardInsertIndex))}
@@ -1108,7 +1071,7 @@ export default function ChatRoomPage() {
               </Button>
             }
           >
-            {'\n'}인증 QR 코드를 확인할 수 없습니다.{'\n\n'}
+            {'\n'}인증 QR 코드를 확인할 수 없습니다. {'\n\n'}
             수강신청(내역) 페이지와 인증 QR 코드가{'\n'}한 화면에 모두 보이도록
             한 뒤{'\n'}
             다시 인증을 진행해주세요.
@@ -1148,7 +1111,6 @@ export default function ChatRoomPage() {
             </>
           )}
 
-          {/* ---- 1단계: 인증 시작 카드 ---- */}
           {disputeStep === 'CAPTURE' && (
             <div className="mx-4 bg-point-red/5 border border-point-red rounded-lg px-5 py-6 flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -1190,17 +1152,20 @@ export default function ChatRoomPage() {
                 ※ 수강신청(내역) 페이지와 QR 코드가 동시에 확인되어야 인증이
                 완료됩니다.
                 <br />※ 5분 이내에 인증을 완료하지 않을 경우 거래 결과 판정에
-                불이익이 발생할 수 있습니다
+                불이익이 발생할 수 있습니다.
               </p>
 
-              <div className="flex justify-center py-2">
-                <div className="w-36 h-36 bg-white border border-red-100 rounded-lg flex items-center justify-center">
-                  <Icon
-                    icon="mdi:qrcode"
-                    className="text-[100px] text-point-red"
-                  />
+              {qrImageUrl && (
+                <div className="flex justify-center py-2">
+                  <div className="w-36 h-36 bg-white border border-red-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img
+                      src={qrImageUrl}
+                      alt="인증 QR 코드"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <Button
                 variant="danger"
@@ -1213,7 +1178,6 @@ export default function ChatRoomPage() {
             </div>
           )}
 
-          {/* ---- 2단계: 인증 제출 완료 카드 (모달 아님, 인라인) ---- */}
           {disputeStep === 'SUBMITTED' && (
             <div className="mx-4 bg-point-red/5 border border-point-red rounded-lg px-5 py-8 flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -1264,7 +1228,6 @@ export default function ChatRoomPage() {
             </div>
           )}
 
-          {/* 분쟁 조정이 뜬 이후에 보낸 새 메시지 - 카드 아래에 계속 이어짐 */}
           {messages.slice(cardInsertIndex).length > 0 && (
             <div className="flex flex-col gap-4 pt-2">
               {renderMessages(messages.slice(cardInsertIndex))}
@@ -1273,8 +1236,7 @@ export default function ChatRoomPage() {
         </div>
       )}
 
-      {/* ============ COUNTDOWN 배경 (헤더/푸터 사이 flex-1을 채워 레이아웃 유지) ============ */}
-      {/* 이 컨테이너가 없으면 헤더-푸터 사이가 비어 푸터가 헤더 바로 아래로 붙어버린다. */}
+      {/* ============ COUNTDOWN 배경 ============ */}
       {flowStep === 'COUNTDOWN' && (
         <div
           ref={scrollRef}
@@ -1284,9 +1246,7 @@ export default function ChatRoomPage() {
         </div>
       )}
 
-      {/* ============ COUNTDOWN 오버레이 (이미지2) - Modal 컴포넌트 재사용 ============ */}
-      {/* Modal은 헤더/푸터 위에 오버레이로 뜨므로, 아래 기본 헤더/푸터는 "보이기만" 하고
-          이 동안은 기능(전송 등)이 굳이 동작하지 않아도 된다. */}
+      {/* ============ COUNTDOWN 오버레이 (이미지2) ============ */}
       {flowStep === 'COUNTDOWN' && countdownPhase === 'COUNTING' && (
         <Modal isOpen title="교환 시작까지">
           <div className="flex flex-col items-center gap-4 translate-y-6">
@@ -1346,27 +1306,48 @@ export default function ChatRoomPage() {
       )}
 
       {/* ============ 푸터 (CHAT/GUIDE 단계에서만 노출) ============ */}
-      {/* VERIFY(5분 전 인증)가 시작된 순간부터 채팅이 완전히 잠긴다.
-          COUNTDOWN, DISPUTE 단계에서도 계속 잠금 상태를 유지한다.
-          거래가 파기(TERMINATED)된 경우에도 flowStep과 무관하게 잠긴다. */}
-      {CHAT_INPUT_UNLOCKED_STEPS.includes(flowStep) && !isTerminated && (
-        <div className="px-6 py-3 bg-[#fbfbfb]">
-          <Input
-            variant="pill"
-            placeholder="메세지 보내기"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onCompositionStart={() => (isComposingRef.current = true)}
-            onCompositionEnd={() => (isComposingRef.current = false)}
-            onKeyDown={handleKeyDown}
-            rightNode={
-              <button type="button" onClick={handleSend} aria-label="전송">
-                {<img src={sendIcon} alt="" className="w-7 h-7" />}
-              </button>
-            }
-          />
-        </div>
-      )}
+      {CHAT_INPUT_UNLOCKED_STEPS.includes(flowStep) &&
+        !isTerminated &&
+        !isCompleted && (
+          <div className="px-6 py-3 bg-[#fbfbfb]">
+            <Input
+              variant="pill"
+              placeholder="메세지 보내기"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onCompositionStart={() => (isComposingRef.current = true)}
+              onCompositionEnd={() => (isComposingRef.current = false)}
+              onKeyDown={handleKeyDown}
+              rightNode={
+                <button type="button" onClick={handleSend} aria-label="전송">
+                  <img src={sendIcon} alt="" className="w-7 h-7" />
+                </button>
+              }
+            />
+          </div>
+        )}
+
+      {/* ============ 공통 에러 안내 모달 ============ */}
+      <Modal
+        isOpen={!!apiError}
+        onClose={() => setApiError(null)}
+        icon={
+          <span className="w-10 h-10 rounded-full bg-point-red/10 flex items-center justify-center">
+            <Icon
+              icon="mdi:alert-circle"
+              className="text-[28px] text-point-red"
+            />
+          </span>
+        }
+        title="문제가 발생했습니다"
+        footer={
+          <Button variant="danger" size="md" onClick={() => setApiError(null)}>
+            확인
+          </Button>
+        }
+      >
+        {apiError}
+      </Modal>
     </div>
   );
 }

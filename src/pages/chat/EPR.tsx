@@ -43,10 +43,6 @@ export default function ExchangeRoomListPage() {
   const [rooms, setRooms] = useState<ExchangeRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchRooms();
-  }, []);
-
   const fetchRooms = async () => {
     setIsLoading(true);
     try {
@@ -57,6 +53,13 @@ export default function ExchangeRoomListPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    // 마운트 시 1회 데이터 페칭 - 의도된 패턴이라 룰 예외 처리
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchRooms();
+     
+  }, []);
 
   const handleBack = () => navigate(-1);
   const handleGoAlert = () => navigate('/alert');

@@ -1,13 +1,16 @@
 // pages/chat/ScheduleDecisionPage.tsx
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import Button from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
-import { mockScheduleStore } from '../mockChat';
+
+import { chatRoomApi } from '@/api/chat/chatRoomApi';
+import { exchangeApi } from '@/api/chat/exchangeApi';
+import { ApiError } from '@/api/chat/apiClient';
 
 // TODO: 실제로는 수강신청 가능 날짜/시간 범위 API로 대체
 const DATE_OPTIONS = [
@@ -19,14 +22,29 @@ const TIME_OPTIONS = ['오전 4:00', '오전 4:30', '오전 5:00', '오전 5:30'
 
 export default function ScheduleDecisionPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { roomId = '' } = useParams();
 
   const [date, setDate] = useState(DATE_OPTIONS[0]);
   const [time, setTime] = useState(TIME_OPTIONS[0]);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(
+    '시간을 확정하지 못했습니다. 다시 시도해주세요.',
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 💡 인증 API 연동 전 임시 토글. 실제 API 붙으면 이 state + 우측 상단 버튼은 삭제.
-  const [isMockVerified, setIsMockVerified] = useState(true);
+  // 채팅방 진입 시 이미 받아온 exchangeId가 있으면 그걸 쓰고, 없으면(새로고침 등) 직접 조회한다.
+  const [exchangeId, setExchangeId] = useState<number | null>(
+    (location.state as { exchangeId?: number } | null)?.exchangeId ?? null,
+  );
+
+  useEffect(() => {
+    if (exchangeId != null) return;
+    chatRoomApi
+      .getRoom(roomId, { size: 1 })
+      .then((data) => setExchangeId(data.room.exchangeId))
+      .catch(() => setExchangeId(null));
+  }, [roomId, exchangeId]);
 
   const handleBack = () => navigate(-1);
 
@@ -46,27 +64,37 @@ export default function ScheduleDecisionPage() {
     ).toISOString();
   };
 
-  const handleRegister = () => {
-    if (!isMockVerified) {
+  const handleRegister = async () => {
+    if (!exchangeId) {
+      setErrorMessage('교환 정보를 불러오지 못했습니다. 다시 시도해주세요.');
       setIsErrorModalOpen(true);
       return;
     }
-    // TODO: 실제로는 POST 교환 시간 확정 API 호출 (scheduledAt 전송)
-    mockScheduleStore.set(roomId, parseToIso());
-    navigate(-1);
+    setIsSubmitting(true);
+    try {
+      const scheduledAt = parseToIso();
+      const res = await exchangeApi.confirmSchedule(exchangeId, scheduledAt);
+      // 확정된 시각을 채팅방으로 되돌려주면서 즉시 안내 배너를 그릴 수 있게 한다.
+      // (스웨거 chat-room 응답에는 scheduledAt 필드가 없어, 시스템 메시지 파싱 전까지는
+      //  navigation state로 임시 보완한다.)
+      navigate(`/chat/${roomId}`, {
+        replace: true,
+        state: { scheduledAt: res.scheduledAt },
+      });
+    } catch (err) {
+      setErrorMessage(
+        err instanceof ApiError
+          ? err.message
+          : '시간을 확정하지 못했습니다. 다시 시도해주세요.',
+      );
+      setIsErrorModalOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
-      {/* 개발용 인증 성공/실패 토글 - 실배포 전 삭제 */}
-      <button
-        type="button"
-        onClick={() => setIsMockVerified((prev) => !prev)}
-        className="fixed top-3 right-3 z-50 text-[10px] px-2 py-1 rounded-full bg-gray-800 text-white opacity-70"
-      >
-        인증 mock: {isMockVerified ? '성공' : '실패'}
-      </button>
-
       <div>
         <Header
           leftNode={
@@ -94,7 +122,6 @@ export default function ScheduleDecisionPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 flex flex-col gap-20">
-        {/* 날짜/시간 블럭 */}
         <div className="mt-6 flex flex-col gap-1 bg-brand-bg border-[0.46px] border-brand-lightBlue rounded-lg px-4 py-4">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-[#19191B]">날짜</span>
@@ -182,8 +209,13 @@ export default function ScheduleDecisionPage() {
       </div>
 
       <div className="px-7 py-8 bg-[#fbfbfb]">
-        <Button variant="primary" size="lg" onClick={handleRegister}>
-          교환시간 등록
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={handleRegister}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? '등록 중...' : '교환시간 등록'}
         </Button>
       </div>
 
@@ -198,21 +230,18 @@ export default function ScheduleDecisionPage() {
             />
           </span>
         }
-        title="인증에 실패했습니다"
+        title="시간 확정에 실패했습니다"
         footer={
           <Button
             variant="danger"
             size="md"
             onClick={() => setIsErrorModalOpen(false)}
           >
-            다시 인증하기
+            다시 시도하기
           </Button>
         }
       >
-        {'\n'}인증 QR 코드를 확인할 수 없습니다.{'\n\n'}
-        수강신청(내역) 페이지와 인증 QR 코드가{'\n'}한 화면에 모두 보이도록 한
-        뒤{'\n'}
-        다시 인증을 진행해주세요.
+        {errorMessage}
       </Modal>
     </div>
   );
