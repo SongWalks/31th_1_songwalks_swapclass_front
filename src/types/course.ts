@@ -1,0 +1,37 @@
+export interface Course {
+  courseId: number;
+  name: string; // 과목명
+  professor: string; // 담당교수
+  classTime: string; // 수업 시간
+  courseType: string;
+  department: string | null; // 개설 학과 (전공일 때만 존재)
+  category: string; // 교과구분 (교선핵심 / 전공필수 등)
+  area: string | null; // 교양 영역·그룹 (교양일 때만 존재)
+  isGraduationReq: boolean;
+
+  // (아래 속성들은 백엔드 응답에 있다면 그대로 유지, 혹시 백엔드에서 다른 이름으로 준다면 맞춰서 수정해 주세요!)
+  code: string; // 과목번호(학수번호)
+  section: string; // 분반
+  credits: string; // 학점
+}
+
+export interface FetchCoursesParams {
+  keyword?: string;
+  department?: string;
+  category?: string;
+  page?: number; // 무한스크롤용 페이지 번호 허용
+}
+
+export interface PaginatedCourses {
+  content: Course[]; // 진짜 강의 데이터 배열
+  page: number; // 현재 페이지
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean; // 다음 페이지 존재 여부
+}
+
+export interface DepartmentResponse {
+  type: string;
+  value: string;
+}
