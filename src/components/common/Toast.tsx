@@ -34,7 +34,7 @@ export const Toast = ({
   return (
     <div
       className={`
-        absolute bottom-24 left-1/2 -translate-x-1/2 z-[100] w-max max-w-[90%] 
+        fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] w-max max-w-[90%] 
         px-5 py-3 bg-gray-800 text-white text-sm font-medium rounded-full shadow-lg 
         flex items-center gap-2 
         transition-all duration-300 ease-in-out
