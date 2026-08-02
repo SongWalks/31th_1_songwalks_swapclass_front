@@ -1,5 +1,5 @@
 // pages/chat/TerminateDealPage.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';

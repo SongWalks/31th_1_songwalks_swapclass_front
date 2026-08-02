@@ -1,4 +1,3 @@
-import React from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 
 // --- 1. 레이아웃 불러오기 ---
