@@ -64,7 +64,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
       {/* 텍스트 영역 */}
       <div
         className={`flex flex-col justify-center min-h-[140px] z-10 pr-[150px] ${
-          state === 'empty' ? 'pt-28' : state === 'alert' ? 'pt-14' : 'pt-8'
+          state === 'empty' ? 'pt-28' : state === 'alert' ? 'pt-14' : 'pt-20'
         }`}
       >
         {/* empty */}
