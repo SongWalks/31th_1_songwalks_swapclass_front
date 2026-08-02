@@ -20,8 +20,8 @@ import {
   deletePost,
   createComment,
   deleteComment,
-} from '@/api/lounge';
-import type { LocalComment } from '@/types/lounge';
+} from '@/api/lounge/lounge';
+import type { LocalComment } from '@/types/lounge/lounge';
 
 const formatDate = (dateString: string) => {
   if (!dateString) return '';
@@ -127,7 +127,7 @@ export const PostDetailPage = () => {
 
   const postData = postResponse?.data;
 
-  const isMyPost = postData?.authorId === 1;
+  const isMyPost = postData?.mine || false;
 
   useEffect(() => {
     if (postData) {
@@ -140,7 +140,7 @@ export const PostDetailPage = () => {
         ...c,
         author: `익명`,
         time: formatDate(c.createdAt),
-        isMine: c.userId === 1,
+        isMine: c.mine,
       }));
       setComments(formattedComments);
     }

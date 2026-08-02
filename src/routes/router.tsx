@@ -10,7 +10,6 @@ import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecomme
 import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
 import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
 import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
-// 💡 마이페이지
 import Mypage from '@/pages/Mypage/Mypage';
 import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
 import MyPostpage from '@/pages/Mypage/MyPostpage';
@@ -21,15 +20,15 @@ import MyLoungePostsPage from '@/pages/Mypage/MyLoungePostsPage';
 import MyBookmarkPage from '@/pages/Mypage/MyBookmarkPage';
 import ExchangeRequestPage from '@/pages/Mypage/ExchangeRequestPage';
 import ExchangeRequestSpecific from '@/pages/Mypage/ExchangeRequestSpecific';
-
 import BoardPage from '@/pages/Posts/BoardPage';
 import PostWritePage from '@/pages/Posts/PostWritePage';
-
 import { LoungePage } from '@/pages/lounge/LoungePage';
 import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
 import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
 import { PostEditPage } from '@/pages/lounge/PostEditPage';
+import HomePage from '@/pages/home/HomePage';
+
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
@@ -39,8 +38,8 @@ export const router = createBrowserRouter([
         // 💡 1번 그룹: 하단 네비게이션(BottomNav)이 있는 화면들
         // ==========================================
         element: <DefaultLayout />,
-
         children: [
+          { path: '/', element: <HomePage /> },
           {
             //나중에 다 머지한 뒤에 라우터 수정
             path: 'my/exchange-recommend',
@@ -58,7 +57,6 @@ export const router = createBrowserRouter([
               { path: 'request', element: <ExchangeRequestPage /> },
             ],
           },
-
           { path: '/board', element: <BoardPage /> }, // /board (교환게시판)
           { path: '/lounge', element: <LoungePage /> },
         ],
@@ -87,9 +85,6 @@ export const router = createBrowserRouter([
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
           },
-
-          // :id 나 :roomId 는 동적 라우팅 기법입니다. (ex. /board/123)
-          // 예시: { path: '/board/:id', element: <DetailPage /> },    // 상세 게시글
           { path: '/board/write', element: <PostWritePage /> },
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
