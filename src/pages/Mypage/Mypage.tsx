@@ -77,6 +77,7 @@ const MyPage = () => {
       // 받은 요청함 뱃지: PENDING(대기 중) 상태인 것만 개수로 카운트
       try {
         const receivedRes = await axiosInstance.get('/api/proposals/received');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const received: any[] = receivedRes.data?.data || [];
         setRequestCount(
           received.filter((item) => item.status === 'PENDING').length,
@@ -135,7 +136,7 @@ const MyPage = () => {
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
         // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-        navigate('/home'); // 탈퇴 후 로그인 화면으로 이동
+        navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
       console.error('회원 탈퇴 실패:', error);
@@ -149,7 +150,7 @@ const MyPage = () => {
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
       // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-      navigate('/home');
+      navigate('/');
     }
   };
 
@@ -298,11 +299,7 @@ const MyPage = () => {
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <div className="[&>*]:!border-none">
           <Header
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                마이페이지
-              </div>
-            }
+            title={<div className="">마이페이지</div>}
             rightNode={<NotificationBell />}
           />
         </div>

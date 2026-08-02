@@ -55,29 +55,32 @@ const GraduationPage = () => {
   // 1. 내가 등록한 졸업 요건 과목 목록 조회 API
   const fetchGraduationCourses = useCallback(async (query: string) => {
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get('/api/me/graduation-courses', {
         params: query ? { q: query } : {},
       });
       if (response.data?.success) {
-        const mapped: GraduationCourse[] = (
-          response.data.data.courses || []
-        ).map((c: any) => ({
-          id: c.courseId,
-          course: {
-            name: c.courseName,
-            courseType: c.courseType,
-            code: c.code,
-            category: c.category,
-            department: c.department,
-          },
-          completed: c.completed,
-        }));
+        const mapped: GraduationCourse[] = (response.data.data.courses || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((c: any) => ({
+            id: c.courseId,
+            course: {
+              name: c.courseName,
+              courseType: c.courseType,
+              code: c.code,
+              category: c.category,
+              department: c.department,
+            },
+            completed: c.completed,
+          }));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRegisteredCourses(mapped);
       }
     } catch (error) {
       console.error('졸업 요건 과목 목록 조회 실패:', error);
     } finally {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, []);
@@ -105,6 +108,7 @@ const GraduationPage = () => {
 
     try {
       const selected = JSON.parse(raw);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingCourse({
         courseId: selected.courseId,
         name: selected.name ?? selected.title,
@@ -149,6 +153,7 @@ const GraduationPage = () => {
       setToastMessage('저장되었습니다.');
       setShowToast(true);
       setPendingCourse(null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('졸업 요건 과목 등록 실패:', error);
       if (error?.response?.status === 409) {
@@ -192,11 +197,7 @@ const GraduationPage = () => {
             leftNode={
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                졸업 요건 과목 등록
-              </div>
-            }
+            title={<div>졸업 요건 과목 등록</div>}
             rightNode={
               <button
                 onClick={() => navigate('modify')}

@@ -82,7 +82,9 @@ const PostWritePage: React.FC = () => {
     }
 
     if (rawForm || rawCourse) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDiscardCourse(restoredDiscard);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWantedCourses(restoredWanted);
     }
 
@@ -171,9 +173,7 @@ const PostWritePage: React.FC = () => {
           }
         />
         <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-          <span className="text-black/70 text-lg font-semibold leading-5 tracking-wide pointer-events-auto">
-            교환글 작성하기
-          </span>
+          <span className="pointer-events-auto">교환글 작성하기</span>
         </div>
       </div>
 

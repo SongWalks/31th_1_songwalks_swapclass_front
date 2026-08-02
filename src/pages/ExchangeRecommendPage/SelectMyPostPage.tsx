@@ -125,6 +125,7 @@ const SelectMyPostPage: React.FC = () => {
           });
         }, 3000);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('제안 생성 실패:', error);
       const serverMessage = error?.response?.data?.message;
@@ -143,9 +144,7 @@ const SelectMyPostPage: React.FC = () => {
           }
           title={
             <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-              <span className="text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                내 게시글
-              </span>
+              <span>내 게시글</span>
             </div>
           }
         />

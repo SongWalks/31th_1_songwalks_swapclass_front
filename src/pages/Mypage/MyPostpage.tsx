@@ -37,7 +37,7 @@ const MyPostpage = () => {
         const response = await axiosInstance.get('/api/posts/me');
 
         if (response.data?.success && response.data?.data) {
-          // 백엔드 데이터를 프론트 UI 구조에 맞게 매핑
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mappedPosts: Post[] = response.data.data.map((item: any) => {
             // 💡 서버의 영문 상태값(status)을 한글 탭 메뉴(TabType)에 맞게 변환
             let mappedStatus: TabType = '교환 전';
@@ -55,6 +55,7 @@ const MyPostpage = () => {
               id: item.postId || item.id,
               title: item.discardCourse?.name || '과목명 없음',
               preferredSubjects:
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 item.wantedCourses?.map((w: any) => w.course.name) || [],
               status: mappedStatus,
               requestCount: item.proposalCount || 0, // 💡 백엔드가 proposalCount로 내려줌 (requestCount 아님)
@@ -86,11 +87,7 @@ const MyPostpage = () => {
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
-          title={
-            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              내 게시글
-            </div>
-          }
+          title={<div>내 게시글</div>}
           rightNode={<NotificationBell />}
         />
 

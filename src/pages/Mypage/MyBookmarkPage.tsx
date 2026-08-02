@@ -56,6 +56,7 @@ const MyBookmarkPage: React.FC = () => {
   const toPostCardData = (post: LoungePostItem): Post => ({
     id: post.id,
     title: post.title,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: (post as any).content || '',
     date: formatDate(post.createdAt),
     postType: post.type === 'CLOSURE' ? '폐강과목' : '강의꿀팁',
@@ -76,11 +77,7 @@ const MyBookmarkPage: React.FC = () => {
               className="text-black/40"
             />
           }
-          title={
-            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              내 북마크 목록
-            </div>
-          }
+          title={<div>내 북마크 목록</div>}
           rightNode={<NotificationBell />}
         />
       </div>

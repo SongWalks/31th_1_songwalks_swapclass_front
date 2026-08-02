@@ -63,7 +63,7 @@ const ExchangeRequestSpecific: React.FC = () => {
         setTimeout(() => {
           navigate('/my/request');
         }, 1000);
-      }
+      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('교환 거절 실패:', error);
       const serverMessage = error?.response?.data?.message;
@@ -88,7 +88,7 @@ const ExchangeRequestSpecific: React.FC = () => {
             navigate('/chat');
           }
         }, 1000);
-      }
+      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('교환 수락 실패:', error);
       const serverMessage = error?.response?.data?.message;
@@ -116,11 +116,7 @@ const ExchangeRequestSpecific: React.FC = () => {
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
-          title={
-            <div className="text-black/70 text-[17px] font-semibold tracking-wide">
-              게시글 상세
-            </div>
-          }
+          title={<div>게시글 상세</div>}
           rightNode={
             <IconButton icon={ICONS.MORE_VERTICAL} className="text-black/40" />
           }

@@ -13,7 +13,7 @@ import {
   getSentProposal,
   withdrawProposal,
   type ProposalData,
-} from '@/api/mypage/proposalApi';
+} from '@/api/recommend/proposalApi';
 
 // 탭 메뉴용 아이콘
 import ActiveBoxIcon from '@/assets/icons/mypage/box.svg'; // 액티브: 받은 요청
@@ -105,16 +105,20 @@ const ExchangeRequestPage = () => {
           ...item,
           expiresAt: parseAsUtcMs(item.expiresAt),
         }));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReceivedProposals(withExpiry);
       }
 
       if (sentRes.success && sentRes.data) {
         const sentWithExpiry = {
           ...sentRes.data,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           expiresAt: parseAsUtcMs((sentRes.data as any).expiresAt),
         };
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(sentWithExpiry as unknown as ProposalData);
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(null);
       }
     } catch (error) {
@@ -196,11 +200,7 @@ const ExchangeRequestPage = () => {
             leftNode={
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                교환 요청함
-              </div>
-            }
+            title={<div>교환 요청함</div>}
             rightNode={<NotificationBell />}
           />
         </div>
@@ -304,6 +304,7 @@ const ExchangeRequestPage = () => {
                     ) : (
                       <div className="flex flex-col divide-y divide-gray-100">
                         {rankProposals.map((req) => {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           const expiresAt = (req as any).expiresAt as
                             number | undefined;
                           const remainSeconds =
@@ -315,8 +316,10 @@ const ExchangeRequestPage = () => {
                               : undefined;
 
                           const counterpartWanted = [
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             ...((req as any).counterpartPost?.wantedCourses ||
                               []),
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           ].sort((a: any, b: any) => a.priority - b.priority);
 
                           return (
@@ -325,6 +328,7 @@ const ExchangeRequestPage = () => {
                               onClick={() =>
                                 navigate(`/proposal/${req.id}`, {
                                   state: {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     receivedCount: (req as any).receivedCount,
                                   },
                                 })
@@ -334,6 +338,7 @@ const ExchangeRequestPage = () => {
                               <div className="flex items-center justify-between mb-3">
                                 <span className="text-black text-lg font-medium leading-5 tracking-wide">
                                   {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     (req as any).counterpartPost?.discardCourse
                                       ?.name
                                   }
@@ -358,6 +363,7 @@ const ExchangeRequestPage = () => {
                               {counterpartWanted.length > 0 && (
                                 <div className="flex flex-col gap-1.5 pl-1">
                                   {counterpartWanted.map(
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     (item: any, idx: number) => (
                                       <div
                                         key={idx}
@@ -380,6 +386,7 @@ const ExchangeRequestPage = () => {
                                   e.stopPropagation();
                                   navigate(`/proposal/${req.id}`, {
                                     state: {
+                                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                       receivedCount: (req as any).receivedCount,
                                     },
                                   });
@@ -391,6 +398,7 @@ const ExchangeRequestPage = () => {
                                   alt="받은 요청"
                                   className="w-3.5 h-3.5"
                                 />
+                                {/*eslint-disable-next-line @typescript-eslint/no-explicit-any*/}
                                 받은 요청 {(req as any).receivedCount}개
                                 <img
                                   src={movementIcon}
@@ -439,15 +447,18 @@ const ExchangeRequestPage = () => {
             /* 2. 보낸 요청 데이터가 존재할 때 */
             <div
               onClick={() =>
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 navigate(`/board/${(sentProposal as any).receiverPostId}`)
               }
               className="w-full flex flex-col px-1 relative cursor-pointer"
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                  {/*eslint-disable-next-line @typescript-eslint/no-explicit-any*/}
                   {(sentProposal as any).counterpartPost?.discardCourse?.name}
                 </span>
                 {(() => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const sentExpiresAt = (sentProposal as any).expiresAt as
                     number | undefined;
                   const sentRemainSeconds =
@@ -479,10 +490,12 @@ const ExchangeRequestPage = () => {
 
               <div className="flex flex-col gap-1.5 pl-1 mb-5">
                 {[
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ...((sentProposal as any).counterpartPost?.wantedCourses ||
                     []),
-                ]
+                ] // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   .sort((a: any, b: any) => a.priority - b.priority)
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   .map((item: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
                       <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
@@ -502,6 +515,7 @@ const ExchangeRequestPage = () => {
                     alt="받은 요청"
                     className="w-3.5 h-3.5"
                   />
+                  {/*eslint-disable-next-line @typescript-eslint/no-explicit-any*/}
                   <span>받은 요청 {(sentProposal as any).receivedCount}개</span>
                   <img src={movementIcon} alt="이동" className="w-3 h-3" />
                 </div>

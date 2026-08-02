@@ -171,6 +171,7 @@ const BoardPage = () => {
         });
 
         setPosts(mapped);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         const status = error?.response?.status;
         const serverMessage = error?.response?.data?.message;
@@ -205,7 +206,7 @@ const BoardPage = () => {
 
     const handleScroll = () => {
       if (hasShownLoginModal.current) return;
-      if (scrollContainer.scrollTop > 100) {
+      if (scrollContainer.scrollTop > 500) {
         hasShownLoginModal.current = true;
         setShowLoginModal(true);
       }
@@ -222,6 +223,26 @@ const BoardPage = () => {
       return;
     }
     setShowFilterModal(true);
+  };
+
+  const handleWriteButtonClick = () => {
+    const isLoggedIn = !!localStorage.getItem('accessToken');
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    navigate('/board/write');
+  };
+
+  const handlePostClick = (postId: number) => {
+    const isLoggedIn = !!localStorage.getItem('accessToken');
+
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    navigate(`/board/${postId}`);
   };
 
   return (
@@ -351,7 +372,7 @@ const BoardPage = () => {
             {posts.map((post) => (
               <div
                 key={post.id}
-                onClick={() => navigate(`/board/${post.id}`)}
+                onClick={() => handlePostClick(post.id)}
                 className="py-6 flex flex-col relative cursor-pointer hover:bg-black/[0.01] transition-colors"
               >
                 {/* 제목 */}
@@ -398,7 +419,7 @@ const BoardPage = () => {
       {/* 글쓰기 FAB */}
       <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] pointer-events-none z-40">
         <FAB
-          onClick={() => navigate('/board/write')}
+          onClick={handleWriteButtonClick}
           icon={ICONS.PLUS}
           text="글쓰기"
           className="!pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"

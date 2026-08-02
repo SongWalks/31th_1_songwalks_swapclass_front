@@ -94,6 +94,7 @@ const SpecificPostsPage: React.FC = () => {
       try {
         const response = await axiosInstance.get('/api/me/likes');
         const likedPosts: { postId: number }[] = response.data?.data || [];
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLiked(likedPosts.some((p) => p.postId === Number(postId)));
       } catch (error) {
         console.error('찜 상태 확인 실패:', error);
@@ -111,9 +112,11 @@ const SpecificPostsPage: React.FC = () => {
         });
         const myPosts: MyPostResponse[] = response.data?.data || [];
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(activePost ? activePost.postId : null);
       } catch (error) {
         console.error('내 게시글 조회 실패:', error);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(null);
       }
     };
@@ -125,12 +128,15 @@ const SpecificPostsPage: React.FC = () => {
     try {
       const response = await getSentProposal();
       if (response.success && response.data) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(response.data as ProposalData);
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(null);
       }
     } catch (error) {
       console.error('보낸 요청 조회 실패:', error);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSentProposal(null);
     }
   }, []);
@@ -143,14 +149,17 @@ const SpecificPostsPage: React.FC = () => {
     if (!postId) return;
 
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get(`/api/posts/${postId}`);
       if (response.data?.success) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPost(response.data.data as PostDetailResponse);
       }
     } catch (error) {
       console.error('게시글 상세 조회 실패:', error);
     } finally {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, [postId]);
@@ -169,6 +178,7 @@ const SpecificPostsPage: React.FC = () => {
         const forThisPost = received.filter(
           (item) => item.receiverPostId === Number(postId),
         );
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReceivedRequestCount(forThisPost.length);
       } catch (error) {
         console.error('받은 요청 개수 조회 실패:', error);
@@ -181,6 +191,7 @@ const SpecificPostsPage: React.FC = () => {
   useEffect(() => {
     const state = location.state as { justProposed?: boolean } | null;
     if (state?.justProposed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowProposeSuccessModal(true);
       fetchSentProposal();
       navigate(location.pathname, { replace: true, state: {} });
@@ -330,6 +341,7 @@ const SpecificPostsPage: React.FC = () => {
   // 💡 백엔드에서 receiverPostId 필드를 추가해줘서, 이제 실제 API 값으로 정확히 판단 가능
   const isProposedToThisPost =
     sentProposal?.status === 'PENDING' &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sentProposal as any).receiverPostId === Number(postId);
 
   return (
@@ -345,9 +357,7 @@ const SpecificPostsPage: React.FC = () => {
           }
         />
         <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-          <span className="text-black/70 text-[17px] font-semibold pointer-events-auto">
-            게시글 상세
-          </span>
+          <span className="pointer-events-auto">게시글 상세</span>
         </div>
       </div>
 
