@@ -2,7 +2,11 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { fetchCourses, fetchDepartments, fetchCategories } from '@/api/course';
+import {
+  fetchCourses,
+  fetchDepartments,
+  fetchCategories,
+} from '@/api/common/course';
 import { Badge } from '@/components/common/Badge';
 import { Input } from '@/components/common/Input';
 import { CourseCard } from '@/components/common/CourseCard';
@@ -25,6 +29,30 @@ export const CourseSearchPage = () => {
   const [openDropdown, setOpenDropdown] = useState<'type' | 'dept' | null>(
     null,
   );
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      // 드롭다운 요소가 존재하고, 클릭된 타겟이 드롭다운 영역 바깥일 경우
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpenDropdown(null); // 드롭다운 닫기
+      }
+    };
+
+    // PC 환경을 위한 mousedown, 모바일 환경을 위한 touchstart 이벤트 등록
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      // 컴포넌트 언마운트 시 이벤트 리스너 정리(메모리 누수 방지)
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
 
   // 감시자 역할을 할 ref 생성 (이 div가 화면에 보이면 다음 페이지 호출)
   const observerRef = useRef<HTMLDivElement>(null);
@@ -117,10 +145,10 @@ export const CourseSearchPage = () => {
 
     // 3) 졸업 요건 여부에 따라 분류
     const graduationRequired = uniqueCourses.filter(
-      (course) => course.isGraduationReq,
+      (course) => course.myGraduationCourse,
     );
     const nonRequired = uniqueCourses.filter(
-      (course) => !course.isGraduationReq,
+      (course) => !course.myGraduationCourse,
     );
 
     // 4) 합쳐서 반환
@@ -170,8 +198,11 @@ export const CourseSearchPage = () => {
           >
             필터 닫기
           </button>
-          <div className="p-4 bg-brand-bg border border-brand-lightBlue rounded-xl shadow-sm space-y-4 animate-in fade-in duration-200">
-            {/* 🚀 4. 가공된 typeOptions 적용 */}
+
+          <div
+            ref={dropdownRef}
+            className="p-4 bg-brand-bg border border-brand-lightBlue rounded-xl shadow-sm space-y-4 animate-in fade-in duration-200"
+          >
             <div className="space-y-2">
               <label className="block text-medium-12 text-gray-800">
                 강의 유형
@@ -235,7 +266,7 @@ export const CourseSearchPage = () => {
                   time={course.classTime}
                   badges={
                     <>
-                      {course.isGraduationReq && (
+                      {course.myGraduationCourse && (
                         <Badge
                           variant="primary"
                           className="absolute top-4 right-4"

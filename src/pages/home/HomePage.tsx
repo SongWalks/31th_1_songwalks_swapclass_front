@@ -3,83 +3,146 @@ import { HomeHeader } from '@/pages/home/components/HomeHeader';
 import { HomeHero } from '@/pages/home/components/HomeHero';
 import { ReceivedRequestCard } from '@/pages/home/components/ReceivedRequestCard';
 import { RecommendMatchItem } from '@/pages/home/components/RecommendMatchItem';
-
 import sooWatermark from '@/assets/images/soo-watermark.png';
-
-const HOME_STATE: 'empty' | 'active' | 'alert' = 'active';
+import { useHomeQuery } from '@/hooks/home/useHomeQuery';
+import { Spinner } from '@/components/common/Spinner';
+import { Toast } from '@/components/common/Toast';
+import { ICONS } from '@/constants/icons';
+import {
+  useProposeMutation,
+  useAcceptMutation,
+  useRejectMutation,
+} from '@/hooks/home/useProposals';
 
 export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const sensorRef = useRef<HTMLDivElement>(null);
 
+  const [toast, setToast] = useState<{
+    isVisible: boolean;
+    message: string;
+    icon: string;
+  }>({
+    isVisible: false,
+    message: '',
+    icon: ICONS.CHECK,
+  });
+
+  const { data: homeData, isLoading, isError } = useHomeQuery();
+
+  const proposeMutation = useProposeMutation();
+  const acceptMutation = useAcceptMutation();
+  const rejectMutation = useRejectMutation();
+
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        // 센서가 화면 밖으로 나가면(스크롤을 내리면) 블러 효과 ON!
-        setIsScrolled(!entry.isIntersecting);
-      },
-      { threshold: 0 }, // 0으로 설정하면 단 1px만 스크롤돼도 바로 반응합니다.
+      ([entry]) => setIsScrolled(!entry.isIntersecting),
+      { threshold: 0 },
     );
-
     if (sensorRef.current) observer.observe(sensorRef.current);
     return () => observer.disconnect();
   }, []);
 
-  // 가짜(Mock) 데이터
-  const receivedRequests =
-    HOME_STATE === 'empty'
-      ? []
-      : [
-          {
-            id: 1,
-            subject: '마케팅과 소비자 이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '27m 32s',
-            isUrgent: false,
-          },
-          {
-            id: 2,
-            subject: '마케팅과 소비자 이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '15m 21s',
-            isUrgent: true,
-          },
-        ];
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F9F9F9]">
+        <Spinner size="md" />
+      </div>
+    );
+  }
 
-  const recommendedMatches =
-    HOME_STATE === 'empty'
-      ? []
-      : [
-          {
-            id: 1,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-          {
-            id: 2,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-          {
-            id: 3,
-            subject: '마케팅과 소비자이슈',
-            targetSubject: '프로그래밍언어론',
-            time: '30m',
-          },
-        ];
+  if (isError || !homeData) {
+    return (
+      <div className="flex h-screen items-center justify-center text-gray-500">
+        데이터를 불러오는데 실패했습니다.
+      </div>
+    );
+  }
+
+  const {
+    unreadCount = 0, // 혹시 값이 없으면 0으로 처리
+    heroBanner,
+    receivedProposals = [],
+    recommendedFeed,
+  } = homeData || {};
+
+  const recommendedMatches = recommendedFeed?.posts || [];
+  const receivedRequests = receivedProposals;
+
+  // 상태(state) 직접 계산 로직
+  let state: 'empty' | 'active' | 'alert' = 'active';
+
+  if (recommendedMatches.length === 0) {
+    state = 'empty'; // 추천 게시글이 없으면 empty
+  } else if (heroBanner && heroBanner.remainSeconds > 0) {
+    state = 'alert'; // 남은 시간이 있으면 alert (내일 교환)
+  }
+
+  // 토스트 띄우기 헬퍼 함수
+  const showToast = (message: string, isError = false) => {
+    setToast({
+      isVisible: true,
+      message,
+      // 에러 상황이면 경고 아이콘, 성공이면 체크 아이콘 사용 (프로젝트에 맞게 수정)
+      icon: isError ? ICONS.WARNING : ICONS.CHECK,
+    });
+  };
+
+  // 제안하기 핸들러 (React Query 적용)
+  const handlePropose = (senderPostId: number, receiverPostId: number) => {
+    // 이미 로딩 중이면 중복 클릭 방지
+    if (proposeMutation.isPending) return;
+
+    proposeMutation.mutate(
+      { senderPostId, receiverPostId },
+      {
+        onSuccess: () => {
+          showToast('교환 제안을 성공적으로 보냈습니다!');
+        },
+        onError: (error: any) => {
+          const errorMessage =
+            error.response?.data?.message ||
+            '제안 처리 중 오류가 발생했습니다.';
+          showToast(errorMessage, true);
+        },
+      },
+    );
+  };
+
+  // 수락하기 핸들러 (React Query 적용)
+  const handleAccept = (proposalId: number) => {
+    if (acceptMutation.isPending) return;
+
+    acceptMutation.mutate(proposalId, {
+      onSuccess: () => {
+        showToast('교환 제안을 수락했습니다!');
+      },
+      onError: (error: any) => {
+        const errorMessage =
+          error.response?.data?.message || '수락 처리 중 오류가 발생했습니다.';
+        showToast(errorMessage, true);
+      },
+    });
+  };
+
+  const handleReject = (proposalId: number) => {
+    if (rejectMutation.isPending) return;
+    rejectMutation.mutate(proposalId, {
+      onSuccess: () => showToast('교환 제안을 거절했습니다.'),
+      onError: () => showToast('거절 처리 중 오류가 발생했습니다.', true),
+    });
+  };
 
   return (
-    <div className="relative min-h-full pb-10 flex flex-col bg-white">
-      {/* 🚨 핵심: 화면 맨 위(top-0)에 투명한 1px짜리 센서를 붙여둡니다! */}
+    <div className="relative mx-auto w-full max-w-[480px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
+      {/* 화면 맨 위 투명 센서 */}
       <div
         ref={sensorRef}
         className="absolute top-0 left-0 w-full h-[1px] bg-transparent pointer-events-none z-50"
       />
 
-      {/* 배경 레이어 (fixed로 잘 고정해두신 부분!) */}
-      <div className="fixed top-0 left-0 w-full h-screen pointer-events-none z-0 overflow-hidden">
+      {/* 배경 레이어 */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
         <div
           className="absolute inset-0"
           style={{
@@ -88,13 +151,20 @@ export default function HomePage() {
           }}
         />
         <div
-          className="absolute w-96 h-96 left-[138.65px] top-[202.75px] origin-top-left -rotate-[61.65deg] rounded-full blur-[11px] opacity-70"
-          style={{ background: 'linear-gradient(152deg, #E9F2F5, #CAE4FD)' }}
+          className="absolute -top-[100px] -right-[50px] w-[600px] h-[600px] rounded-full blur-[100px] opacity-[0.06]"
+          style={{
+            background:
+              'radial-gradient(circle, #FFECCC 0%, #FFCDB5 50%, transparent 80%)',
+          }}
+        />
+        <div
+          className="absolute w-96 h-96 left-[130px] top-[202.75px] origin-top-left -rotate-[62deg] rounded-full blur-[20px] opacity-[0.3]"
+          style={{ background: 'linear-gradient(152deg, #E9F2F5, #43A3FF)' }}
         />
       </div>
 
-      {/* 워터마크 (고정) */}
-      <div className="fixed top-[65px] left-[90px] w-96 h-48 pointer-events-none z-0 select-none">
+      {/* 워터마크 */}
+      <div className="absolute top-[110px] left-[115px] w-96 h-48 pointer-events-none z-0 select-none">
         <img
           src={sooWatermark}
           alt="SOO 워터마크"
@@ -104,16 +174,13 @@ export default function HomePage() {
 
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
-        {/* 🚨 여기서 Header에 isScrolled 값을 넘겨줍니다! */}
-        <div className="fixed top-0 left-0 w-full z-50">
-          <HomeHeader isScrolled={isScrolled} />
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50">
+          <HomeHeader isScrolled={isScrolled} unreadCount={unreadCount} />
         </div>
 
-        {/* 헤더 높이만큼 띄워주는 패딩 */}
         <div className="px-5 flex flex-col pt-[56px] mt-2">
-          <HomeHero state={HOME_STATE} />
+          <HomeHero state={state} heroBanner={heroBanner} />
 
-          {/* 받은 요청함 */}
           <section className="flex flex-col gap-3 mt-8">
             <h2 className="text-[16px] font-bold text-[#5A9ECC]">
               받은 요청함
@@ -127,13 +194,17 @@ export default function HomePage() {
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-5 px-5">
                 {receivedRequests.map((req) => (
-                  <ReceivedRequestCard key={req.id} {...req} />
+                  <ReceivedRequestCard
+                    key={req.proposalId}
+                    {...req}
+                    onAccept={handleAccept}
+                    onReject={handleReject}
+                  />
                 ))}
               </div>
             )}
           </section>
 
-          {/* 추천 매칭 */}
           <section className="flex flex-col gap-3 mt-8">
             <h2 className="text-[16px] font-bold text-[#5A9ECC]">추천 매칭</h2>
             {recommendedMatches.length === 0 ? (
@@ -144,14 +215,36 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {recommendedMatches.map((match) => (
-                  <RecommendMatchItem key={match.id} {...match} />
+                {recommendedMatches.map((match: any) => (
+                  <RecommendMatchItem
+                    key={match.postId}
+
+                    id={match.postId}
+                    discardCourse={match.discardCourse}
+                    wantedCourses={match.wantedCourses}
+                    proposalCount={match.proposalCount}
+
+                    /* 백엔드 응답인 requestStatus 명시적 주입 (PENDING or null) */
+                    requestStatus={match.requestStatus || null}
+
+                    senderPostId={match.senderPostId}
+
+                    onPropose={handlePropose}
+                  />
                 ))}
               </div>
             )}
           </section>
         </div>
       </div>
+
+      {/* ✨ 토스트 컴포넌트 렌더링 */}
+      <Toast
+        message={toast.message}
+        isVisible={toast.isVisible}
+        icon={toast.icon}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 }

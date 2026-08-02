@@ -6,7 +6,6 @@ import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
 // --- 2. 페이지 불러오기  ---
-import HomePage from '@/pages/home/HomePage';
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
@@ -30,6 +29,7 @@ import { PostDetailPage } from '@/pages/lounge/PostDetailPage';
 import { LoungeWritePage } from '@/pages/lounge/LoungeWritePage';
 import { CourseSearchPage } from '@/pages/common/CourseSearchPage';
 import { PostEditPage } from '@/pages/lounge/PostEditPage';
+import HomePage from '@/pages/home/HomePage';
 
 export const router = createBrowserRouter([
   {
