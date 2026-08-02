@@ -12,7 +12,6 @@ export interface Post {
   courseTag?: string; // 백엔드의 courseName
   likes: number; // 백엔드의 likeCount
   comments: number; // 백엔드의 commentCount
-  bookmarked?: boolean; // 💡 북마크 여부 (아이콘 채움 표시용)
 }
 
 interface PostCardProps {
@@ -66,12 +65,7 @@ export const PostCard = ({ post, onClick }: PostCardProps) => {
             <Icon icon="ph:heart" className="text-[16px]" />
             <span>{post.likes}</span>
           </div>
-          <Icon
-            icon={
-              post.bookmarked ? 'ph:bookmark-simple-fill' : 'ph:bookmark-simple'
-            }
-            className="text-[16px]"
-          />
+          <Icon icon={'ph:bookmark-simple'} className="text-[16px]" />
           <div className="flex items-center gap-0.5">
             <Icon icon="ph:chat-circle" className="text-[16px]" />
             <span>{post.comments}</span>
