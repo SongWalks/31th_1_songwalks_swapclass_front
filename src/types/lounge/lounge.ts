@@ -31,6 +31,7 @@ export interface CommentType {
   id: number;
   userId: number;
   content: string;
+  mine: boolean;
   createdAt: string;
 }
 
@@ -42,6 +43,7 @@ export interface PostDetailData {
   title: string;
   content: string;
   authorId: number;
+  mine: boolean;
   likeCount: number;
   commentCount: number;
   liked: boolean;
