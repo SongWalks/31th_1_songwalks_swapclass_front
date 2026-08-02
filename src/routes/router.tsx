@@ -5,6 +5,11 @@ import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
+// --- 2. 페이지 불러오기  ---
+import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
+import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
+import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
+import PosteditPage from '@/pages/ExchangeRecommendPage/PosteditPage';
 // 💡 마이페이지
 import Mypage from '@/pages/Mypage/Mypage';
 import PasswordChangepage from '@/pages/Mypage/PasswordChangepage';
@@ -37,6 +42,11 @@ export const router = createBrowserRouter([
 
         children: [
           {
+            //나중에 다 머지한 뒤에 라우터 수정
+            path: 'my/exchange-recommend',
+            element: <ExchangeRecommendPage />,
+          },
+          {
             path: 'my',
             children: [
               { index: true, element: <Mypage /> },
@@ -59,6 +69,12 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          {
+            path: '/board/:postId/select-my-post',
+            element: <SelectMyPostPage />,
+          }, // 제안 보낼 내 게시글 선택
+          { path: '/board/:postId', element: <SpecificPostsPage /> }, // 게시글 상세
+          { path: '/board/:postId/edit', element: <PosteditPage /> }, // 게시글 수정
           {
             path: '/my/graduation',
             children: [
