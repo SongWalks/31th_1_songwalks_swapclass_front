@@ -15,6 +15,8 @@ import CRPPage from '../pages/chat/CRP';
 import SDPPage from '../pages/chat/SDP';
 import TDPPage from '../pages/chat/TDP';
 // --- 2. 페이지 불러오기  ---
+import ReportPage from '@/pages/report/ReportPage';
+import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
 import SpecificPostsPage from '@/pages/ExchangeRecommendPage/SpecificPostsPage';
 import SelectMyPostPage from '@/pages/ExchangeRecommendPage/SelectMyPostPage';
@@ -80,6 +82,8 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          { path: '/report', element: <ReportPage /> },
+          { path: '/report/success', element: <ReportSuccessPage /> }, // 신고 완료 페이지 (임시)
           {
             path: '/board/:postId/select-my-post',
             element: <SelectMyPostPage />,
