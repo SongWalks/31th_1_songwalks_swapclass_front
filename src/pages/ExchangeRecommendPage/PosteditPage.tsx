@@ -78,12 +78,10 @@ const PostEditPage: React.FC = () => {
   );
 
   const applyPostData = (data: PostDetailResponse) => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPost(data);
 
     if (pendingWantedCoursesRef.current) {
       // 방금 과목 검색에서 돌아온 거면, 서버의 예전 값 대신 방금 고른 값을 그대로 유지
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWantedCourses(pendingWantedCoursesRef.current);
       pendingWantedCoursesRef.current = null;
       return;
@@ -92,7 +90,6 @@ const PostEditPage: React.FC = () => {
     const sorted = [...data.wantedCourses].sort(
       (a, b) => a.priority - b.priority,
     );
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWantedCourses(
       [0, 1, 2].map((i) => {
         const item = sorted[i];
@@ -105,7 +102,6 @@ const PostEditPage: React.FC = () => {
     if (!postId) return;
 
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get(`/api/posts/${postId}`);
       if (response.data?.success) {
@@ -114,7 +110,6 @@ const PostEditPage: React.FC = () => {
     } catch (error) {
       console.error('게시글 조회 실패:', error);
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, [postId]);
@@ -177,7 +172,6 @@ const PostEditPage: React.FC = () => {
     sessionStorage.removeItem('postEditFormState');
     sessionStorage.removeItem('selectedCourse');
     sessionStorage.removeItem('courseSearchTarget');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -185,7 +179,6 @@ const PostEditPage: React.FC = () => {
       try {
         const response = await axiosInstance.get('/api/proposals/received');
         const received = response.data?.data || [];
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReceivedRequestCount(received.length);
       } catch (error) {
         console.error('받은 요청 개수 조회 실패:', error);

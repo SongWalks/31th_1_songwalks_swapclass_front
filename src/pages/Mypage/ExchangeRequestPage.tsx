@@ -101,11 +101,12 @@ const ExchangeRequestPage = () => {
       ]);
 
       if (receivedRes.success) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const withExpiry = (receivedRes.data || []).map((item: any) => ({
           ...item,
           expiresAt: parseAsUtcMs(item.expiresAt),
         }));
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
         setReceivedProposals(withExpiry);
       }
 
@@ -115,10 +116,8 @@ const ExchangeRequestPage = () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           expiresAt: parseAsUtcMs((sentRes.data as any).expiresAt),
         };
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(sentWithExpiry as unknown as ProposalData);
       } else {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(null);
       }
     } catch (error) {
@@ -127,6 +126,7 @@ const ExchangeRequestPage = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 

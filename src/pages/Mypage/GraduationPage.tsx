@@ -55,7 +55,6 @@ const GraduationPage = () => {
   // 1. 내가 등록한 졸업 요건 과목 목록 조회 API
   const fetchGraduationCourses = useCallback(async (query: string) => {
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get('/api/me/graduation-courses', {
         params: query ? { q: query } : {},
@@ -74,13 +73,11 @@ const GraduationPage = () => {
             },
             completed: c.completed,
           }));
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRegisteredCourses(mapped);
       }
     } catch (error) {
       console.error('졸업 요건 과목 목록 조회 실패:', error);
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, []);

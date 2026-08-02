@@ -74,11 +74,9 @@ const ExchangeRecommendPage = () => {
         const response = await axiosInstance.get('/api/posts/me');
         const myPosts: MyPostResponse[] = response.data?.data || [];
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(activePost ? activePost.postId : null);
       } catch (error) {
         console.error('내 게시글 조회 실패:', error);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(null);
       }
     };
@@ -88,13 +86,11 @@ const ExchangeRecommendPage = () => {
 
   const fetchRecommendations = useCallback(async () => {
     if (!myPostId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
 
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
 
       // 1. 추천 후보 목록 (id / matchRank / requestStatus)
@@ -137,19 +133,18 @@ const ExchangeRecommendPage = () => {
         );
       }
 
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecommendPosts(detailed);
     } catch (error) {
       console.error('추천 게시글 조회 실패:', error);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setRecommendPosts([]);
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, [myPostId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRecommendations();
   }, [fetchRecommendations]);
 

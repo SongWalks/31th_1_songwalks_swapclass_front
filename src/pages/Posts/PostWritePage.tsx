@@ -84,7 +84,6 @@ const PostWritePage: React.FC = () => {
     if (rawForm || rawCourse) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDiscardCourse(restoredDiscard);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWantedCourses(restoredWanted);
     }
 

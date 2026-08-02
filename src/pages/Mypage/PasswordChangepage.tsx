@@ -42,7 +42,7 @@ const PasswordChangepage = () => {
         setIsModalOpen(true);
       } else {
         alert(response.message || '비밀번호 변경에 실패했습니다.');
-      }
+      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('비밀번호 변경 오류:', error);
 
@@ -101,6 +101,7 @@ const PasswordChangepage = () => {
           label="현재 비밀번호"
           type={showPassword.current ? 'text' : 'password'}
           value={pw.current}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setPw({ ...pw, current: e.target.value })}
           onBlur={() => setTouched({ ...touched, current: true })}
           isError={isError('current')}
@@ -111,6 +112,7 @@ const PasswordChangepage = () => {
           label="새 비밀번호"
           type={showPassword.new ? 'text' : 'password'}
           value={pw.new}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setPw({ ...pw, new: e.target.value })}
           onBlur={() => setTouched({ ...touched, new: true })}
           isError={isError('new')}
@@ -126,6 +128,7 @@ const PasswordChangepage = () => {
           label="비밀번호 확인"
           type={showPassword.confirm ? 'text' : 'password'}
           value={pw.confirm}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setPw({ ...pw, confirm: e.target.value })}
           onBlur={() => setTouched({ ...touched, confirm: true })}
           isError={isError('confirm')}

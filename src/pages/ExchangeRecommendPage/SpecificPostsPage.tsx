@@ -94,7 +94,6 @@ const SpecificPostsPage: React.FC = () => {
       try {
         const response = await axiosInstance.get('/api/me/likes');
         const likedPosts: { postId: number }[] = response.data?.data || [];
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLiked(likedPosts.some((p) => p.postId === Number(postId)));
       } catch (error) {
         console.error('찜 상태 확인 실패:', error);
@@ -112,11 +111,9 @@ const SpecificPostsPage: React.FC = () => {
         });
         const myPosts: MyPostResponse[] = response.data?.data || [];
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(activePost ? activePost.postId : null);
       } catch (error) {
         console.error('내 게시글 조회 실패:', error);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMyPostId(null);
       }
     };
@@ -128,20 +125,18 @@ const SpecificPostsPage: React.FC = () => {
     try {
       const response = await getSentProposal();
       if (response.success && response.data) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(response.data as ProposalData);
       } else {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSentProposal(null);
       }
     } catch (error) {
       console.error('보낸 요청 조회 실패:', error);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSentProposal(null);
     }
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSentProposal();
   }, [fetchSentProposal]);
 
@@ -149,22 +144,20 @@ const SpecificPostsPage: React.FC = () => {
     if (!postId) return;
 
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get(`/api/posts/${postId}`);
       if (response.data?.success) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPost(response.data.data as PostDetailResponse);
       }
     } catch (error) {
       console.error('게시글 상세 조회 실패:', error);
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   }, [postId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPostDetail();
   }, [fetchPostDetail]);
 
@@ -174,11 +167,11 @@ const SpecificPostsPage: React.FC = () => {
     const fetchReceivedRequestCount = async () => {
       try {
         const response = await axiosInstance.get('/api/proposals/received');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const received: any[] = response.data?.data || [];
         const forThisPost = received.filter(
           (item) => item.receiverPostId === Number(postId),
         );
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReceivedRequestCount(forThisPost.length);
       } catch (error) {
         console.error('받은 요청 개수 조회 실패:', error);
@@ -196,7 +189,7 @@ const SpecificPostsPage: React.FC = () => {
       fetchSentProposal();
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state]);
+  }, [location.state, location.pathname, navigate, fetchSentProposal]);
 
   const handleRequestExchange = () => {
     if (!postId) return;

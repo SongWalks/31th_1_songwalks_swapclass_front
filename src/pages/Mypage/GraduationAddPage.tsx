@@ -43,7 +43,6 @@ const GraduationAddPage = () => {
   // API 1: 등록된 졸업 요건 과목 목록 불러오기
   const fetchCourses = async () => {
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       const response = await axiosInstance.get('/api/me/graduation-courses');
       if (response.data?.success) {
@@ -58,21 +57,19 @@ const GraduationAddPage = () => {
             completed: c.completed,
           }),
         );
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCourses(apiCourses);
         // 이미 이수완료로 표시된 과목은 진입 시 기본으로 체크되어 있게 함
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedIds(apiCourses.filter((c) => c.completed).map((c) => c.id));
       }
     } catch (error) {
       console.error('졸업 요건 과목 목록 조회 실패:', error);
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCourses();
   }, []);
 
