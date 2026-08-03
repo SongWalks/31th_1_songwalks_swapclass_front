@@ -41,6 +41,18 @@ export const LoungePage = () => {
     handleToggleType,
   } = useLounge();
 
+  // 1️⃣ 넘어온 state 확인 (과목 검색 후 라운지로 돌아왔을 때)
+  console.log('1. location.state 데이터:', location.state);
+
+  // 2️⃣ 스토어 저장 상태 확인 (스토어에 객체 형태로 잘 담겨있는지)
+  console.log('2. 현재 스토어에 저장된 과목:', selectedCourses);
+
+  const courseIdParam =
+    selectedCourses.length > 0 ? selectedCourses[0].id : undefined;
+
+  // 3️⃣ API 요청 직전 파라미터 확인 (useQuery에 id가 잘 들어가는지)
+  console.log('3. API로 넘길 courseIdParam:', courseIdParam);
+
   const apiType =
     selectedType === '강의꿀팁'
       ? 'TIP'
@@ -50,7 +62,8 @@ export const LoungePage = () => {
 
   // (임시) 현재 selectedCourses가 이름(string) 배열이므로, 당장 courseId를 넘기긴 어렵습니다.
   // 백엔드가 int를 요구하므로 일단 undefined로 비워두거나, 스토어를 id 배열로 수정해야 완벽해집니다.
-  const courseIdParam = undefined;
+  // const courseIdParam =
+  //   selectedCourses.length > 0 ? selectedCourses[0].id : undefined;
 
   // React Query로 서버 데이터 땡겨오기
   const { data: responseData, isLoading } = useQuery({
@@ -85,20 +98,27 @@ export const LoungePage = () => {
     }),
   );
 
-  // ✅ 수정 1: 공통 필터 페이지에서 선택한 과목을 들고 돌아왔을 때 실행되는 로직
   useEffect(() => {
-    // newCourse 대신 selectedCourse로 데이터를 받습니다.
-    if (location.state?.selectedCourse) {
-      // 선택된 과목 전체 '객체'가 넘어오므로, 라운지 필터에 쓸 '과목명(title)'만 추출합니다.
-      const courseToAdd = location.state.selectedCourse.title;
+    // 1. location.state 대신 sessionStorage에서 저장된 과목 데이터를 꺼냅니다.
+    const savedCourseStr = sessionStorage.getItem('selectedCourse');
+
+    if (savedCourseStr) {
+      const parsedCourse = JSON.parse(savedCourseStr);
+
+      // 2. Zustand 스토어 타입에 맞게 데이터 조립
+      // (검색 페이지에서 이미 title을 만들어서 넣어주셨으므로 그대로 쓰고, id만 courseId로 매핑)
+      const courseToAdd = {
+        id: parsedCourse.courseId,
+        title: parsedCourse.title,
+      };
 
       handleAddCourse(courseToAdd);
 
-      // 새로고침 시 다시 추가되는 것을 막기 위해 location.state 초기화
-      // 하드코딩된 '/lounge' 대신 location.pathname을 사용하여 더 유연하게 대처합니다.
-      navigate(location.pathname, { replace: true, state: {} });
+      // 3. ⭐️ 아주 중요한 부분: 한 번 스토어에 담았으면 스토리지를 비워줍니다.
+      // (이걸 안 지우면 페이지를 새로고침할 때마다 계속 같은 과목이 추가됩니다)
+      sessionStorage.removeItem('selectedCourse');
     }
-  }, [location.state, navigate, handleAddCourse, location.pathname]);
+  }, [handleAddCourse]);
 
   return (
     <div className="absolute top-0 left-0 w-full h-full flex flex-col overflow-hidden">
@@ -150,11 +170,11 @@ export const LoungePage = () => {
             />
             {selectedCourses.map((course) => (
               <FilterChip
-                key={course}
-                label={course}
+                key={course.id}
+                label={course.title}
                 isActive={true}
                 hasClose
-                onClose={() => handleRemoveCourse(course)}
+                onClose={() => handleRemoveCourse(course.id)} // id를 기반으로 삭제하도록 넘김
               />
             ))}
 
