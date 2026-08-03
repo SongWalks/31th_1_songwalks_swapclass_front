@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -13,7 +14,7 @@ import {
   getSentProposal,
   withdrawProposal,
   type ProposalData,
-} from '@/api/mypage/proposalApi';
+} from '@/api/recommend/proposalApi';
 
 // 탭 메뉴용 아이콘
 import ActiveBoxIcon from '@/assets/icons/mypage/box.svg'; // 액티브: 받은 요청
@@ -23,6 +24,41 @@ import ActiveSendIcon from '@/assets/icons/mypage/send.svg'; // 인액티브: �
 import movementIcon from '@/assets/icons/mypage/movement.svg';
 import requestCommentIcon from '@/assets/icons/mypage/request_comment.svg';
 import finalAlertIcon from '@/assets/icons/mypage/final_alert.svg';
+
+// 💡 courseId/name 등 과목 요약 정보 (제안 상세 안의 discardCourse/wantedCourses에서 쓰임)
+interface CourseSummary {
+  courseId: number;
+  name: string;
+  professor: string;
+  classTime: string;
+  department: string;
+  courseType: string;
+}
+
+interface WantedCourseEntry {
+  priority: number;
+  course: CourseSummary;
+}
+
+interface CounterpartPost {
+  postId: number;
+  discardCourse: CourseSummary;
+  wantedCourses: WantedCourseEntry[];
+}
+
+// 💡 서버가 실제로 내려주는 형태 (ProposalData 기본 타입 + 백엔드가 나중에 추가해준 필드들).
+// expiresAt은 서버에서 문자열(ISO)로 옴.
+type RawProposal = Omit<ProposalData, 'expiresAt'> & {
+  expiresAt?: string;
+  receiverPostId?: number;
+  receivedCount?: number;
+  counterpartPost?: CounterpartPost;
+};
+
+// 💡 화면에서 실제로 쓰는 형태: expiresAt을 문자열 대신 ms 타임스탬프 숫자로 변환해서 보관
+interface EnrichedProposal extends Omit<RawProposal, 'expiresAt'> {
+  expiresAt?: number;
+}
 
 const parseAsUtcMs = (dateString?: string): number | undefined => {
   if (!dateString) return undefined;
@@ -50,6 +86,7 @@ const getRemainingColorClass = (totalSeconds: number) => {
 const ExchangeRequestPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const [activeTabId, setActiveTabId] = useState<string>(
     (location.state as { initialTab?: string } | null)?.initialTab ??
@@ -64,20 +101,46 @@ const ExchangeRequestPage = () => {
     unranked: false,
   });
 
+  // 💡 컴포넌트가 처음 뜰 때, 이전 화면에서 넘어온 location.state가 남아있으면 지우기 위한
+  // effect. location.state를 그냥 의존성 배열에 넣으면 무한 루프에 빠질 수 있어서
+  // (navigate(..., {state:{}})로 지운 뒤에도 {}는 truthy라 가드가 안 걸러지고, {} 자체가
+  // "새로운 값"이라 effect가 계속 재실행됨), ref로 "이미 한 번 지웠는지" 기억해뒀다가
+  // 그 다음부터는 location.state가 다시 바뀌어도 즉시 멈추게 해서 루프를 끊음.
+  const hasClearedLocationStateRef = useRef(false);
   useEffect(() => {
+    if (hasClearedLocationStateRef.current) return;
     if (!location.state) return;
+    hasClearedLocationStateRef.current = true;
     navigate(location.pathname, { replace: true, state: {} });
-  }, []);
+  }, [location.state, location.pathname, navigate]);
 
-  // 2. 데이터 상태 관리 (서버 통신용)
-  const [receivedProposals, setReceivedProposals] = useState<ProposalData[]>(
-    [],
-  );
-  const [sentProposal, setSentProposal] = useState<ProposalData | null>(null);
+  // 2. 데이터 상태 관리 — React Query (useEffect + setState 없이 훅이 알아서 로딩/데이터 관리)
+  const { data: receivedProposals = [] } = useQuery({
+    queryKey: ['receivedProposals'],
+    queryFn: async (): Promise<EnrichedProposal[]> => {
+      const receivedRes = await getReceivedProposals();
+      if (!receivedRes.success) return [];
+      return (receivedRes.data || []).map((item) => {
+        const raw = item as unknown as RawProposal;
+        return { ...raw, expiresAt: parseAsUtcMs(raw.expiresAt) };
+      });
+    },
+  });
+
+  const { data: sentProposal = null } = useQuery({
+    queryKey: ['sentProposal'],
+    queryFn: async (): Promise<EnrichedProposal | null> => {
+      const sentRes = await getSentProposal();
+      if (!sentRes.success || !sentRes.data) return null;
+      const raw = sentRes.data as unknown as RawProposal;
+      return { ...raw, expiresAt: parseAsUtcMs(raw.expiresAt) };
+    },
+  });
 
   const isSentProposalActive = sentProposal?.status === 'PENDING';
 
-  // 💡 받은 요청 카드마다 남은 시간을 실시간으로 보여주기 위한 공용 틱(1초마다 갱신)
+  // 💡 받은 요청 카드마다 남은 시간을 실시간으로 보여주기 위한 공용 틱(1초마다 갱신).
+  // setInterval '콜백' 안에서 setState 하는 거라 안전한 패턴(effect 본문에서 직접 호출 아님).
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -91,41 +154,6 @@ const ExchangeRequestPage = () => {
   // 빨간 점(알림) 표시 여부를 위한 변수 (받은 요청이 1개라도 있으면 true)
   const hasReceivedRequests = receivedProposals.length > 0;
 
-  // 4. 데이터 불러오기
-
-  const fetchData = async () => {
-    try {
-      const [receivedRes, sentRes] = await Promise.all([
-        getReceivedProposals(),
-        getSentProposal(),
-      ]);
-
-      if (receivedRes.success) {
-        const withExpiry = (receivedRes.data || []).map((item: any) => ({
-          ...item,
-          expiresAt: parseAsUtcMs(item.expiresAt),
-        }));
-        setReceivedProposals(withExpiry);
-      }
-
-      if (sentRes.success && sentRes.data) {
-        const sentWithExpiry = {
-          ...sentRes.data,
-          expiresAt: parseAsUtcMs((sentRes.data as any).expiresAt),
-        };
-        setSentProposal(sentWithExpiry as unknown as ProposalData);
-      } else {
-        setSentProposal(null);
-      }
-    } catch (error) {
-      console.error('데이터를 불러오는데 실패했습니다.', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   // 5. 핸들러: 아코디언 토글
   const toggleSection = (priority: number | string) => {
     setOpenSections((prev) => ({
@@ -135,23 +163,25 @@ const ExchangeRequestPage = () => {
   };
 
   // 6. 핸들러: 요청 철회 API 호출
-  const handleWithdrawRequest = async () => {
-    if (!isSentProposalActive || !sentProposal) return;
-
-    try {
-      const response = await withdrawProposal(sentProposal.id);
-
-      if (response.success) {
-        setIsWithdrawModalOpen(false);
-        setSentProposal(null);
-
-        setTimeout(() => {
-          setIsToastVisible(true);
-        }, 150);
-      }
-    } catch (error) {
+  const withdrawMutation = useMutation({
+    mutationFn: async (proposalId: number) => {
+      const response = await withdrawProposal(proposalId);
+      return response.success;
+    },
+    onSuccess: (success) => {
+      if (!success) return;
+      setIsWithdrawModalOpen(false);
+      queryClient.setQueryData(['sentProposal'], null);
+      setTimeout(() => setIsToastVisible(true), 150);
+    },
+    onError: (error) => {
       console.error('요청 철회 실패:', error);
-    }
+    },
+  });
+
+  const handleWithdrawRequest = () => {
+    if (!isSentProposalActive || !sentProposal) return;
+    withdrawMutation.mutate(sentProposal.id);
   };
 
   // 7. Tabs 컴포넌트 아이템 구성
@@ -196,11 +226,7 @@ const ExchangeRequestPage = () => {
             leftNode={
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                교환 요청함
-              </div>
-            }
+            title={<div>교환 요청함</div>}
             rightNode={<NotificationBell />}
           />
         </div>
@@ -304,20 +330,17 @@ const ExchangeRequestPage = () => {
                     ) : (
                       <div className="flex flex-col divide-y divide-gray-100">
                         {rankProposals.map((req) => {
-                          const expiresAt = (req as any).expiresAt as
-                            number | undefined;
                           const remainSeconds =
-                            expiresAt !== undefined
+                            req.expiresAt !== undefined
                               ? Math.max(
                                   0,
-                                  Math.round((expiresAt - now) / 1000),
+                                  Math.round((req.expiresAt - now) / 1000),
                                 )
                               : undefined;
 
                           const counterpartWanted = [
-                            ...((req as any).counterpartPost?.wantedCourses ||
-                              []),
-                          ].sort((a: any, b: any) => a.priority - b.priority);
+                            ...(req.counterpartPost?.wantedCourses || []),
+                          ].sort((a, b) => a.priority - b.priority);
 
                           return (
                             <div
@@ -325,7 +348,7 @@ const ExchangeRequestPage = () => {
                               onClick={() =>
                                 navigate(`/proposal/${req.id}`, {
                                   state: {
-                                    receivedCount: (req as any).receivedCount,
+                                    receivedCount: req.receivedCount,
                                   },
                                 })
                               }
@@ -333,10 +356,7 @@ const ExchangeRequestPage = () => {
                             >
                               <div className="flex items-center justify-between mb-3">
                                 <span className="text-black text-lg font-medium leading-5 tracking-wide">
-                                  {
-                                    (req as any).counterpartPost?.discardCourse
-                                      ?.name
-                                  }
+                                  {req.counterpartPost?.discardCourse?.name}
                                 </span>
                                 <div className="flex items-center gap-2 ">
                                   {remainSeconds !== undefined && (
@@ -357,21 +377,19 @@ const ExchangeRequestPage = () => {
 
                               {counterpartWanted.length > 0 && (
                                 <div className="flex flex-col gap-1.5 pl-1">
-                                  {counterpartWanted.map(
-                                    (item: any, idx: number) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
-                                          {idx + 1}
-                                        </div>
-                                        <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
-                                          {item.course?.name}
-                                        </span>
+                                  {counterpartWanted.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
+                                        {idx + 1}
                                       </div>
-                                    ),
-                                  )}
+                                      <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                                        {item.course?.name}
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
 
@@ -380,7 +398,7 @@ const ExchangeRequestPage = () => {
                                   e.stopPropagation();
                                   navigate(`/proposal/${req.id}`, {
                                     state: {
-                                      receivedCount: (req as any).receivedCount,
+                                      receivedCount: req.receivedCount,
                                     },
                                   });
                                 }}
@@ -391,7 +409,7 @@ const ExchangeRequestPage = () => {
                                   alt="받은 요청"
                                   className="w-3.5 h-3.5"
                                 />
-                                받은 요청 {(req as any).receivedCount}개
+                                받은 요청 {req.receivedCount}개
                                 <img
                                   src={movementIcon}
                                   alt="이동"
@@ -438,28 +456,26 @@ const ExchangeRequestPage = () => {
           ) : (
             /* 2. 보낸 요청 데이터가 존재할 때 */
             <div
-              onClick={() =>
-                navigate(`/board/${(sentProposal as any).receiverPostId}`)
-              }
+              onClick={() => navigate(`/board/${sentProposal.receiverPostId}`)}
               className="w-full flex flex-col px-1 relative cursor-pointer"
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-black text-lg font-medium leading-5 tracking-wide">
-                  {(sentProposal as any).counterpartPost?.discardCourse?.name}
+                  {sentProposal.counterpartPost?.discardCourse?.name}
                 </span>
                 {(() => {
-                  const sentExpiresAt = (sentProposal as any).expiresAt as
-                    number | undefined;
                   const sentRemainSeconds =
-                    sentExpiresAt !== undefined
-                      ? Math.max(0, Math.round((sentExpiresAt - now) / 1000))
+                    sentProposal.expiresAt !== undefined
+                      ? Math.max(
+                          0,
+                          Math.round((sentProposal.expiresAt - now) / 1000),
+                        )
                       : undefined;
 
                   if (sentRemainSeconds === undefined) {
                     return (
                       <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-zinc-400">
-                        <Icon icon="lucide:clock" className="w-3 h-3" />
-                        {sentProposal.remainTime}
+                        <Icon icon="lucide:clock" className="w-3 h-3" />-
                       </span>
                     );
                   }
@@ -478,12 +494,9 @@ const ExchangeRequestPage = () => {
               </div>
 
               <div className="flex flex-col gap-1.5 pl-1 mb-5">
-                {[
-                  ...((sentProposal as any).counterpartPost?.wantedCourses ||
-                    []),
-                ]
-                  .sort((a: any, b: any) => a.priority - b.priority)
-                  .map((item: any, idx: number) => (
+                {[...(sentProposal.counterpartPost?.wantedCourses || [])]
+                  .sort((a, b) => a.priority - b.priority)
+                  .map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
                         {idx + 1}
@@ -502,7 +515,7 @@ const ExchangeRequestPage = () => {
                     alt="받은 요청"
                     className="w-3.5 h-3.5"
                   />
-                  <span>받은 요청 {(sentProposal as any).receivedCount}개</span>
+                  <span>받은 요청 {sentProposal.receivedCount}개</span>
                   <img src={movementIcon} alt="이동" className="w-3 h-3" />
                 </div>
               </div>
