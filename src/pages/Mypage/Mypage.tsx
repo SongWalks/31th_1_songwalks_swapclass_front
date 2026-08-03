@@ -222,7 +222,7 @@ const MyPage = () => {
       ),
       title: '졸업요건 과목 등록',
       description: '졸업에 필요한 과목 등록 및 관리',
-      fontSizeClass: 'text-[16px]',
+      fontSizeClass: 'text-[15px]',
       onClick: () => navigate('/my/graduation'),
     },
   ];
@@ -233,7 +233,7 @@ const MyPage = () => {
       icon: <img src={postIcon} alt="내 라운지 게시글" className="size-5" />,
       title: '내 라운지 게시글',
       description: '등록한 라운지 게시글 관리',
-      fontSizeClass: 'text-[16px]',
+      fontSizeClass: 'text-[15px]',
       onClick: () => navigate('/my/lounge'),
     },
     {
@@ -242,7 +242,7 @@ const MyPage = () => {
       ),
       title: '북마크 목록',
       description: '관심있는 라운지 게시글 모아보기',
-      fontSizeClass: 'text-[16px]',
+      fontSizeClass: 'text-[15px]',
       onClick: () => navigate('/my/bookmarks'),
     },
   ];
@@ -327,7 +327,7 @@ const MyPage = () => {
           <Avatar size="md" className="!w-[42px] !h-[42px]" />
 
           <div>
-            <h2 className="text-[16px] font-medium text-black leading-[20px] tracking-[0.4px]">
+            <h2 className="text-[15px] font-medium text-black leading-[20px] tracking-[0.4px]">
               {profile ? profile.email : '비회원'}
             </h2>
             {profile && (
@@ -405,7 +405,7 @@ const MyPage = () => {
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-[16px] font-medium text-black leading-[20px] tracking-[0.08px]">
+                  <h4 className="text-[15px] font-medium text-black leading-[20px] tracking-[0.08px]">
                     알림 받기
                   </h4>
                   <p className="text-[14px] font-light text-[#61646B] leading-[20px] tracking-[0.4px] mt-0.5">
@@ -427,7 +427,7 @@ const MyPage = () => {
                 icon: passwordMenuIcon,
                 title: '비밀번호 변경',
                 description: '',
-                fontSizeClass: 'text-[16px]',
+                fontSizeClass: 'text-[15px]',
               },
               0,
               true,
