@@ -121,11 +121,7 @@ const LikeListPage = () => {
             leftNode={
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                찜 목록
-              </div>
-            }
+            title={<div>찜 목록</div>}
             rightNode={<NotificationBell />}
           />
         </div>

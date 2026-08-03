@@ -123,17 +123,9 @@ export default function TerminateDealPage() {
     <div className="relative bg-white mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
         <Header
-          leftNode={
-            <div style={{ opacity: 0.6 }} className="z-10">
-              <IconButton icon={ICONS.BACK} onClick={handleBack} />
-            </div>
-          }
-          title={<span className="text-[#000000B2]">거래 파기</span>}
-          rightNode={
-            <div style={{ opacity: 0.6 }} className="z-10">
-              <IconButton icon={ICONS.CLOSE} onClick={handleBack} />
-            </div>
-          }
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title="거래 파기"
+          rightNode={<IconButton icon={ICONS.CLOSE} onClick={handleBack} />}
         />
       </div>
 

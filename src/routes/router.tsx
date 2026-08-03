@@ -5,7 +5,7 @@ import RootLayout from '@/components/layout/RootLayout';
 import DefaultLayout from '@/components/layout/DefaultLayout';
 import FullScreenLayout from '@/components/layout/FullScreenLayout';
 
-// --- 2. 페이지 불러오기 (임시 예시) ---
+// --- 2. 페이지 불러오기 ---
 import LoginPage from '../pages/auth/login';
 import SignupPage from '../pages/auth/signup';
 import FindPWPage from '../pages/auth/findPW';
@@ -14,7 +14,6 @@ import EPRPage from '../pages/chat/EPR';
 import CRPPage from '../pages/chat/CRP';
 import SDPPage from '../pages/chat/SDP';
 import TDPPage from '../pages/chat/TDP';
-// --- 2. 페이지 불러오기  ---
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
@@ -50,10 +49,8 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <DefaultLayout />,
         children: [
-          // 예시: { path: 'board', element: <BoardPage /> },    // /board (교환게시판)
           { path: '/alert', element: <AlertPage /> },
           { path: '/chat', element: <EPRPage /> },
-          // 예시: { path: '/board', element: <BoardPage /> },    // /board (교환게시판)
           { path: '/', element: <HomePage /> },
           {
             //나중에 다 머지한 뒤에 라우터 수정
@@ -64,7 +61,6 @@ export const router = createBrowserRouter([
             path: 'my',
             children: [
               { index: true, element: <Mypage /> },
-              { path: 'password-change', element: <PasswordChangepage /> },
               { path: 'posts', element: <MyPostpage /> },
               { path: 'likes', element: <LikeListPage /> },
               { path: 'lounge', element: <MyLoungePostsPage /> },
@@ -72,7 +68,7 @@ export const router = createBrowserRouter([
               { path: 'request', element: <ExchangeRequestPage /> },
             ],
           },
-          { path: '/board', element: <BoardPage /> }, // /board (교환게시판)
+          { path: '/board', element: <BoardPage /> },
           { path: '/lounge', element: <LoungePage /> },
         ],
       },
@@ -82,6 +78,7 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          { path: 'password-change', element: <PasswordChangepage /> },
           { path: '/report', element: <ReportPage /> },
           { path: '/report/success', element: <ReportSuccessPage /> }, // 신고 완료 페이지 (임시)
           {
@@ -102,16 +99,12 @@ export const router = createBrowserRouter([
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
           },
-
-          // :id 나 :roomId 는 동적 라우팅 기법입니다. (ex. /board/123)
-          // 예시: { path: 'board/:id', element: <DetailPage /> },    // 상세 게시글
           { path: '/login', element: <LoginPage /> },
           { path: '/signup', element: <SignupPage /> },
           { path: '/findPW', element: <FindPWPage /> },
           { path: '/chat/:roomId', element: <CRPPage /> },
           { path: '/chat/:roomId/schedule', element: <SDPPage /> },
           { path: '/chat/:roomId/terminate', element: <TDPPage /> },
-          // 예시: { path: '/board/:id', element: <DetailPage /> },    // 상세 게시글
           { path: '/board/write', element: <PostWritePage /> },
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },

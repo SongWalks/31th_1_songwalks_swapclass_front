@@ -40,7 +40,7 @@ export const Modal = ({
       />
 
       {/* 2. 하얀색 모달 박스 */}
-      <div className="relative w-full bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200">
         {/* 상단 아이콘 */}
         {icon && <div className="mb-3">{icon}</div>}
 

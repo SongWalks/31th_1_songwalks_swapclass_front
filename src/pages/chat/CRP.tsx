@@ -615,28 +615,21 @@ export default function ChatRoomPage() {
       {/* ============ 헤더 (모든 flowStep 공통 디폴트) ============ */}
       <div>
         <Header
-          leftNode={
-            <div className="flex items-center gap-1">
-              <IconButton
-                icon={ICONS.BACK}
-                onClick={handleBack}
-                className="!p-1 opacity-60"
-              />
-              <div className="flex flex-col items-start leading-tight ml-1 mt-1">
-                <span className="text-xl font-semibold leading-5 text-[#000000B2]">
-                  {myCourseName}
-                </span>
-                <span className="text-xs text-[#727272] font-light mt-1">
-                  ↔ {counterpartCourseName}
-                </span>
-              </div>
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title={
+            <div className="flex flex-col items-start leading-tight mt-1">
+              <span className="text-xl text-semibold-18 text-gray-900 leading-5">
+                {myCourseName}
+              </span>
+              <span className="text-xs text-[#727272] font-light mt-1">
+                ↔ {counterpartCourseName}
+              </span>
             </div>
           }
           rightNode={
             <IconButton
               icon={ICONS.MENU}
               onClick={() => setIsMenuOpen((prev) => !prev)}
-              className="!opacity-60"
             />
           }
         />

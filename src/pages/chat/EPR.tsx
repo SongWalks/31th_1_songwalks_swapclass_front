@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
-import { IconButton } from '@/components/common/IconButton';
-import { ICONS } from '@/constants/icons';
 import clockIcon from '@/assets/icons/clock.svg';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 interface ExchangeRoom {
   id: number;
@@ -58,35 +57,14 @@ export default function ExchangeRoomListPage() {
     // 마운트 시 1회 데이터 페칭 - 의도된 패턴이라 룰 예외 처리
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchRooms();
-     
   }, []);
 
-  const handleBack = () => navigate(-1);
-  const handleGoAlert = () => navigate('/alert');
   const handleRoomClick = (roomId: number) => navigate(`/chat/${roomId}`);
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
-        <Header
-          leftNode={
-            <div
-              style={{
-                position: 'absolute',
-                top: 19,
-                left: 12,
-                opacity: 0.6,
-                transform: 'scale(1.1)',
-                transformOrigin: 'top left',
-              }}
-              className="z-10"
-            >
-              <IconButton icon={ICONS.BACK} onClick={handleBack} />
-            </div>
-          }
-          title={<span style={{ color: '#000000B2' }}>교환준비방</span>}
-          rightNode={<IconButton icon={ICONS.BELL} onClick={handleGoAlert} />}
-        />
+        <Header title="교환준비방" rightNode={<NotificationBell />} />
       </div>
 
       <div className="flex flex-col overflow-y-auto flex-1 min-h-0">

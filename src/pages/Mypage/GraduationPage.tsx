@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { CourseCard } from '@/components/common/CourseCard';
@@ -34,6 +36,22 @@ interface PendingCourse {
   department?: string;
 }
 
+// 💡 GET /api/me/graduation-courses 응답의 courses 배열 항목 (raw, 평평한 구조)
+interface RawGraduationCourse {
+  courseId: number;
+  courseName: string;
+  courseType?: string;
+  code?: string;
+  category?: string;
+  department?: string;
+  completed: boolean;
+}
+
+// 💡 백엔드가 에러 응답 body로 주는 형태 (409 등에서 message 필드 사용)
+interface ApiErrorResponse {
+  message?: string;
+}
+
 const getCourseTypeBadgeVariant = (courseType: string) => {
   if (courseType === '교양선택' || courseType === '교양필수') {
     return 'lightBlueOutline' as const;
@@ -46,88 +64,109 @@ const getCourseTypeBadgeVariant = (courseType: string) => {
 
 const GraduationPage = () => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [registeredCourses, setRegisteredCourses] = useState<
-    GraduationCourse[]
-  >([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const queryClient = useQueryClient();
 
-  // 1. 내가 등록한 졸업 요건 과목 목록 조회 API
-  const fetchGraduationCourses = useCallback(async (query: string) => {
-    try {
-      setLoading(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // 💡 검색어 디바운스: setTimeout '콜백' 안에서 setState 하는 거라 안전한 패턴
+  // (React 문서가 권장하는 "외부 시스템 콜백에서 setState" 방식) — set-state-in-effect 대상 아님
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 💡 React Query로 데이터 페칭: useEffect + setState 없이 훅이 로딩/데이터 상태를 알아서 관리함
+  const { data: registeredCourses = [], isLoading: loading } = useQuery({
+    queryKey: ['graduationCourses', debouncedQuery],
+    queryFn: async (): Promise<GraduationCourse[]> => {
       const response = await axiosInstance.get('/api/me/graduation-courses', {
-        params: query ? { q: query } : {},
+        params: debouncedQuery ? { q: debouncedQuery } : {},
       });
-      if (response.data?.success) {
-        const mapped: GraduationCourse[] = (
-          response.data.data.courses || []
-        ).map((c: any) => ({
-          id: c.courseId,
-          course: {
-            name: c.courseName,
-            courseType: c.courseType,
-            code: c.code,
-            category: c.category,
-            department: c.department,
-          },
-          completed: c.completed,
-        }));
-        setRegisteredCourses(mapped);
+      const raw: RawGraduationCourse[] = response.data?.data?.courses || [];
+      return raw.map((c) => ({
+        id: c.courseId,
+        course: {
+          name: c.courseName,
+          courseType: c.courseType,
+          code: c.code,
+          category: c.category,
+          department: c.department,
+        },
+        completed: c.completed,
+      }));
+    },
+  });
+
+  // 💡 "저장 전" 미리보기: sessionStorage를 useState의 초기값 계산 함수 안에서 읽음.
+  // 이러면 useEffect 없이 첫 렌더 시점에 딱 한 번만 동기적으로 읽는 게 되어서,
+  // "effect 안에서 setState 호출"이라는 상황 자체가 아예 생기지 않음.
+  const [pendingCourse, setPendingCourse] = useState<PendingCourse | null>(
+    () => {
+      const raw = sessionStorage.getItem('selectedCourse');
+      if (!raw) return null;
+
+      try {
+        const selected = JSON.parse(raw);
+        return {
+          courseId: selected.courseId,
+          name: selected.name ?? selected.title,
+          courseType: selected.courseType,
+          code: selected.code,
+          category: selected.category,
+          department: selected.department,
+        };
+      } catch (error) {
+        console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+        return null;
       }
-    } catch (error) {
-      console.error('졸업 요건 과목 목록 조회 실패:', error);
-    } finally {
-      setLoading(false);
-    }
+    },
+  );
+
+  // 💡 한 번 읽었으니 새로고침/뒤로가기 시 중복 반영되지 않도록 비워둠.
+  // setState를 전혀 호출하지 않는 effect라 set-state-in-effect 규칙 대상이 아님.
+  useEffect(() => {
+    sessionStorage.removeItem('selectedCourse');
   }, []);
 
-  // 검색어 입력 시 디바운스 처리 (입력 후 300ms 뒤 API 호출)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchGraduationCourses(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, fetchGraduationCourses]);
-
-  const [pendingCourse, setPendingCourse] = useState<PendingCourse | null>(
-    null,
-  );
-  const [isRegistering, setIsRegistering] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-
-  useEffect(() => {
-    const raw = sessionStorage.getItem('selectedCourse');
-
-    if (!raw) return;
-
-    try {
-      const selected = JSON.parse(raw);
-      setPendingCourse({
-        courseId: selected.courseId,
-        name: selected.name ?? selected.title,
-        courseType: selected.courseType,
-        code: selected.code,
-        category: selected.category,
-        department: selected.department,
-      });
-    } catch (error) {
-      console.error('선택한 과목 정보를 읽지 못했습니다.', error);
-    } finally {
-      // 새로고침/뒤로가기 시 같은 값이 중복 반영되지 않도록 한 번 읽으면 바로 비움
-      sessionStorage.removeItem('selectedCourse');
-    }
-  }, []);
 
   // 💡 저장 안 하고 미리보기 카드만 취소 (아직 서버에 저장 전이라 API 호출 없이 그냥 지움)
   const handleCancelPending = () => setPendingCourse(null);
 
   // 💡 "저장하기" 버튼을 눌렀을 때만 실제로 등록 API 호출
-  const handleSaveCourse = useCallback(async () => {
-    if (!pendingCourse || isRegistering) return;
+  const saveMutation = useMutation({
+    mutationFn: async (course: PendingCourse) => {
+      // TODO: 정확한 요청 body 스키마 확인 전까지 { courseId }로 가정
+      await axiosInstance.post('/api/me/graduation-courses', {
+        courseId: course.courseId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['graduationCourses'] });
+      setToastMessage('저장되었습니다.');
+      setShowToast(true);
+      setPendingCourse(null);
+    },
+    onError: (error: AxiosError<ApiErrorResponse>) => {
+      console.error('졸업 요건 과목 등록 실패:', error);
+      if (error.response?.status === 409) {
+        alert('이미 등록된 과목입니다.');
+      } else {
+        alert(
+          error.response?.data?.message || '과목 등록 중 오류가 발생했습니다.',
+        );
+      }
+      setPendingCourse(null);
+    },
+  });
 
+  const handleSaveCourse = useCallback(() => {
+    if (!pendingCourse || saveMutation.isPending) return;
+
+    // 💡 학수번호(code)가 같으면 분반(교수/시간)이 달라도 같은 과목으로 취급 —
+    // 이미 등록된 과목이랑 code가 같으면 서버 호출 없이 바로 막음
     if (
       pendingCourse.code &&
       registeredCourses.some(
@@ -139,48 +178,28 @@ const GraduationPage = () => {
       return;
     }
 
-    try {
-      setIsRegistering(true);
-      // TODO: 정확한 요청 body 스키마 확인 전까지 { courseId }로 가정
-      await axiosInstance.post('/api/me/graduation-courses', {
-        courseId: pendingCourse.courseId,
-      });
-      await fetchGraduationCourses(searchQuery); // 등록 성공하면 목록 새로고침
-      setToastMessage('저장되었습니다.');
-      setShowToast(true);
-      setPendingCourse(null);
-    } catch (error: any) {
-      console.error('졸업 요건 과목 등록 실패:', error);
-      if (error?.response?.status === 409) {
-        alert('이미 등록된 과목입니다.');
-      } else {
-        const serverMessage = error?.response?.data?.message;
-        alert(serverMessage || '과목 등록 중 오류가 발생했습니다.');
-      }
-      setPendingCourse(null);
-    } finally {
-      setIsRegistering(false);
-    }
-  }, [
-    pendingCourse,
-    isRegistering,
-    registeredCourses,
-    fetchGraduationCourses,
-    searchQuery,
-  ]);
+    saveMutation.mutate(pendingCourse);
+  }, [pendingCourse, saveMutation, registeredCourses]);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (courseId: number) => {
+      await axiosInstance.delete(`/api/me/graduation-courses/${courseId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['graduationCourses'] });
+    },
+    onError: (error) => {
+      console.error('졸업요건 과목 삭제 실패:', error);
+      alert('삭제 중 오류가 발생했습니다.');
+    },
+  });
 
   const handleDeleteCourse = useCallback(
-    async (courseId: number) => {
+    (courseId: number) => {
       if (!window.confirm('이 과목을 졸업요건에서 삭제하시겠습니까?')) return;
-      try {
-        await axiosInstance.delete(`/api/me/graduation-courses/${courseId}`);
-        fetchGraduationCourses(searchQuery);
-      } catch (error) {
-        console.error('졸업요건 과목 삭제 실패:', error);
-        alert('삭제 중 오류가 발생했습니다.');
-      }
+      deleteMutation.mutate(courseId);
     },
-    [fetchGraduationCourses, searchQuery],
+    [deleteMutation],
   );
 
   return (
@@ -192,11 +211,7 @@ const GraduationPage = () => {
             leftNode={
               <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
             }
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                졸업 요건 과목 등록
-              </div>
-            }
+            title={<div>졸업 요건 과목 등록</div>}
             rightNode={
               <button
                 onClick={() => navigate('modify')}
@@ -355,10 +370,10 @@ const GraduationPage = () => {
           onClick={() =>
             pendingCourse ? handleSaveCourse() : navigate('/course-search')
           }
-          disabled={isRegistering}
+          disabled={saveMutation.isPending}
           className="w-full h-14 bg-brand-lightBlue hover:opacity-90 active:scale-[0.99] disabled:opacity-60 transition-all rounded-md text-white text-lg font-semibold font-['Pretendard'] leading-5 tracking-tight"
         >
-          {isRegistering
+          {saveMutation.isPending
             ? '저장 중...'
             : pendingCourse
               ? '저장하기'

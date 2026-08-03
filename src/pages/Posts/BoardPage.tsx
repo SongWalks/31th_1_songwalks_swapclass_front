@@ -10,6 +10,7 @@ import { Modal } from '@/components/common/Modal';
 import { Dropdown } from '@/components/common/Dropdown';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
+import { getTokens } from '@/store/tokenStorage';
 
 interface CourseDetail {
   courseId: number;
@@ -84,6 +85,9 @@ const BoardPage = () => {
 
   // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
   useEffect(() => {
+    const tokens = getTokens();
+    if (!tokens) return;
+
     const fetchMyPosts = async () => {
       try {
         const response = await axiosInstance.get('/api/posts/me', {
@@ -135,7 +139,19 @@ const BoardPage = () => {
 
         let rawPosts: BoardPostResponse[] = [];
 
-        if (targetFilter !== 'ALL') {
+        if (targetFilter !== 'ALL' && discardFilter !== 'ALL') {
+          // 💡 버그 수정: 둘 다 골랐을 때 이 조건이 없어서 targetFilter만 적용되고
+          // discardFilter는 무시되고 있었음. my-targets 받아서 두 조건 다(AND) 만족하는 것만 남김.
+          const response = await axiosInstance.get('/api/posts/my-targets');
+          const all: BoardPostResponse[] = response.data?.data || [];
+          rawPosts = all.filter(
+            (p) =>
+              p.discardCourse?.name === targetFilter &&
+              (p.wantedCourses || []).some(
+                (w) => w.course?.name === discardFilter,
+              ),
+          );
+        } else if (targetFilter !== 'ALL') {
           // 내가 want로 등록한 과목 중 하나를 골랐을 때: my-targets 받아서 그 과목만 추림
           const response = await axiosInstance.get('/api/posts/my-targets');
           const all: BoardPostResponse[] = response.data?.data || [];
@@ -171,9 +187,17 @@ const BoardPage = () => {
         });
 
         setPosts(mapped);
-      } catch (error: any) {
-        const status = error?.response?.status;
-        const serverMessage = error?.response?.data?.message;
+      } catch (error) {
+        const axiosError = error as {
+          response?: {
+            status?: number;
+            data?: { message?: string };
+          };
+        };
+
+        const status = axiosError.response?.status;
+        const serverMessage = axiosError.response?.data?.message;
+
         console.error('게시글 목록 조회 실패:', error);
         setLoadError(
           serverMessage
@@ -197,7 +221,7 @@ const BoardPage = () => {
   }, [searchQuery, targetCourseFilter, discardCourseFilter, fetchPosts]);
 
   useEffect(() => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
     if (isLoggedIn) return; // 이미 로그인된 경우엔 안 띄움
 
     const scrollContainer = document.getElementById('main-scroll-container');
@@ -205,7 +229,7 @@ const BoardPage = () => {
 
     const handleScroll = () => {
       if (hasShownLoginModal.current) return;
-      if (scrollContainer.scrollTop > 100) {
+      if (scrollContainer.scrollTop > 500) {
         hasShownLoginModal.current = true;
         setShowLoginModal(true);
       }
@@ -216,12 +240,32 @@ const BoardPage = () => {
   }, []);
 
   const handleFilterButtonClick = () => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
     if (!isLoggedIn) {
       setShowLoginModal(true);
       return;
     }
     setShowFilterModal(true);
+  };
+
+  const handleWriteButtonClick = () => {
+    const isLoggedIn = !!getTokens();
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    navigate('/board/write');
+  };
+
+  const handlePostClick = (postId: number) => {
+    const isLoggedIn = !!getTokens();
+
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    navigate(`/board/${postId}`);
   };
 
   return (
@@ -351,7 +395,7 @@ const BoardPage = () => {
             {posts.map((post) => (
               <div
                 key={post.id}
-                onClick={() => navigate(`/board/${post.id}`)}
+                onClick={() => handlePostClick(post.id)}
                 className="py-6 flex flex-col relative cursor-pointer hover:bg-black/[0.01] transition-colors"
               >
                 {/* 제목 */}
@@ -396,16 +440,14 @@ const BoardPage = () => {
       </div>
 
       {/* 글쓰기 FAB */}
-      <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] pointer-events-none z-40">
+      <div className="fixed bottom-0 inset-x-0 mx-auto w-full max-w-md h-0 z-50 pointer-events-none">
         <FAB
-          onClick={() => navigate('/board/write')}
+          onClick={handleWriteButtonClick}
           icon={ICONS.PLUS}
           text="글쓰기"
-          className="!pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
+          className="absolute bottom-28 right-8 !pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
         />
       </div>
-
-      {/* 💡 하단 네비게이션 바는 라우터의 DefaultLayout이 자동으로 렌더링하므로 여기서 별도로 넣지 않음 */}
 
       {/* 비로그인 안내 모달 */}
       <Modal

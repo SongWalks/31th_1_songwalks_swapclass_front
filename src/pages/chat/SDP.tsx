@@ -97,27 +97,9 @@ export default function ScheduleDecisionPage() {
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
         <Header
-          leftNode={
-            <div
-              style={{
-                position: 'absolute',
-                top: 19,
-                left: 12,
-                opacity: 0.6,
-                transform: 'scale(1.1)',
-                transformOrigin: 'top left',
-              }}
-              className="z-10"
-            >
-              <IconButton icon={ICONS.BACK} onClick={handleBack} />
-            </div>
-          }
-          title={<span className="text-[#000000B2]">교환시간 결정</span>}
-          rightNode={
-            <div style={{ opacity: 0.6 }} className="z-10">
-              <IconButton icon={ICONS.CLOSE} onClick={handleBack} />
-            </div>
-          }
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title="교환시간 결정"
+          rightNode={<IconButton icon={ICONS.CLOSE} onClick={handleBack} />}
         />
       </div>
 

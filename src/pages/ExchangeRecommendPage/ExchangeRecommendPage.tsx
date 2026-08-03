@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -57,43 +58,27 @@ interface RecommendPost {
 
 const ExchangeRecommendPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<RankTab>('1');
-  const [recommendPosts, setRecommendPosts] = useState<RecommendPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [proposingId, setProposingId] = useState<number | null>(null);
-
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  const [myPostId, setMyPostId] = useState<number | null>(null);
+  // 💡 내 게시글 ID 조회 (React Query — useEffect/setState 없이 훅이 알아서 상태 관리)
+  const { data: myPostId = null } = useQuery({
+    queryKey: ['myMatchablePostId'],
+    queryFn: async (): Promise<number | null> => {
+      const response = await axiosInstance.get('/api/posts/me');
+      const myPosts: MyPostResponse[] = response.data?.data || [];
+      const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
+      return activePost ? activePost.postId : null;
+    },
+  });
 
-  useEffect(() => {
-    const fetchMyPostId = async () => {
-      try {
-        const response = await axiosInstance.get('/api/posts/me');
-        const myPosts: MyPostResponse[] = response.data?.data || [];
-        const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
-        setMyPostId(activePost ? activePost.postId : null);
-      } catch (error) {
-        console.error('내 게시글 조회 실패:', error);
-        setMyPostId(null);
-      }
-    };
-
-    fetchMyPostId();
-  }, []);
-
-  const fetchRecommendations = useCallback(async () => {
-    if (!myPostId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // 1. 추천 후보 목록 (id / matchRank / requestStatus)
+  // 💡 추천 후보 목록 + 각 후보 게시글 상세를 합쳐서 화면용 데이터로 변환
+  const { data: recommendPosts = [], isLoading: loading } = useQuery({
+    queryKey: ['recommendations', myPostId],
+    queryFn: async (): Promise<RecommendPost[]> => {
       const listRes = await axiosInstance.get('/api/matches/recommendations', {
         params: { postId: myPostId, page: 0, size: 20 },
       });
@@ -133,46 +118,42 @@ const ExchangeRecommendPage = () => {
         );
       }
 
-      setRecommendPosts(detailed);
-    } catch (error) {
-      console.error('추천 게시글 조회 실패:', error);
-      setRecommendPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [myPostId]);
-
-  useEffect(() => {
-    fetchRecommendations();
-  }, [fetchRecommendations]);
+      return detailed;
+    },
+    enabled: myPostId !== null,
+  });
 
   // 💡 "제안" 버튼 클릭 시 교환 제안 생성
-  const handlePropose = async (receiverPostId: number) => {
-    if (!myPostId) return;
-
-    try {
-      setProposingId(receiverPostId);
+  const proposeMutation = useMutation({
+    mutationFn: async (receiverPostId: number) => {
       const response = await axiosInstance.post('/api/proposals', {
         senderPostId: myPostId,
         receiverPostId,
       });
-
-      if (response.data?.success) {
-        // 화면에서 즉시 "제안 완료" 상태로 반영
-        setRecommendPosts((prev) =>
-          prev.map((p) =>
+      return { receiverPostId, success: !!response.data?.success };
+    },
+    onSuccess: ({ receiverPostId, success }) => {
+      if (!success) return;
+      // 화면에서 즉시 "제안 완료" 상태로 반영 (캐시에 낙관적 업데이트)
+      queryClient.setQueryData<RecommendPost[]>(
+        ['recommendations', myPostId],
+        (prev) =>
+          prev?.map((p) =>
             p.id === receiverPostId ? { ...p, requestStatus: 'PENDING' } : p,
           ),
-        );
-        setToastMessage('교환 제안을 보냈습니다.');
-        setShowToast(true);
-      }
-    } catch (error) {
+      );
+      setToastMessage('교환 제안을 보냈습니다.');
+      setShowToast(true);
+    },
+    onError: (error) => {
       console.error('제안 생성 실패:', error);
       alert('제안을 보내는 중 오류가 발생했습니다.');
-    } finally {
-      setProposingId(null);
-    }
+    },
+  });
+
+  const handlePropose = (receiverPostId: number) => {
+    if (!myPostId) return;
+    proposeMutation.mutate(receiverPostId);
   };
 
   const postsByRank = useMemo(() => {
@@ -202,17 +183,13 @@ const ExchangeRecommendPage = () => {
   const currentPosts = postsByRank[activeTab];
 
   return (
-    <div className="relative w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
+    <div className="relative w-full h-full min-h-0 flex flex-col font-['Pretendard'] bg-[#FBFBFB]">
       <div className="[&>header]:!border-none sticky top-0 z-40 bg-[#FBFBFB]">
         <Header
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
-          title={
-            <div className="whitespace-nowrap text-black/70 text-xl font-semibold">
-              교환 추천 매칭함
-            </div>
-          }
+          title={<div>교환 추천 매칭함</div>}
           rightNode={<NotificationBell />}
         />
 
@@ -226,7 +203,7 @@ const ExchangeRecommendPage = () => {
       </div>
 
       {/* 내용 */}
-      <div className="flex-1 px-5 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-2">
         {loading ? (
           <div className="py-20 text-center text-gray-400 text-sm">
             추천 목록을 불러오는 중입니다...
@@ -244,6 +221,9 @@ const ExchangeRecommendPage = () => {
             {currentPosts.map((post) => {
               const alreadyRequested =
                 post.requestStatus && post.requestStatus !== 'NONE';
+              const isProposingThis =
+                proposeMutation.isPending &&
+                proposeMutation.variables === post.id;
 
               return (
                 <div key={post.id} className="py-6 flex flex-col">
@@ -258,12 +238,12 @@ const ExchangeRecommendPage = () => {
 
                     <button
                       onClick={() => handlePropose(post.id)}
-                      disabled={alreadyRequested || proposingId === post.id}
+                      disabled={alreadyRequested || isProposingThis}
                       className={`px-4 py-1 rounded-full text-xs font-medium transition-opacity ${
                         alreadyRequested
                           ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                           : 'bg-brand-lightBlue text-white hover:opacity-90'
-                      } ${proposingId === post.id ? 'opacity-60' : ''}`}
+                      } ${isProposingThis ? 'opacity-60' : ''}`}
                     >
                       {alreadyRequested ? '제안 완료' : '제안'}
                     </button>

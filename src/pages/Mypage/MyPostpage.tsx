@@ -18,6 +18,20 @@ interface Post {
   requestCount: number;
 }
 
+// 💡 GET /api/posts/me 응답 항목 (raw, 백엔드가 실제로 내려주는 평평한 구조)
+interface RawWantedCourse {
+  course: { name: string };
+}
+
+interface RawMyPost {
+  postId?: number;
+  id?: number;
+  status: string;
+  discardCourse?: { name?: string };
+  wantedCourses?: RawWantedCourse[];
+  proposalCount?: number;
+}
+
 const MyPostpage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('전체');
@@ -37,29 +51,30 @@ const MyPostpage = () => {
         const response = await axiosInstance.get('/api/posts/me');
 
         if (response.data?.success && response.data?.data) {
-          // 백엔드 데이터를 프론트 UI 구조에 맞게 매핑
-          const mappedPosts: Post[] = response.data.data.map((item: any) => {
-            // 💡 서버의 영문 상태값(status)을 한글 탭 메뉴(TabType)에 맞게 변환
-            let mappedStatus: TabType = '교환 전';
-            if (item.status === 'IN_EXCHANGE') mappedStatus = '교환 중';
-            if (item.status === 'COMPLETED') mappedStatus = '교환 완료';
-            else if (
-              item.status === '교환 전' ||
-              item.status === '교환 중' ||
-              item.status === '교환 완료'
-            ) {
-              mappedStatus = item.status; // 서버가 이미 한글로 준다면 그대로 사용
-            }
+          const mappedPosts: Post[] = response.data.data.map(
+            (item: RawMyPost) => {
+              // 💡 서버의 영문 상태값(status)을 한글 탭 메뉴(TabType)에 맞게 변환
+              let mappedStatus: TabType = '교환 전';
+              if (item.status === 'IN_EXCHANGE') mappedStatus = '교환 중';
+              if (item.status === 'COMPLETED') mappedStatus = '교환 완료';
+              else if (
+                item.status === '교환 전' ||
+                item.status === '교환 중' ||
+                item.status === '교환 완료'
+              ) {
+                mappedStatus = item.status; // 서버가 이미 한글로 준다면 그대로 사용
+              }
 
-            return {
-              id: item.postId || item.id,
-              title: item.discardCourse?.name || '과목명 없음',
-              preferredSubjects:
-                item.wantedCourses?.map((w: any) => w.course.name) || [],
-              status: mappedStatus,
-              requestCount: item.proposalCount || 0, // 💡 백엔드가 proposalCount로 내려줌 (requestCount 아님)
-            };
-          });
+              return {
+                id: item.postId || item.id || 0,
+                title: item.discardCourse?.name || '과목명 없음',
+                preferredSubjects:
+                  item.wantedCourses?.map((w) => w.course.name) || [],
+                status: mappedStatus,
+                requestCount: item.proposalCount || 0, // 💡 백엔드가 proposalCount로 내려줌 (requestCount 아님)
+              };
+            },
+          );
           setPosts(mappedPosts);
         }
       } catch (error) {
@@ -86,11 +101,7 @@ const MyPostpage = () => {
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
-          title={
-            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              내 게시글
-            </div>
-          }
+          title={<div>내 게시글</div>}
           rightNode={<NotificationBell />}
         />
 

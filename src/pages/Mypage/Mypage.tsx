@@ -25,6 +25,7 @@ import {
   type UserProfile,
 } from '@/api/mypage/mypageApi';
 import axiosInstance from '@/api/axiosInstance';
+import { clearTokens } from '@/store/tokenStorage';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -52,8 +53,8 @@ const MyPage = () => {
   const [isWithdrawConfirmModalOpen, setIsWithdrawConfirmModalOpen] =
     useState(false); // 최종 확인 모달
 
-  // 🛠️ 테스트용 변수 (백엔드 연동 전까지 화면 확인용)
-  const hasOngoingExchange = true;
+  // 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인하는 상태
+  const [hasOngoingExchange, setHasOngoingExchange] = useState(false);
 
   // 1. 내 정보 불러오기 API 연동
   useEffect(() => {
@@ -71,13 +72,29 @@ const MyPage = () => {
     fetchProfile();
   }, []);
 
+  // 💡 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인 (예전엔 하드코딩된 true라 항상 떴었음)
+  useEffect(() => {
+    const checkOngoingExchange = async () => {
+      try {
+        const response = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'IN_EXCHANGE' },
+        });
+        const posts: { status: string }[] = response.data?.data || [];
+        setHasOngoingExchange(posts.length > 0);
+      } catch (error) {
+        console.error('교환 중인 게시글 확인 실패:', error);
+      }
+    };
+    checkOngoingExchange();
+  }, []);
+
   // 💡 뱃지(받은 요청 개수 / 추천 매칭함 new 여부) 채우기
   useEffect(() => {
     const fetchBadgeCounts = async () => {
       // 받은 요청함 뱃지: PENDING(대기 중) 상태인 것만 개수로 카운트
       try {
         const receivedRes = await axiosInstance.get('/api/proposals/received');
-        const received: any[] = receivedRes.data?.data || [];
+        const received: { status: string }[] = receivedRes.data?.data || [];
         setRequestCount(
           received.filter((item) => item.status === 'PENDING').length,
         );
@@ -134,8 +151,8 @@ const MyPage = () => {
       const res = await deleteAccount();
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
-        // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-        navigate('/home'); // 탈퇴 후 로그인 화면으로 이동
+        clearTokens();
+        navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
       console.error('회원 탈퇴 실패:', error);
@@ -148,8 +165,8 @@ const MyPage = () => {
   // 로그아웃 처리
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
-      // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-      navigate('/home');
+      clearTokens();
+      navigate('/');
     }
   };
 
@@ -298,11 +315,7 @@ const MyPage = () => {
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <div className="[&>*]:!border-none">
           <Header
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                마이페이지
-              </div>
-            }
+            title={<div className="">마이페이지</div>}
             rightNode={<NotificationBell />}
           />
         </div>
