@@ -46,7 +46,7 @@ const MyBookmarkPage: React.FC = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
-    const normalized = hasTimezone ? dateString : `${dateString}Z`;
+    const normalized = hasTimezone ? dateString : `${dateString}`;
     const date = new Date(normalized);
     const month = date.getMonth() + 1;
     const day = date.getDate();
