@@ -25,6 +25,7 @@ import {
   type UserProfile,
 } from '@/api/mypage/mypageApi';
 import axiosInstance from '@/api/axiosInstance';
+import { clearTokens } from '@/store/tokenStorage';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -134,7 +135,7 @@ const MyPage = () => {
       const res = await deleteAccount();
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
-        localStorage.removeItem('accessToken');
+        clearTokens();
         navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
@@ -148,7 +149,7 @@ const MyPage = () => {
   // 로그아웃 처리
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
-      localStorage.removeItem('accessToken');
+      clearTokens();
       navigate('/');
     }
   };
