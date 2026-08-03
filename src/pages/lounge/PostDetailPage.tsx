@@ -338,13 +338,6 @@ export const PostDetailPage = () => {
           <p className="text-[15px] text-gray-600 leading-relaxed mb-6 whitespace-pre-wrap">
             {postData.content}
           </p>
-          <div className="flex items-center justify-end gap-1 text-[13px] text-gray-400">
-            <Icon
-              icon="ph:clock-fill"
-              className="text-[14px] -translate-y-[1px]"
-            />
-            <span>{formatDate(postData.updatedAt)}</span>
-          </div>
         </div>
 
         {/* 액션 바 */}
