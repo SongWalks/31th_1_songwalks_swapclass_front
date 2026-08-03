@@ -41,18 +41,6 @@ export const LoungePage = () => {
     handleToggleType,
   } = useLounge();
 
-  // 1️⃣ 넘어온 state 확인 (과목 검색 후 라운지로 돌아왔을 때)
-  console.log('1. location.state 데이터:', location.state);
-
-  // 2️⃣ 스토어 저장 상태 확인 (스토어에 객체 형태로 잘 담겨있는지)
-  console.log('2. 현재 스토어에 저장된 과목:', selectedCourses);
-
-  const courseIdParam =
-    selectedCourses.length > 0 ? selectedCourses[0].id : undefined;
-
-  // 3️⃣ API 요청 직전 파라미터 확인 (useQuery에 id가 잘 들어가는지)
-  console.log('3. API로 넘길 courseIdParam:', courseIdParam);
-
   const apiType =
     selectedType === '강의꿀팁'
       ? 'TIP'
@@ -60,10 +48,8 @@ export const LoungePage = () => {
         ? 'CLOSURE'
         : undefined;
 
-  // (임시) 현재 selectedCourses가 이름(string) 배열이므로, 당장 courseId를 넘기긴 어렵습니다.
-  // 백엔드가 int를 요구하므로 일단 undefined로 비워두거나, 스토어를 id 배열로 수정해야 완벽해집니다.
-  // const courseIdParam =
-  //   selectedCourses.length > 0 ? selectedCourses[0].id : undefined;
+  const courseIdParam =
+    selectedCourses.length > 0 ? selectedCourses[0].id : undefined;
 
   // React Query로 서버 데이터 땡겨오기
   const { data: responseData, isLoading } = useQuery({
