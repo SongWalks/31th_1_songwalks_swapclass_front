@@ -135,7 +135,7 @@ const MyPage = () => {
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
         // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-        navigate('/home'); // 탈퇴 후 로그인 화면으로 이동
+        navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
       console.error('회원 탈퇴 실패:', error);
@@ -149,7 +149,7 @@ const MyPage = () => {
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
       // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-      navigate('/home');
+      navigate('/'); // 로그아웃 후 메인 화면으로 이동
     }
   };
 
