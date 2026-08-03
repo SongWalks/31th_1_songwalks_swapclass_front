@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -21,77 +22,83 @@ interface CourseSelection {
   courseType: string;
 }
 
+interface RestoredForm {
+  discardCourse: CourseSelection | null;
+  wantedCourses: (CourseSelection | null)[];
+}
+
+// 💡 sessionStorage에서 "작성 중이던 전체 상태" + "방금 검색에서 고른 과목"을 읽어서 합침.
+// useState의 초기값 계산 함수로 쓰이므로, 렌더링 중(첫 마운트 시)에 딱 한 번만 동기적으로
+// 호출됨 — useEffect 안에서 setState를 부르는 게 아니라서 set-state-in-effect 대상이 아님.
+const readRestoredForm = (): RestoredForm => {
+  let restoredDiscard: CourseSelection | null = null;
+  let restoredWanted: (CourseSelection | null)[] = [null, null, null];
+
+  const rawForm = sessionStorage.getItem('postWriteFormState');
+  if (rawForm) {
+    try {
+      const form = JSON.parse(rawForm);
+      restoredDiscard = form.discardCourse ?? null;
+      restoredWanted = form.wantedCourses ?? [null, null, null];
+    } catch (error) {
+      console.error('작성 중이던 내용을 복원하지 못했습니다.', error);
+    }
+  }
+
+  const rawCourse = sessionStorage.getItem('selectedCourse');
+  if (rawCourse) {
+    try {
+      const selected = JSON.parse(rawCourse);
+      const rawTarget = sessionStorage.getItem('courseSearchTarget');
+      const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
+      const courseSelection: CourseSelection = {
+        courseId: selected.courseId,
+        // 💡 팀원분 코드가 title: course.name으로도 같이 저장해두니, name 없으면 title로 대체
+        name: selected.name ?? selected.title,
+        professor: selected.professor,
+        classTime: selected.classTime,
+        department: selected.department,
+        courseType: selected.courseType,
+      };
+
+      if (targetInfo?.target === 'discard') {
+        restoredDiscard = courseSelection;
+      } else if (
+        targetInfo?.target === 'wanted' &&
+        typeof targetInfo.priority === 'number'
+      ) {
+        restoredWanted = [...restoredWanted];
+        restoredWanted[targetInfo.priority] = courseSelection;
+      }
+    } catch (error) {
+      console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+    }
+  }
+
+  return { discardCourse: restoredDiscard, wantedCourses: restoredWanted };
+};
+
 const PostWritePage: React.FC = () => {
   const navigate = useNavigate();
 
+  // 💡 lazy initializer로 한 번만 계산 (컴포넌트 함수가 리렌더될 때마다 다시 안 돌아감)
+  const [initialForm] = useState(readRestoredForm);
   const [discardCourse, setDiscardCourse] = useState<CourseSelection | null>(
-    null,
+    initialForm.discardCourse,
   );
   const [wantedCourses, setWantedCourses] = useState<
     (CourseSelection | null)[]
-  >([null, null, null]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdPostId, setCreatedPostId] = useState<number | null>(null);
+  >(initialForm.wantedCourses);
 
-  // 💡 등록 성공 모달
+  const [createdPostId, setCreatedPostId] = useState<number | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // 💡 한 번 읽었으니 새로 글쓰기 들어왔을 때 예전 값이 안 남게 정리.
+  // setState를 전혀 호출하지 않는 effect라 set-state-in-effect 규칙 대상이 아님.
   useEffect(() => {
-    let restoredDiscard: CourseSelection | null = discardCourse;
-    let restoredWanted: (CourseSelection | null)[] = wantedCourses;
-
-    const rawForm = sessionStorage.getItem('postWriteFormState');
-    if (rawForm) {
-      try {
-        const form = JSON.parse(rawForm);
-        restoredDiscard = form.discardCourse ?? null;
-        restoredWanted = form.wantedCourses ?? [null, null, null];
-      } catch (error) {
-        console.error('작성 중이던 내용을 복원하지 못했습니다.', error);
-      }
-    }
-
-    const rawCourse = sessionStorage.getItem('selectedCourse');
-    if (rawCourse) {
-      try {
-        const selected = JSON.parse(rawCourse);
-        const rawTarget = sessionStorage.getItem('courseSearchTarget');
-        const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
-        const courseSelection: CourseSelection = {
-          courseId: selected.courseId,
-          // 💡 팀원분 코드가 title: course.name으로도 같이 저장해두니, name 없으면 title로 대체
-          name: selected.name ?? selected.title,
-          professor: selected.professor,
-          classTime: selected.classTime,
-          department: selected.department,
-          courseType: selected.courseType,
-        };
-
-        if (targetInfo?.target === 'discard') {
-          restoredDiscard = courseSelection;
-        } else if (
-          targetInfo?.target === 'wanted' &&
-          typeof targetInfo.priority === 'number'
-        ) {
-          restoredWanted = [...restoredWanted];
-          restoredWanted[targetInfo.priority] = courseSelection;
-        }
-      } catch (error) {
-        console.error('선택한 과목 정보를 읽지 못했습니다.', error);
-      }
-    }
-
-    if (rawForm || rawCourse) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDiscardCourse(restoredDiscard);
-      setWantedCourses(restoredWanted);
-    }
-
-    // 한 번 읽으면 바로 비워서, 다음에 새로 글쓰기 들어왔을 때 예전 값이 안 남게 함
     sessionStorage.removeItem('postWriteFormState');
     sessionStorage.removeItem('selectedCourse');
     sessionStorage.removeItem('courseSearchTarget');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부
@@ -131,31 +138,34 @@ const PostWritePage: React.FC = () => {
     });
   };
 
-  const handleSubmit = async () => {
-    if (!canSubmit || !discardCourse || isSubmitting) return;
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!discardCourse) throw new Error('버릴 과목이 없습니다.');
+      // 💡 원하는 과목은 배열 순서 = 우선순위(1,2,3순위). 빈 슬롯(null)은 제외하고 보냄
+      const wantedCourseIds = wantedCourses
+        .filter((course): course is CourseSelection => course !== null)
+        .map((course) => course.courseId);
 
-    // 💡 원하는 과목은 배열 순서 = 우선순위(1,2,3순위). 빈 슬롯(null)은 제외하고 보냄
-    const wantedCourseIds = wantedCourses
-      .filter((course): course is CourseSelection => course !== null)
-      .map((course) => course.courseId);
-
-    try {
-      setIsSubmitting(true);
       const response = await axiosInstance.post('/api/posts', {
         discardCourseId: discardCourse.courseId,
         wantedCourseIds,
       });
-
-      if (response.data?.success) {
-        setCreatedPostId(response.data.data?.postId ?? null);
-        setShowSuccessModal(true);
-      }
-    } catch (error) {
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (!data?.success) return;
+      setCreatedPostId(data.data?.postId ?? null);
+      setShowSuccessModal(true);
+    },
+    onError: (error) => {
       console.error('게시글 등록 실패:', error);
       alert('게시글 등록 중 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!canSubmit || submitMutation.isPending) return;
+    submitMutation.mutate();
   };
 
   return (
@@ -349,14 +359,14 @@ const PostWritePage: React.FC = () => {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] px-4 pb-6 pt-3">
         <button
           onClick={handleSubmit}
-          disabled={!canSubmit || isSubmitting}
+          disabled={!canSubmit || submitMutation.isPending}
           className={`w-full h-14 text-white text-lg font-semibold tracking-wide transition-all ${
             canSubmit
               ? 'bg-brand-lightBlue rounded-2xl hover:opacity-90 cursor-pointer'
               : 'bg-zinc-400 rounded-md shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] cursor-not-allowed'
-          } ${isSubmitting ? 'opacity-60' : ''}`}
+          } ${submitMutation.isPending ? 'opacity-60' : ''}`}
         >
-          {isSubmitting ? '등록 중...' : '등록하기'}
+          {submitMutation.isPending ? '등록 중...' : '등록하기'}
         </button>
       </div>
 

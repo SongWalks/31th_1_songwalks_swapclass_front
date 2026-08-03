@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -20,6 +21,11 @@ import {
 // SVG 파일
 import throwArrow from '@/assets/icons/mypage/throw_arrow.svg';
 import blueCheck from '@/assets/icons/mypage/blue_check.svg';
+
+// 💡 백엔드가 에러 응답 body로 주는 형태 (message 필드 사용)
+interface ApiErrorResponse {
+  message?: string;
+}
 
 const ExchangeRequestSpecific: React.FC = () => {
   const navigate = useNavigate();
@@ -63,10 +69,11 @@ const ExchangeRequestSpecific: React.FC = () => {
         setTimeout(() => {
           navigate('/my/request');
         }, 1000);
-      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+      }
+    } catch (error) {
       console.error('교환 거절 실패:', error);
-      const serverMessage = error?.response?.data?.message;
+      const axiosError = error as AxiosError<ApiErrorResponse>;
+      const serverMessage = axiosError.response?.data?.message;
       alert(serverMessage || '거절 처리 중 오류가 발생했습니다.');
     }
   };
@@ -88,10 +95,11 @@ const ExchangeRequestSpecific: React.FC = () => {
             navigate('/chat');
           }
         }, 1000);
-      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+      }
+    } catch (error) {
       console.error('교환 수락 실패:', error);
-      const serverMessage = error?.response?.data?.message;
+      const axiosError = error as AxiosError<ApiErrorResponse>;
+      const serverMessage = axiosError.response?.data?.message;
       alert(serverMessage || '수락 처리 중 오류가 발생했습니다.');
     }
   };

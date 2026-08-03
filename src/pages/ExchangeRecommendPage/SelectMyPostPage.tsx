@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { Icon } from '@iconify/react';
 import axiosInstance from '@/api/axiosInstance';
+
+// 💡 백엔드가 에러 응답 body로 주는 형태 (message 필드 사용)
+interface ApiErrorResponse {
+  message?: string;
+}
 
 interface CourseDetail {
   courseId: number;
@@ -125,10 +131,10 @@ const SelectMyPostPage: React.FC = () => {
           });
         }, 3000);
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+    } catch (error) {
       console.error('제안 생성 실패:', error);
-      const serverMessage = error?.response?.data?.message;
+      const axiosError = error as AxiosError<ApiErrorResponse>;
+      const serverMessage = axiosError.response?.data?.message;
       alert(serverMessage || '제안을 보내는 중 오류가 발생했습니다.');
       setSelectedId(null);
       setIsSubmitting(false);

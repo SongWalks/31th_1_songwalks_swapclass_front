@@ -77,8 +77,7 @@ const MyPage = () => {
       // 받은 요청함 뱃지: PENDING(대기 중) 상태인 것만 개수로 카운트
       try {
         const receivedRes = await axiosInstance.get('/api/proposals/received');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const received: any[] = receivedRes.data?.data || [];
+        const received: { status: string }[] = receivedRes.data?.data || [];
         setRequestCount(
           received.filter((item) => item.status === 'PENDING').length,
         );
@@ -135,7 +134,7 @@ const MyPage = () => {
       const res = await deleteAccount();
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
-        // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
+        localStorage.removeItem('accessToken');
         navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
@@ -149,7 +148,7 @@ const MyPage = () => {
   // 로그아웃 처리
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
-      // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
+      localStorage.removeItem('accessToken');
       navigate('/');
     }
   };

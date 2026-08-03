@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -61,131 +62,104 @@ const toCourseSelection = (course: CourseDetail): CourseSelection => ({
   courseType: course.courseType,
 });
 
+// 💡 sessionStorage에서 "수정 중이던 원하는 과목 상태" + "방금 검색에서 고른 과목"을 읽어서 합침.
+// useState의 초기값 계산 함수로 쓰이므로 렌더링 중(첫 마운트 시) 딱 한 번만 동기적으로 호출됨.
+const readPendingWantedCourses = (): (CourseSelection | null)[] | null => {
+  let restoredWanted: (CourseSelection | null)[] | null = null;
+
+  const rawForm = sessionStorage.getItem('postEditFormState');
+  if (rawForm) {
+    try {
+      const form = JSON.parse(rawForm);
+      restoredWanted = form.wantedCourses ?? null;
+    } catch (error) {
+      console.error('수정 중이던 내용을 복원하지 못했습니다.', error);
+    }
+  }
+
+  const rawCourse = sessionStorage.getItem('selectedCourse');
+  if (rawCourse) {
+    try {
+      const selected = JSON.parse(rawCourse);
+      const rawTarget = sessionStorage.getItem('courseSearchTarget');
+      const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
+      const courseSelection: CourseSelection = {
+        courseId: selected.courseId,
+        name: selected.name ?? selected.title,
+        professor: selected.professor,
+        classTime: selected.classTime,
+        department: selected.department,
+        courseType: selected.courseType,
+      };
+
+      if (
+        targetInfo?.target === 'wanted' &&
+        typeof targetInfo.priority === 'number'
+      ) {
+        const base = restoredWanted ?? [null, null, null];
+        const next = [...base];
+        next[targetInfo.priority] = courseSelection;
+        restoredWanted = next;
+      }
+    } catch (error) {
+      console.error('선택한 과목 정보를 읽지 못했습니다.', error);
+    }
+  }
+
+  return restoredWanted;
+};
+
 const PostEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { postId } = useParams<{ postId: string }>();
 
-  const [post, setPost] = useState<PostDetailResponse | null>(null);
-  const [receivedRequestCount, setReceivedRequestCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [wantedCourses, setWantedCourses] = useState<
-    (CourseSelection | null)[]
-  >([null, null, null]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // 💡 React Query로 게시글 상세 페칭. useEffect+setState도 없고, StrictMode 이중 호출로 인한
+  // 중복 요청 문제도 React Query가 내부적으로 중복 제거해줘서 별도 ref 가드가 필요 없음.
+  const { data: post, isLoading: loading } = useQuery({
+    queryKey: ['postDetail', postId],
+    queryFn: async (): Promise<PostDetailResponse> => {
+      const response = await axiosInstance.get(`/api/posts/${postId}`);
+      return response.data.data as PostDetailResponse;
+    },
+    enabled: !!postId,
+  });
 
-  const pendingWantedCoursesRef = useRef<(CourseSelection | null)[] | null>(
-    null,
-  );
+  const { data: receivedRequestCount = 0 } = useQuery({
+    queryKey: ['receivedRequestCountForEdit'],
+    queryFn: async (): Promise<number> => {
+      const response = await axiosInstance.get('/api/proposals/received');
+      const received: unknown[] = response.data?.data || [];
+      return received.length;
+    },
+  });
 
-  const applyPostData = (data: PostDetailResponse) => {
-    setPost(data);
-
-    if (pendingWantedCoursesRef.current) {
-      // 방금 과목 검색에서 돌아온 거면, 서버의 예전 값 대신 방금 고른 값을 그대로 유지
-      setWantedCourses(pendingWantedCoursesRef.current);
-      pendingWantedCoursesRef.current = null;
-      return;
-    }
-
-    const sorted = [...data.wantedCourses].sort(
+  // 💡 서버에서 온 원하는 과목 목록을 화면용 형태로 변환 (표시용 "기본값")
+  const serverWanted = useMemo((): (CourseSelection | null)[] => {
+    if (!post) return [null, null, null];
+    const sorted = [...post.wantedCourses].sort(
       (a, b) => a.priority - b.priority,
     );
-    setWantedCourses(
-      [0, 1, 2].map((i) => {
-        const item = sorted[i];
-        return item ? toCourseSelection(item.course) : null;
-      }),
-    );
-  };
+    return [0, 1, 2].map((i) => {
+      const item = sorted[i];
+      return item ? toCourseSelection(item.course) : null;
+    });
+  }, [post]);
 
-  const fetchPost = useCallback(async () => {
-    if (!postId) return;
+  // 💡 핵심: "사용자가 로컬에서 직접 바꾼 값"은 이 state 하나로만 관리하고, 서버 데이터는
+  // 절대로 이 값을 덮어쓰지 않음(effect로 동기화하지 않음). 그래서 예전에 겪었던
+  // "서버 응답이 늦게 도착해서 방금 고른 과목을 덮어쓰는" 경쟁 상태 버그가 구조적으로
+  // 아예 발생할 수 없음 — 서버값은 "아직 로컬에서 아무것도 안 건드렸을 때의 기본값"으로만 쓰임.
+  const [overrideWanted, setOverrideWanted] = useState<
+    (CourseSelection | null)[] | null
+  >(readPendingWantedCourses);
 
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get(`/api/posts/${postId}`);
-      if (response.data?.success) {
-        applyPostData(response.data.data as PostDetailResponse);
-      }
-    } catch (error) {
-      console.error('게시글 조회 실패:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [postId]);
-  const hasFetchedPostRef = useRef(false);
+  const wantedCourses = overrideWanted ?? serverWanted;
 
+  // 💡 한 번 읽었으니 정리 (setState 없는 effect라 set-state-in-effect 규칙 대상 아님)
   useEffect(() => {
-    if (hasFetchedPostRef.current) return;
-    hasFetchedPostRef.current = true;
-    fetchPost();
-  }, [fetchPost]);
-
-  useEffect(() => {
-    let restoredWanted: (CourseSelection | null)[] | null = null;
-
-    const rawForm = sessionStorage.getItem('postEditFormState');
-    if (rawForm) {
-      try {
-        const form = JSON.parse(rawForm);
-        restoredWanted = form.wantedCourses ?? null;
-      } catch (error) {
-        console.error('수정 중이던 내용을 복원하지 못했습니다.', error);
-      }
-    }
-
-    const rawCourse = sessionStorage.getItem('selectedCourse');
-    if (rawCourse) {
-      try {
-        const selected = JSON.parse(rawCourse);
-        const rawTarget = sessionStorage.getItem('courseSearchTarget');
-        const targetInfo = rawTarget ? JSON.parse(rawTarget) : null;
-        const courseSelection: CourseSelection = {
-          courseId: selected.courseId,
-          name: selected.name ?? selected.title,
-          professor: selected.professor,
-          classTime: selected.classTime,
-          department: selected.department,
-          courseType: selected.courseType,
-        };
-
-        if (
-          targetInfo?.target === 'wanted' &&
-          typeof targetInfo.priority === 'number'
-        ) {
-          const base = restoredWanted ?? [null, null, null];
-          const next = [...base];
-          next[targetInfo.priority] = courseSelection;
-          restoredWanted = next;
-        }
-      } catch (error) {
-        console.error('선택한 과목 정보를 읽지 못했습니다.', error);
-      }
-    }
-
-    if (restoredWanted) {
-      pendingWantedCoursesRef.current = restoredWanted;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setWantedCourses(restoredWanted);
-    }
-
     sessionStorage.removeItem('postEditFormState');
     sessionStorage.removeItem('selectedCourse');
     sessionStorage.removeItem('courseSearchTarget');
-  }, []);
-
-  useEffect(() => {
-    const fetchReceivedRequestCount = async () => {
-      try {
-        const response = await axiosInstance.get('/api/proposals/received');
-        const received = response.data?.data || [];
-        setReceivedRequestCount(received.length);
-      } catch (error) {
-        console.error('받은 요청 개수 조회 실패:', error);
-      }
-    };
-
-    fetchReceivedRequestCount();
   }, []);
 
   const handleSelectWantedCourse = (index: number) => {
@@ -201,8 +175,9 @@ const PostEditPage: React.FC = () => {
   };
 
   const handleRemoveWantedCourse = (index: number) => {
-    setWantedCourses((prev) => {
-      const next = [...prev];
+    setOverrideWanted((prev) => {
+      const base = prev ?? serverWanted;
+      const next = [...base];
       next[index] = null;
       return next;
     });
@@ -210,29 +185,32 @@ const PostEditPage: React.FC = () => {
 
   const canSubmit = wantedCourses.some((course) => course !== null);
 
-  const handleSubmitEdit = async () => {
-    if (!canSubmit || !postId || isSubmitting) return;
+  // TODO: PATCH /api/posts/{postId} 실제 요청 스키마 확인되면 그에 맞춰 수정
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const wantedCourseIds = wantedCourses
+        .filter((course): course is CourseSelection => course !== null)
+        .map((course) => course.courseId);
 
-    // TODO: PATCH /api/posts/{postId} 실제 요청 스키마 확인되면 그에 맞춰 수정
-    const wantedCourseIds = wantedCourses
-      .filter((course): course is CourseSelection => course !== null)
-      .map((course) => course.courseId);
-
-    try {
-      setIsSubmitting(true);
       const response = await axiosInstance.patch(`/api/posts/${postId}`, {
         wantedCourseIds,
       });
-
-      if (response.data?.success) {
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data?.success) {
         navigate(`/board/${postId}`, { replace: true });
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('게시글 수정 실패:', error);
       alert('게시글 수정 중 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    },
+  });
+
+  const handleSubmitEdit = () => {
+    if (!canSubmit || !postId || submitMutation.isPending) return;
+    submitMutation.mutate();
   };
 
   if (loading || !post) {
@@ -449,14 +427,14 @@ const PostEditPage: React.FC = () => {
         </div>
         <button
           onClick={handleSubmitEdit}
-          disabled={!canSubmit || isSubmitting}
+          disabled={!canSubmit || submitMutation.isPending}
           className={`w-full h-14 text-white text-lg font-semibold tracking-wide transition-all ${
             canSubmit
               ? 'bg-brand-lightBlue rounded-2xl hover:opacity-90 cursor-pointer'
               : 'bg-zinc-400 rounded-md shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] cursor-not-allowed'
-          } ${isSubmitting ? 'opacity-60' : ''}`}
+          } ${submitMutation.isPending ? 'opacity-60' : ''}`}
         >
-          {isSubmitting ? '수정 중...' : '수정 완료하기'}
+          {submitMutation.isPending ? '수정 중...' : '수정 완료하기'}
         </button>
       </div>
     </div>

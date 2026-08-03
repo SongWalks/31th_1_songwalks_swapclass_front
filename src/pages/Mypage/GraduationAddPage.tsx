@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -19,6 +20,16 @@ interface CourseItem {
   completed: boolean;
 }
 
+// 💡 GET /api/me/graduation-courses 응답의 courses 배열 항목 (raw)
+interface RawGraduationCourse {
+  courseId: number;
+  courseName: string;
+  courseType?: string;
+  category?: string;
+  department?: string;
+  completed: boolean;
+}
+
 const getCourseTypeBadgeVariant = (courseType: string) => {
   if (courseType === '교양선택' || courseType === '교양필수') {
     return 'lightBlueOutline' as const;
@@ -31,65 +42,56 @@ const getCourseTypeBadgeVariant = (courseType: string) => {
 
 const GraduationAddPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-
-  // API 1: 등록된 졸업 요건 과목 목록 불러오기
-  const fetchCourses = async () => {
-    try {
-      setLoading(true);
+  // 💡 React Query로 데이터 페칭: useEffect + setState 없이 훅 자체가 로딩/에러/데이터 상태를 관리함
+  const { data: courses = [], isLoading: loading } = useQuery({
+    queryKey: ['graduationCourses'],
+    queryFn: async (): Promise<CourseItem[]> => {
       const response = await axiosInstance.get('/api/me/graduation-courses');
-      if (response.data?.success) {
-        const apiCourses: CourseItem[] = response.data.data.courses.map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (c: any) => ({
-            id: c.courseId,
-            name: c.courseName,
-            courseType: c.courseType,
-            category: c.category,
-            department: c.department,
-            completed: c.completed,
-          }),
-        );
-        setCourses(apiCourses);
-        // 이미 이수완료로 표시된 과목은 진입 시 기본으로 체크되어 있게 함
-        setSelectedIds(apiCourses.filter((c) => c.completed).map((c) => c.id));
-      }
-    } catch (error) {
-      console.error('졸업 요건 과목 목록 조회 실패:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const raw: RawGraduationCourse[] = response.data?.data?.courses || [];
+      return raw.map((c) => ({
+        id: c.courseId,
+        name: c.courseName,
+        courseType: c.courseType,
+        category: c.category,
+        department: c.department,
+        completed: c.completed,
+      }));
+    },
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchCourses();
-  }, []);
+  // 💡 "선택 상태"를 별도 state에 fetch 결과로부터 seed하는 대신(그러면 또 effect+setState가
+  // 필요해짐), "기본값(course.completed)에서 벗어난 것만" overrides에 기록하는 방식으로 처리.
+  // 체크 여부 = overrides에 있으면 그 값, 없으면 그냥 course.completed 그대로.
+  const [overrides, setOverrides] = useState<Record<number, boolean>>({});
+
+  const isSelected = (course: CourseItem) =>
+    overrides[course.id] ?? course.completed;
 
   const toggleSelect = (id: number) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-    );
+    setOverrides((prev) => {
+      const course = courses.find((c) => c.id === id);
+      const current = prev[id] ?? course?.completed ?? false;
+      return { ...prev, [id]: !current };
+    });
   };
 
   const isAllSelected =
-    courses.length > 0 && selectedIds.length === courses.length;
+    courses.length > 0 && courses.every((c) => isSelected(c));
 
   const toggleSelectAll = () => {
-    setSelectedIds(isAllSelected ? [] : courses.map((c) => c.id));
+    const next: Record<number, boolean> = {};
+    courses.forEach((c) => {
+      next[c.id] = !isAllSelected;
+    });
+    setOverrides((prev) => ({ ...prev, ...next }));
   };
 
-  const hasChanges = courses.some(
-    (c) => selectedIds.includes(c.id) !== c.completed,
-  );
+  const hasChanges = courses.some((c) => isSelected(c) !== c.completed);
 
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const [navigateOnToastClose, setNavigateOnToastClose] = useState(false);
 
   const handleToastClose = () => {
@@ -99,36 +101,43 @@ const GraduationAddPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (submitting) return;
-
-    const toToggle = courses.filter(
-      (c) => selectedIds.includes(c.id) !== c.completed,
-    );
-
-    if (toToggle.length === 0) {
-      navigate('/my/graduation');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
+  // 💡 실제 API는 "일괄 설정"이 아니라 "과목 하나당 완료↔미완료 토글"이라(PATCH /{courseId}),
+  // 선택 상태가 실제 completed 값과 달라진 과목만 골라서 토글함
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const toToggle = courses.filter((c) => isSelected(c) !== c.completed);
       await Promise.all(
         toToggle.map((c) =>
           axiosInstance.patch(`/api/me/graduation-courses/${c.id}`),
         ),
       );
+    },
+    onSuccess: () => {
+      // 서버 최신 상태로 다시 받아오기
+      queryClient.invalidateQueries({ queryKey: ['graduationCourses'] });
+      setOverrides({});
       setToastMessage('저장되었습니다.');
       setNavigateOnToastClose(true);
       setShowToast(true);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('이수완료 설정 실패:', error);
       setToastMessage('설정 중 오류가 발생했습니다.');
       setNavigateOnToastClose(false);
       setShowToast(true);
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const handleSubmit = () => {
+    if (submitMutation.isPending) return;
+
+    const toToggle = courses.filter((c) => isSelected(c) !== c.completed);
+    if (toToggle.length === 0) {
+      navigate('/my/graduation');
+      return;
     }
+
+    submitMutation.mutate();
   };
 
   return (
@@ -167,7 +176,7 @@ const GraduationAddPage = () => {
             </span>
           </button>
           <span className="text-slate-500 text-xs font-normal leading-5 tracking-wide">
-            {selectedIds.length}/{courses.length} 선택
+            {courses.filter((c) => isSelected(c)).length}/{courses.length} 선택
           </span>
         </div>
       )}
@@ -188,7 +197,7 @@ const GraduationAddPage = () => {
         ) : (
           <div className="flex flex-col gap-3">
             {courses.map((item) => {
-              const selected = selectedIds.includes(item.id);
+              const selected = isSelected(item);
               return (
                 <CourseCard
                   key={item.id}
@@ -249,7 +258,7 @@ const GraduationAddPage = () => {
         <div className="sticky bottom-0 w-full px-4 pb-6 pt-4 bg-neutral-50 border-t border-gray-100">
           <button
             onClick={handleSubmit}
-            disabled={submitting || !hasChanges}
+            disabled={submitMutation.isPending || !hasChanges}
             className="w-full h-14 bg-brand-lightBlue disabled:opacity-40 hover:opacity-90 active:scale-[0.99] transition-all rounded-md text-white text-lg font-semibold"
           >
             저장하기

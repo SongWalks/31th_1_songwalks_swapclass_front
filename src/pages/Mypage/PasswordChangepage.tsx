@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { Input } from '@/components/common/Input';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
@@ -8,6 +9,11 @@ import { Modal } from '@/components/common/Modal';
 import defaultEyeIcon from '@/assets/icons/mypage/eye_icon.svg';
 import cautionEyeIcon from '@/assets/icons/mypage/Caution_eye_icon.svg';
 import { updatePassword } from '@/api/mypage/mypageApi';
+
+// 💡 백엔드가 에러 응답 body로 주는 형태 (message 필드 사용)
+interface ApiErrorResponse {
+  message?: string;
+}
 
 const PasswordChangepage = () => {
   const navigate = useNavigate();
@@ -42,13 +48,14 @@ const PasswordChangepage = () => {
         setIsModalOpen(true);
       } else {
         alert(response.message || '비밀번호 변경에 실패했습니다.');
-      } // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
+      }
+    } catch (error) {
       console.error('비밀번호 변경 오류:', error);
 
       // 💡 백엔드에서 내려준 에러 메시지가 있다면 그걸 띄우고, 없으면 기본 메시지 출력
-      const serverMessage = error.response?.data?.message;
-      if (error.response?.status === 403) {
+      const axiosError = error as AxiosError<ApiErrorResponse>;
+      const serverMessage = axiosError.response?.data?.message;
+      if (axiosError.response?.status === 403) {
         alert(serverMessage || '로그인 먼저 진행해 주세요.');
       } else {
         alert(serverMessage || '비밀번호 변경 중 오류가 발생했습니다.');
@@ -101,8 +108,9 @@ const PasswordChangepage = () => {
           label="현재 비밀번호"
           type={showPassword.current ? 'text' : 'password'}
           value={pw.current}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onChange={(e: any) => setPw({ ...pw, current: e.target.value })}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setPw({ ...pw, current: e.target.value })
+          }
           onBlur={() => setTouched({ ...touched, current: true })}
           isError={isError('current')}
           rightNode={renderEyeNode('current')}
@@ -112,8 +120,9 @@ const PasswordChangepage = () => {
           label="새 비밀번호"
           type={showPassword.new ? 'text' : 'password'}
           value={pw.new}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onChange={(e: any) => setPw({ ...pw, new: e.target.value })}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setPw({ ...pw, new: e.target.value })
+          }
           onBlur={() => setTouched({ ...touched, new: true })}
           isError={isError('new')}
           rightNode={renderEyeNode('new')}
@@ -128,8 +137,9 @@ const PasswordChangepage = () => {
           label="비밀번호 확인"
           type={showPassword.confirm ? 'text' : 'password'}
           value={pw.confirm}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onChange={(e: any) => setPw({ ...pw, confirm: e.target.value })}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setPw({ ...pw, confirm: e.target.value })
+          }
           onBlur={() => setTouched({ ...touched, confirm: true })}
           isError={isError('confirm')}
           rightNode={renderEyeNode('confirm')}

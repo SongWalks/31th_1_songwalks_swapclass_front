@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -51,6 +52,16 @@ interface MyPostResponse {
   status: 'MATCHABLE' | 'IN_EXCHANGE' | 'COMPLETED' | 'DELETED' | string;
 }
 
+// 💡 ProposalData(기본 타입)에 백엔드가 나중에 추가해준 receiverPostId를 얹은 확장 타입
+interface EnrichedProposal extends ProposalData {
+  receiverPostId?: number;
+}
+
+// 💡 GET /api/proposals/received 응답 항목 (이 화면에선 receiverPostId만 필요)
+interface ReceivedProposalItem {
+  receiverPostId?: number;
+}
+
 const STATUS_LABEL: Record<string, string> = {
   MATCHABLE: '교환 전',
   IN_EXCHANGE: '교환 중',
@@ -61,135 +72,90 @@ const SpecificPostsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { postId } = useParams<{ postId: string }>();
-
-  const [post, setPost] = useState<PostDetailResponse | null>(null);
-  const [receivedRequestCount, setReceivedRequestCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  const [myPostId, setMyPostId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  const [showProposeSuccessModal, setShowProposeSuccessModal] = useState(false);
+  // 💡 location.state.justProposed를 useState 초기값 계산 함수로 읽음 — 첫 렌더 때
+  // 동기적으로 한 번만 읽는 거라 effect 안에서 setState 호출하는 게 아님
+  const [showProposeSuccessModal, setShowProposeSuccessModal] = useState(
+    () => !!(location.state as { justProposed?: boolean } | null)?.justProposed,
+  );
 
-  const [sentProposal, setSentProposal] = useState<ProposalData | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-
   const [showNoPostModal, setShowNoPostModal] = useState(false);
-
-  // 💡 게시글 삭제 확인 모달
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  // 💡 상대방 글일 때: 찜하기/공유하기/신고하기
-  const [isLiked, setIsLiked] = useState(false);
-  const [isTogglingLike, setIsTogglingLike] = useState(false);
-
+  // 💡 컴포넌트가 처음 뜰 때, justProposed 신호가 있으면 보낸 요청 쿼리를 최신화하고
+  // location.state를 지움. location.state를 그냥 의존성 배열에 넣으면 무한 루프에 빠질 수
+  // 있어서(navigate(..., {state:{}})로 지운 뒤에도 {}는 truthy라 가드가 안 걸러지고, {} 자체가
+  // "새로운 값"이라 effect가 계속 재실행됨) ref로 "이미 처리했는지" 기억해뒀다가 그 이후로는
+  // location.state가 다시 바뀌어도 즉시 멈추게 해서 루프를 끊음.
+  // queryClient.invalidateQueries는 우리 코드의 setState가 아니라 React Query 내부
+  // 상태 관리 호출이라 set-state-in-effect 규칙 대상이 아님.
+  const hasHandledJustProposedRef = useRef(false);
   useEffect(() => {
-    if (!postId) return;
-
-    const syncLikedState = async () => {
-      try {
-        const response = await axiosInstance.get('/api/me/likes');
-        const likedPosts: { postId: number }[] = response.data?.data || [];
-        setIsLiked(likedPosts.some((p) => p.postId === Number(postId)));
-      } catch (error) {
-        console.error('찜 상태 확인 실패:', error);
-      }
-    };
-
-    syncLikedState();
-  }, [postId]);
-
-  useEffect(() => {
-    const fetchMyPostId = async () => {
-      try {
-        const response = await axiosInstance.get('/api/posts/me', {
-          params: { status: 'MATCHABLE' },
-        });
-        const myPosts: MyPostResponse[] = response.data?.data || [];
-        const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
-        setMyPostId(activePost ? activePost.postId : null);
-      } catch (error) {
-        console.error('내 게시글 조회 실패:', error);
-        setMyPostId(null);
-      }
-    };
-
-    fetchMyPostId();
-  }, []);
-
-  const fetchSentProposal = useCallback(async () => {
-    try {
-      const response = await getSentProposal();
-      if (response.success && response.data) {
-        setSentProposal(response.data as ProposalData);
-      } else {
-        setSentProposal(null);
-      }
-    } catch (error) {
-      console.error('보낸 요청 조회 실패:', error);
-      setSentProposal(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchSentProposal();
-  }, [fetchSentProposal]);
-
-  const fetchPostDetail = useCallback(async () => {
-    if (!postId) return;
-
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get(`/api/posts/${postId}`);
-      if (response.data?.success) {
-        setPost(response.data.data as PostDetailResponse);
-      }
-    } catch (error) {
-      console.error('게시글 상세 조회 실패:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [postId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchPostDetail();
-  }, [fetchPostDetail]);
-
-  useEffect(() => {
-    if (!post?.mine || !postId) return;
-
-    const fetchReceivedRequestCount = async () => {
-      try {
-        const response = await axiosInstance.get('/api/proposals/received');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const received: any[] = response.data?.data || [];
-        const forThisPost = received.filter(
-          (item) => item.receiverPostId === Number(postId),
-        );
-        setReceivedRequestCount(forThisPost.length);
-      } catch (error) {
-        console.error('받은 요청 개수 조회 실패:', error);
-      }
-    };
-
-    fetchReceivedRequestCount();
-  }, [post?.mine, postId]);
-
-  useEffect(() => {
+    if (hasHandledJustProposedRef.current) return;
     const state = location.state as { justProposed?: boolean } | null;
-    if (state?.justProposed) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShowProposeSuccessModal(true);
-      fetchSentProposal();
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, location.pathname, navigate, fetchSentProposal]);
+    if (!state?.justProposed) return;
+    hasHandledJustProposedRef.current = true;
+    queryClient.invalidateQueries({ queryKey: ['sentProposalForPost'] });
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate, queryClient]);
+
+  // 💡 이하 전부 React Query로 페칭: useEffect + setState 없이 훅이 알아서 로딩/데이터 관리
+  const { data: isLiked = false } = useQuery({
+    queryKey: ['isPostLiked', postId],
+    queryFn: async (): Promise<boolean> => {
+      const response = await axiosInstance.get('/api/me/likes');
+      const likedPosts: { postId: number }[] = response.data?.data || [];
+      return likedPosts.some((p) => p.postId === Number(postId));
+    },
+    enabled: !!postId,
+  });
+
+  const { data: myPostId = null } = useQuery({
+    queryKey: ['myMatchablePostId'],
+    queryFn: async (): Promise<number | null> => {
+      const response = await axiosInstance.get('/api/posts/me', {
+        params: { status: 'MATCHABLE' },
+      });
+      const myPosts: MyPostResponse[] = response.data?.data || [];
+      const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
+      return activePost ? activePost.postId : null;
+    },
+  });
+
+  const { data: sentProposal = null } = useQuery({
+    queryKey: ['sentProposalForPost'],
+    queryFn: async (): Promise<EnrichedProposal | null> => {
+      const response = await getSentProposal();
+      if (!response.success || !response.data) return null;
+      return response.data as EnrichedProposal;
+    },
+  });
+
+  const { data: post, isLoading: loading } = useQuery({
+    queryKey: ['postDetail', postId],
+    queryFn: async (): Promise<PostDetailResponse> => {
+      const response = await axiosInstance.get(`/api/posts/${postId}`);
+      return response.data.data as PostDetailResponse;
+    },
+    enabled: !!postId,
+  });
+
+  const { data: receivedRequestCount = 0 } = useQuery({
+    queryKey: ['receivedRequestCountForPost', postId],
+    queryFn: async (): Promise<number> => {
+      const response = await axiosInstance.get('/api/proposals/received');
+      const received: ReceivedProposalItem[] = response.data?.data || [];
+      return received.filter((item) => item.receiverPostId === Number(postId))
+        .length;
+    },
+    // 💡 남의 글일 땐 GET /api/proposals/received로 알 방법이 없어 0 고정, 내 글이면 실제 값
+    enabled: !!post?.mine && !!postId,
+  });
 
   const handleRequestExchange = () => {
     if (!postId) return;
@@ -207,24 +173,28 @@ const SpecificPostsPage: React.FC = () => {
     setShowWithdrawModal(true);
   };
 
-  const handleConfirmWithdraw = async () => {
-    if (!sentProposal) return;
-
-    try {
-      setIsWithdrawing(true);
+  const withdrawMutation = useMutation({
+    mutationFn: async () => {
+      if (!sentProposal) throw new Error('철회할 요청이 없습니다.');
       const response = await withdrawProposal(sentProposal.id);
-      if (response.success) {
-        setSentProposal(null);
-        setShowWithdrawModal(false);
-        setToastMessage('요청이 철회되었습니다.');
-        setShowToast(true);
-      }
-    } catch (error) {
+      return response.success;
+    },
+    onSuccess: (success) => {
+      if (!success) return;
+      queryClient.setQueryData(['sentProposalForPost'], null);
+      setShowWithdrawModal(false);
+      setToastMessage('요청이 철회되었습니다.');
+      setShowToast(true);
+    },
+    onError: (error) => {
       console.error('요청 철회 실패:', error);
       alert('요청 철회 중 오류가 발생했습니다.');
-    } finally {
-      setIsWithdrawing(false);
-    }
+    },
+  });
+
+  const handleConfirmWithdraw = () => {
+    if (!sentProposal || withdrawMutation.isPending) return;
+    withdrawMutation.mutate();
   };
 
   // 💡 내 게시글 수정
@@ -237,46 +207,55 @@ const SpecificPostsPage: React.FC = () => {
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = async () => {
-    if (!postId) return;
-
-    try {
-      setIsDeleting(true);
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
       const response = await axiosInstance.delete(`/api/posts/${postId}`);
-      if (response.data?.success) {
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data?.success) {
         navigate('/board');
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('게시글 삭제 실패:', error);
       alert('게시글 삭제 중 오류가 발생했습니다.');
-    } finally {
-      setIsDeleting(false);
+    },
+    onSettled: () => {
       setShowDeleteModal(false);
-    }
+    },
+  });
+
+  const handleConfirmDelete = () => {
+    if (!postId || deleteMutation.isPending) return;
+    deleteMutation.mutate();
   };
 
-  const handleToggleLike = async () => {
-    if (!postId || isTogglingLike) return;
-
-    try {
-      setIsTogglingLike(true);
-      if (isLiked) {
-        await axiosInstance.delete(`/api/posts/${postId}/likes`);
-        setIsLiked(false);
-        setToastMessage('찜 목록에서 삭제되었습니다.');
-        setShowToast(true);
-      } else {
+  const likeMutation = useMutation({
+    mutationFn: async (nextLiked: boolean) => {
+      if (nextLiked) {
         await axiosInstance.post(`/api/posts/${postId}/likes`);
-        setIsLiked(true);
-        setToastMessage('찜 목록에 등록되었습니다.');
-        setShowToast(true);
+      } else {
+        await axiosInstance.delete(`/api/posts/${postId}/likes`);
       }
-    } catch (error) {
+      return nextLiked;
+    },
+    onSuccess: (nextLiked) => {
+      queryClient.setQueryData(['isPostLiked', postId], nextLiked);
+      setToastMessage(
+        nextLiked ? '찜 목록에 등록되었습니다.' : '찜 목록에서 삭제되었습니다.',
+      );
+      setShowToast(true);
+    },
+    onError: (error) => {
       console.error('찜하기 처리 실패:', error);
       alert('찜하기 처리 중 오류가 발생했습니다.');
-    } finally {
-      setIsTogglingLike(false);
-    }
+    },
+  });
+
+  const handleToggleLike = () => {
+    if (!postId || likeMutation.isPending) return;
+    likeMutation.mutate(!isLiked);
   };
 
   const handleShare = async () => {
@@ -334,8 +313,7 @@ const SpecificPostsPage: React.FC = () => {
   // 💡 백엔드에서 receiverPostId 필드를 추가해줘서, 이제 실제 API 값으로 정확히 판단 가능
   const isProposedToThisPost =
     sentProposal?.status === 'PENDING' &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sentProposal as any).receiverPostId === Number(postId);
+    sentProposal.receiverPostId === Number(postId);
 
   return (
     <div className="relative w-full h-full flex flex-col font-['Pretendard'] bg-neutral-50">
@@ -478,7 +456,7 @@ const SpecificPostsPage: React.FC = () => {
           <div className="flex items-center justify-center gap-6 py-3 border-y border-gray-200 mb-6">
             <button
               onClick={handleToggleLike}
-              disabled={isTogglingLike}
+              disabled={likeMutation.isPending}
               className="flex items-center gap-1.5 text-slate-500 text-sm font-light"
             >
               <Icon
@@ -697,17 +675,17 @@ const SpecificPostsPage: React.FC = () => {
           <div className="flex w-full gap-2">
             <button
               onClick={() => setShowDeleteModal(false)}
-              disabled={isDeleting}
+              disabled={deleteMutation.isPending}
               className="flex-1 h-11 rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white text-black text-sm font-medium tracking-tight"
             >
               취소
             </button>
             <button
               onClick={handleConfirmDelete}
-              disabled={isDeleting}
+              disabled={deleteMutation.isPending}
               className="flex-1 h-11 rounded-full bg-rose-500 text-white text-sm font-medium tracking-tight hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {isDeleting ? '삭제 중...' : '삭제'}
+              {deleteMutation.isPending ? '삭제 중...' : '삭제'}
             </button>
           </div>
         }
@@ -725,17 +703,17 @@ const SpecificPostsPage: React.FC = () => {
           <div className="flex w-full gap-2">
             <button
               onClick={() => setShowWithdrawModal(false)}
-              disabled={isWithdrawing}
+              disabled={withdrawMutation.isPending}
               className="flex-1 h-11 rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white text-black text-sm font-medium tracking-tight"
             >
               취소
             </button>
             <button
               onClick={handleConfirmWithdraw}
-              disabled={isWithdrawing}
+              disabled={withdrawMutation.isPending}
               className="flex-1 h-11 rounded-full bg-rose-500 text-white text-sm font-medium tracking-tight hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {isWithdrawing ? '철회 중...' : '철회'}
+              {withdrawMutation.isPending ? '철회 중...' : '철회'}
             </button>
           </div>
         }
