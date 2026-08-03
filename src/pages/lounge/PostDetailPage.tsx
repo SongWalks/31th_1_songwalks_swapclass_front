@@ -47,6 +47,12 @@ export const PostDetailPage = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const deleteTimerRef = useRef<number | null>(null);
 
+  const pendingDeleteIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    pendingDeleteIdRef.current = pendingDeleteId;
+  }, [pendingDeleteId]);
+
   const [toastConfig, setToastConfig] = useState({
     isVisible: false,
     message: '',
@@ -74,15 +80,32 @@ export const PostDetailPage = () => {
   const isScraped = postData?.bookmarked || false;
   const scrapCount = isScraped ? 1 : 0; // 본인이 스크랩한 경우 1, 아니면 0
 
-  // 🚀 comments 포맷팅 로직을 useMemo로 감싸 불필요한 재연산을 방지합니다.
   const comments: LocalComment[] = useMemo(() => {
     if (!postData) return [];
-    return postData.comments.map((c) => ({
-      ...c,
-      author: `송이`,
-      time: formatDate(c.createdAt),
-      isMine: c.mine,
-    }));
+
+    // userId에 따라 부여된 번호를 기억해둘 Map 객체 생성
+    const authorMap = new Map<number, number>();
+    let authorCounter = 1; // 1번(송이1)부터 시작
+
+    return postData.comments.map((c) => {
+      // API에서 제공하는 userId를 고유 식별자로 사용합니다.
+      const currentUserId = c.userId;
+
+      // 처음 댓글을 다는 유저라면 새로운 번호를 발급하고 Map에 저장
+      if (!authorMap.has(currentUserId)) {
+        authorMap.set(currentUserId, authorCounter++);
+      }
+
+      // Map에서 해당 유저의 고유 번호를 꺼내옴
+      const authorNumber = authorMap.get(currentUserId);
+
+      return {
+        ...c,
+        author: `송이${authorNumber}`, // 송이1, 송이2...
+        time: formatDate(c.createdAt),
+        isMine: c.mine,
+      };
+    });
   }, [postData]);
 
   // 화면에 실제로 보여질 댓글 (삭제 대기 중인 항목 제외)
@@ -91,7 +114,6 @@ export const PostDetailPage = () => {
   const { mutate: mutateLike } = useMutation({
     mutationFn: () => toggleLike(Number(postId)),
     onSuccess: (res) => {
-      // 💡 제네릭 <PostDetailResponse>를 추가하여 oldData의 타입을 안전하게 추론하게 합니다.
       queryClient.setQueryData<PostDetailResponse>(
         ['post', postId],
         (oldData) => {
@@ -114,7 +136,6 @@ export const PostDetailPage = () => {
     onSuccess: (res) => {
       const isNowBookmarked = res.data.bookmarked;
 
-      // 💡 여기도 마찬가지로 제네릭을 추가해 줍니다.
       queryClient.setQueryData<PostDetailResponse>(
         ['post', postId],
         (oldData) => {
@@ -167,16 +188,14 @@ export const PostDetailPage = () => {
     },
   });
 
-  // 🚀 삭제: 상태 복사 용도였던 문제의 useEffect를 완전히 제거했습니다.
-
-  // 페이지 이탈 시 지연된 삭제 요청 처리
   useEffect(() => {
     return () => {
-      if (deleteTimerRef.current && pendingDeleteId) {
-        mutateDeleteComment(pendingDeleteId);
+      // 의존성 배열이 비어있으므로 언마운트(페이지 이탈) 시에만 실행됩니다.
+      if (deleteTimerRef.current && pendingDeleteIdRef.current) {
+        mutateDeleteComment(pendingDeleteIdRef.current);
       }
     };
-  }, [pendingDeleteId, mutateDeleteComment]);
+  }, [mutateDeleteComment]);
 
   // --- 핸들러 함수들 ---
   const showToast = (message: string, showUndo = false) => {
@@ -400,7 +419,7 @@ export const PostDetailPage = () => {
       </div>
 
       {/* 하단 댓글 입력창 */}
-      <div className="absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30">
+      <div className="bg-[#FBFBFB] absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30">
         <Input
           variant="pill"
           placeholder="댓글을 입력하세요"
