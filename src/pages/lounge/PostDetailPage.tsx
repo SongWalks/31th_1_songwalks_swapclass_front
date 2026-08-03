@@ -79,7 +79,7 @@ export const PostDetailPage = () => {
     if (!postData) return [];
     return postData.comments.map((c) => ({
       ...c,
-      author: `익명`,
+      author: `송이`,
       time: formatDate(c.createdAt),
       isMine: c.mine,
     }));
@@ -297,7 +297,9 @@ export const PostDetailPage = () => {
         {/* 본문 컨텐츠 */}
         <div className="px-5 pt-4 pb-6">
           <div className="flex gap-2 mb-4">
-            <Badge variant="primary">
+            <Badge
+              variant={postData.type === 'TIP' ? 'primary' : 'lightYellow'}
+            >
               {postData.type === 'TIP' ? '강의꿀팁' : '폐강과목'}
             </Badge>
             <Badge variant="secondary">{postData.courseName}</Badge>
@@ -305,7 +307,7 @@ export const PostDetailPage = () => {
           <div className="flex items-center gap-3 mb-5">
             <Avatar size="md" className="!rounded-xl" />
             <div className="flex flex-col">
-              <span className="font-bold text-gray-900 text-[15px]">익명</span>
+              <span className="font-bold text-gray-900 text-[15px]">송이</span>
               <span className="text-[13px] text-gray-500">
                 {formatDate(postData.createdAt)}
               </span>
