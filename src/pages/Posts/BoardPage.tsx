@@ -407,16 +407,14 @@ const BoardPage = () => {
       </div>
 
       {/* 글쓰기 FAB */}
-      <div className="fixed inset-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] pointer-events-none z-40">
+      <div className="fixed bottom-0 inset-x-0 mx-auto w-full max-w-md h-0 z-50 pointer-events-none">
         <FAB
           onClick={() => navigate('/board/write')}
           icon={ICONS.PLUS}
           text="글쓰기"
-          className="!pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
+          className="absolute bottom-28 right-8 !pointer-events-auto !w-28 !h-14 !text-neutral-600 font-semibold !bg-brand-soft"
         />
       </div>
-
-      {/* 💡 하단 네비게이션 바는 라우터의 DefaultLayout이 자동으로 렌더링하므로 여기서 별도로 넣지 않음 */}
 
       {/* 비로그인 안내 모달 */}
       <Modal
