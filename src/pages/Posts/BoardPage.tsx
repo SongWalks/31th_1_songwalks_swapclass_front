@@ -10,6 +10,7 @@ import { Modal } from '@/components/common/Modal';
 import { Dropdown } from '@/components/common/Dropdown';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
+import { getTokens } from '@/store/tokenStorage';
 
 interface CourseDetail {
   courseId: number;
@@ -84,8 +85,8 @@ const BoardPage = () => {
 
   // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
   useEffect(() => {
-    const token = localStorage.getItem('soo_access_token');
-    if (!token) return;
+    const tokens = getTokens();
+    if (!tokens) return;
 
     const fetchMyPosts = async () => {
       try {
@@ -138,7 +139,19 @@ const BoardPage = () => {
 
         let rawPosts: BoardPostResponse[] = [];
 
-        if (targetFilter !== 'ALL') {
+        if (targetFilter !== 'ALL' && discardFilter !== 'ALL') {
+          // 💡 버그 수정: 둘 다 골랐을 때 이 조건이 없어서 targetFilter만 적용되고
+          // discardFilter는 무시되고 있었음. my-targets 받아서 두 조건 다(AND) 만족하는 것만 남김.
+          const response = await axiosInstance.get('/api/posts/my-targets');
+          const all: BoardPostResponse[] = response.data?.data || [];
+          rawPosts = all.filter(
+            (p) =>
+              p.discardCourse?.name === targetFilter &&
+              (p.wantedCourses || []).some(
+                (w) => w.course?.name === discardFilter,
+              ),
+          );
+        } else if (targetFilter !== 'ALL') {
           // 내가 want로 등록한 과목 중 하나를 골랐을 때: my-targets 받아서 그 과목만 추림
           const response = await axiosInstance.get('/api/posts/my-targets');
           const all: BoardPostResponse[] = response.data?.data || [];
@@ -208,7 +221,7 @@ const BoardPage = () => {
   }, [searchQuery, targetCourseFilter, discardCourseFilter, fetchPosts]);
 
   useEffect(() => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
     if (isLoggedIn) return; // 이미 로그인된 경우엔 안 띄움
 
     const scrollContainer = document.getElementById('main-scroll-container');
@@ -227,7 +240,7 @@ const BoardPage = () => {
   }, []);
 
   const handleFilterButtonClick = () => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
     if (!isLoggedIn) {
       setShowLoginModal(true);
       return;
@@ -236,7 +249,7 @@ const BoardPage = () => {
   };
 
   const handleWriteButtonClick = () => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
     if (!isLoggedIn) {
       setShowLoginModal(true);
       return;
@@ -245,7 +258,7 @@ const BoardPage = () => {
   };
 
   const handlePostClick = (postId: number) => {
-    const isLoggedIn = !!localStorage.getItem('accessToken');
+    const isLoggedIn = !!getTokens();
 
     if (!isLoggedIn) {
       setShowLoginModal(true);

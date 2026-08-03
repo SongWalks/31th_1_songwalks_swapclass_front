@@ -53,8 +53,8 @@ const MyPage = () => {
   const [isWithdrawConfirmModalOpen, setIsWithdrawConfirmModalOpen] =
     useState(false); // 최종 확인 모달
 
-  // 🛠️ 테스트용 변수 (백엔드 연동 전까지 화면 확인용)
-  const hasOngoingExchange = true;
+  // 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인하는 상태
+  const [hasOngoingExchange, setHasOngoingExchange] = useState(false);
 
   // 1. 내 정보 불러오기 API 연동
   useEffect(() => {
@@ -70,6 +70,22 @@ const MyPage = () => {
       }
     };
     fetchProfile();
+  }, []);
+
+  // 💡 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인 (예전엔 하드코딩된 true라 항상 떴었음)
+  useEffect(() => {
+    const checkOngoingExchange = async () => {
+      try {
+        const response = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'IN_EXCHANGE' },
+        });
+        const posts: { status: string }[] = response.data?.data || [];
+        setHasOngoingExchange(posts.length > 0);
+      } catch (error) {
+        console.error('교환 중인 게시글 확인 실패:', error);
+      }
+    };
+    checkOngoingExchange();
   }, []);
 
   // 💡 뱃지(받은 요청 개수 / 추천 매칭함 new 여부) 채우기
