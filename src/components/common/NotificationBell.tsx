@@ -7,10 +7,14 @@ export const NotificationBell = () => {
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
+  // 컴포넌트가 그려질 때 토큰이 있는지 확인
+  const token = localStorage.getItem('soo_access_token');
+
   useEffect(() => {
     const fetchUnreadCount = async () => {
+      if (!token) return;
+
       try {
-        const token = localStorage.getItem('accessToken');
         const response = await fetch(
           'https://swapclass.duckdns.org/api/notifications/unread-count',
           {
@@ -24,15 +28,11 @@ export const NotificationBell = () => {
 
         const result = await response.json();
 
-        // 💡 백엔드 응답(result.success)이 성공이고, data 객체가 존재할 때
         if (result.success && result.data) {
-          // result.data가 { "typeA": 1, "typeB": 2 } 형태이므로,
-          // Object.values로 숫자 배열([1, 2])만 뽑아낸 뒤 모두 더해줍니다.
           const totalCount = Object.values(result.data).reduce(
-            (sum: number, current: any) => sum + (Number(current) || 0),
+            (sum: number, current: unknown) => sum + (Number(current) || 0),
             0,
           );
-
           setUnreadCount(totalCount);
         }
       } catch (error) {
@@ -41,12 +41,14 @@ export const NotificationBell = () => {
     };
 
     fetchUnreadCount();
-  }, []);
+  }, [token]);
+
+  // 토큰이 없다면? UI를 아예 그리지 않고(null 반환) 컴포넌트 종료!
+  if (!token) return null;
 
   return (
-    <div className="relative inline-flex mt-1">
+    <div className="relative inline-flex">
       <IconButton icon={ICONS.BELL} onClick={() => navigate('/alert')} />
-
       {unreadCount > 0 && (
         <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full pointer-events-none" />
       )}

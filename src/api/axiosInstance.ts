@@ -8,14 +8,18 @@ const axiosInstance = axios.create({
   },
 });
 
-// TODO: 요청 인터셉터 — 토큰 자동 첨부 (나중에 채워야 됨)
-axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('soo_access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 // TODO: 응답 인터셉터 — 401 처리 등 (나중에 채워야 됨)
 // 응답 인터셉터 — 전역 에러 처리
@@ -30,25 +34,25 @@ axiosInstance.interceptors.response.use(
       window.location.href = '/login';
     }
 
-    // 2. 403 에러: 권한 없음 (정지된 사용자 처리)
+    // 2. 403 에러: 권한 없음 (정지된 사용자 OR 비로그인/권한 부족)
     if (error.response?.status === 403) {
-      // Axios는 서버 응답을 항상 'data' 객체로 감싸기 때문에
-      // error.response.data가 백엔드에서 보낸 전체 JSON이 됩니다.
-      const message =
-        error.response?.data?.message || '이용이 정지된 계정입니다.';
-
-      // 백엔드 JSON 구조에 맞춰서 data.data.suspendedUntil 로 접근
+      const backendMessage = error.response?.data?.message;
       const suspendedUntil = error.response?.data?.data?.suspendedUntil;
 
+      // 케이스 A: 진짜 정지된 유저 (suspendedUntil 값이 존재함)
       if (suspendedUntil) {
-        // "2026-08-01T00:00:00" -> "2026-08-01" 로 깔끔하게 변환
         const formattedDate = suspendedUntil.split('T')[0];
-        alert(`${message}\n정지 해제일: ${formattedDate}`);
-      } else {
-        alert(message);
+        alert(
+          `${backendMessage || '이용이 정지된 계정입니다.'}\n정지 해제일: ${formattedDate}`,
+        );
+      }
+      // 케이스 B: 비로그인 유저이거나 일반적인 권한 부족 에러
+      else {
+        // 백엔드가 준 메시지가 있으면 띄우고, 없으면 일반 안내 문구 노출
+        alert(backendMessage || '로그인이 필요합니다.');
       }
 
-      // 강제로 로그인 풀고 쫓아내기
+      // 두 케이스 모두 토큰 지우고 로그인으로 쫓아냄
       localStorage.removeItem('accessToken');
       window.location.href = '/login';
     }

@@ -180,13 +180,25 @@ export default function ReportPage() {
 // ==========================================
 
 // 3-1. 개별 신고 사유 항목 UI
+interface ReasonItemProps {
+  reason: {
+    id: string;
+    title: string;
+    desc: string;
+  };
+  isSelected: boolean;
+  onSelect: () => void;
+  otherText: string;
+  onOtherTextChange: (text: string) => void;
+}
+
 function ReasonItem({
   reason,
   isSelected,
   onSelect,
   otherText,
   onOtherTextChange,
-}: any) {
+}: ReasonItemProps) {
   return (
     <div
       className={`border rounded-[10px] overflow-hidden ${isSelected ? 'border-brand-lightBlue bg-[#F4F9FF]' : 'border-gray-200 bg-white'}`}
@@ -237,7 +249,19 @@ function ReasonItem({
 }
 
 // 3-2. 이미지 첨부 영역 UI
-function ImageUploadSection({ images, fileInputRef, onUpload, onRemove }: any) {
+interface ImageUploadSectionProps {
+  images: File[];
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: (indexToRemove: number) => void;
+}
+
+function ImageUploadSection({
+  images,
+  fileInputRef,
+  onUpload,
+  onRemove,
+}: ImageUploadSectionProps) {
   return (
     <section>
       <div className="flex justify-between items-end mb-1">

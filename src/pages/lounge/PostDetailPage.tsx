@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react'; // 🚀 useMemo 추가
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@iconify/react';
@@ -21,7 +21,7 @@ import {
   createComment,
   deleteComment,
 } from '@/api/lounge/lounge';
-import type { LocalComment } from '@/types/lounge/lounge';
+import type { LocalComment, PostDetailResponse } from '@/types/lounge/lounge';
 
 const formatDate = (dateString: string) => {
   if (!dateString) return '';
@@ -47,20 +47,17 @@ export const PostDetailPage = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const deleteTimerRef = useRef<number | null>(null);
 
+  const pendingDeleteIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    pendingDeleteIdRef.current = pendingDeleteId;
+  }, [pendingDeleteId]);
+
   const [toastConfig, setToastConfig] = useState({
     isVisible: false,
     message: '',
     showUndo: false,
   });
-
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [isScraped, setIsScraped] = useState(false);
-  const [scrapCount, setScrapCount] = useState(0);
-  const [comments, setComments] = useState<LocalComment[]>([]);
-
-  // 화면에 실제로 보여질 댓글 (삭제 대기 중인 항목 제외)
-  const visibleComments = comments.filter((c) => c.id !== pendingDeleteId);
 
   // --- API 연동 (Queries & Mutations) ---
   const {
@@ -73,11 +70,64 @@ export const PostDetailPage = () => {
     enabled: !!postId,
   });
 
+  const postData = postResponse?.data;
+  const isMyPost = postData?.mine || false;
+
+  // 🚀 서버 데이터 기반 파생 상태 (Derived State)
+  // 렌더링 시점에 postData를 기반으로 바로 계산해서 사용합니다.
+  const isLiked = postData?.liked || false;
+  const likeCount = postData?.likeCount || 0;
+  const isScraped = postData?.bookmarked || false;
+  const scrapCount = isScraped ? 1 : 0; // 본인이 스크랩한 경우 1, 아니면 0
+
+  const comments: LocalComment[] = useMemo(() => {
+    if (!postData) return [];
+
+    // userId에 따라 부여된 번호를 기억해둘 Map 객체 생성
+    const authorMap = new Map<number, number>();
+    let authorCounter = 1; // 1번(송이1)부터 시작
+
+    return postData.comments.map((c) => {
+      // API에서 제공하는 userId를 고유 식별자로 사용합니다.
+      const currentUserId = c.userId;
+
+      // 처음 댓글을 다는 유저라면 새로운 번호를 발급하고 Map에 저장
+      if (!authorMap.has(currentUserId)) {
+        authorMap.set(currentUserId, authorCounter++);
+      }
+
+      // Map에서 해당 유저의 고유 번호를 꺼내옴
+      const authorNumber = authorMap.get(currentUserId);
+
+      return {
+        ...c,
+        author: `송이${authorNumber}`, // 송이1, 송이2...
+        time: formatDate(c.createdAt),
+        isMine: c.mine,
+      };
+    });
+  }, [postData]);
+
+  // 화면에 실제로 보여질 댓글 (삭제 대기 중인 항목 제외)
+  const visibleComments = comments.filter((c) => c.id !== pendingDeleteId);
+
   const { mutate: mutateLike } = useMutation({
     mutationFn: () => toggleLike(Number(postId)),
     onSuccess: (res) => {
-      setIsLiked(res.data.liked);
-      setLikeCount(res.data.likeCount);
+      queryClient.setQueryData<PostDetailResponse>(
+        ['post', postId],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            data: {
+              ...oldData.data,
+              liked: res.data.liked,
+              likeCount: res.data.likeCount,
+            },
+          };
+        },
+      );
     },
   });
 
@@ -85,8 +135,21 @@ export const PostDetailPage = () => {
     mutationFn: () => toggleBookmark(Number(postId)),
     onSuccess: (res) => {
       const isNowBookmarked = res.data.bookmarked;
-      setIsScraped(isNowBookmarked);
-      setScrapCount((prev) => (isNowBookmarked ? prev + 1 : prev - 1));
+
+      queryClient.setQueryData<PostDetailResponse>(
+        ['post', postId],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            data: {
+              ...oldData.data,
+              bookmarked: isNowBookmarked,
+            },
+          };
+        },
+      );
+
       if (isNowBookmarked) {
         showToast('북마크 되었습니다.');
       }
@@ -125,35 +188,14 @@ export const PostDetailPage = () => {
     },
   });
 
-  const postData = postResponse?.data;
-
-  const isMyPost = postData?.mine || false;
-
-  useEffect(() => {
-    if (postData) {
-      setIsLiked(postData.liked);
-      setLikeCount(postData.likeCount);
-      setIsScraped(postData.bookmarked);
-      setScrapCount(postData.bookmarked ? 1 : 0);
-
-      const formattedComments: LocalComment[] = postData.comments.map((c) => ({
-        ...c,
-        author: `익명`,
-        time: formatDate(c.createdAt),
-        isMine: c.mine,
-      }));
-      setComments(formattedComments);
-    }
-  }, [postData]);
-
-  // 페이지 이탈 시 지연된 삭제 요청 처리
   useEffect(() => {
     return () => {
-      if (deleteTimerRef.current && pendingDeleteId) {
-        mutateDeleteComment(pendingDeleteId);
+      // 의존성 배열이 비어있으므로 언마운트(페이지 이탈) 시에만 실행됩니다.
+      if (deleteTimerRef.current && pendingDeleteIdRef.current) {
+        mutateDeleteComment(pendingDeleteIdRef.current);
       }
     };
-  }, [pendingDeleteId, mutateDeleteComment]);
+  }, [mutateDeleteComment]);
 
   // --- 핸들러 함수들 ---
   const showToast = (message: string, showUndo = false) => {
@@ -166,7 +208,6 @@ export const PostDetailPage = () => {
   };
 
   const handleDeleteClick = (commentId: number) => {
-    // 기존에 대기 중인 삭제가 있다면 즉시 실행
     if (pendingDeleteId && pendingDeleteId !== commentId) {
       mutateDeleteComment(pendingDeleteId);
     }
@@ -181,14 +222,14 @@ export const PostDetailPage = () => {
     deleteTimerRef.current = window.setTimeout(() => {
       mutateDeleteComment(commentId);
       setPendingDeleteId(null);
-      deleteTimerRef.current = null; // ✅ 실행 완료 후 확실한 비우기
+      deleteTimerRef.current = null;
     }, 3000);
   };
 
   const handleUndoDelete = () => {
     if (deleteTimerRef.current) {
       window.clearTimeout(deleteTimerRef.current);
-      deleteTimerRef.current = null; // 🚀 [핵심 Fix] 여기서 null로 비워야 cleanup에서 API 요청을 안 보냅니다!
+      deleteTimerRef.current = null;
     }
     setPendingDeleteId(null);
     setToastConfig({ isVisible: false, message: '', showUndo: false });
@@ -275,7 +316,9 @@ export const PostDetailPage = () => {
         {/* 본문 컨텐츠 */}
         <div className="px-5 pt-4 pb-6">
           <div className="flex gap-2 mb-4">
-            <Badge variant="primary">
+            <Badge
+              variant={postData.type === 'TIP' ? 'primary' : 'lightYellow'}
+            >
               {postData.type === 'TIP' ? '강의꿀팁' : '폐강과목'}
             </Badge>
             <Badge variant="secondary">{postData.courseName}</Badge>
@@ -283,7 +326,7 @@ export const PostDetailPage = () => {
           <div className="flex items-center gap-3 mb-5">
             <Avatar size="md" className="!rounded-xl" />
             <div className="flex flex-col">
-              <span className="font-bold text-gray-900 text-[15px]">익명</span>
+              <span className="font-bold text-gray-900 text-[15px]">송이</span>
               <span className="text-[13px] text-gray-500">
                 {formatDate(postData.createdAt)}
               </span>
@@ -295,13 +338,6 @@ export const PostDetailPage = () => {
           <p className="text-[15px] text-gray-600 leading-relaxed mb-6 whitespace-pre-wrap">
             {postData.content}
           </p>
-          <div className="flex items-center justify-end gap-1 text-[13px] text-gray-400">
-            <Icon
-              icon="ph:clock-fill"
-              className="text-[14px] -translate-y-[1px]"
-            />
-            <span>{formatDate(postData.updatedAt)}</span>
-          </div>
         </div>
 
         {/* 액션 바 */}
@@ -322,7 +358,6 @@ export const PostDetailPage = () => {
           <button className="flex-1 flex items-center justify-center gap-1.5 hover:text-gray-600 transition-colors">
             <Icon icon="ph:chat-circle" className="text-[18px]" />
             댓글 {visibleComments.length}{' '}
-            {/* 🚀 삭제 대기 중인 수량 즉시 반영 */}
           </button>
           <div className="w-[1px] bg-gray-200" />
           <button
@@ -344,7 +379,6 @@ export const PostDetailPage = () => {
           <div className="flex items-center gap-1.5 font-bold text-[#004786] mb-3">
             <Icon icon="ph:chat-circle" className="text-[18px]" />
             <span>댓글 {visibleComments.length}</span>{' '}
-            {/* 🚀 삭제 대기 중인 수량 즉시 반영 */}
           </div>
           <div className="space-y-2">
             {visibleComments.map((comment) => (
@@ -378,7 +412,7 @@ export const PostDetailPage = () => {
       </div>
 
       {/* 하단 댓글 입력창 */}
-      <div className="absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30">
+      <div className="bg-[#FBFBFB] absolute bottom-0 left-0 w-full px-4 py-3 pb-safe z-30">
         <Input
           variant="pill"
           placeholder="댓글을 입력하세요"
