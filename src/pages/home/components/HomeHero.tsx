@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Button from '@/components/common/Button';
+import noonsongImg from '@/assets/images/noonsong.png';
 
 interface SimpleCourse {
   name: string;
@@ -67,7 +68,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
         }`}
       >
         <img
-          src="/src/assets/images/noonsong.png"
+          src={noonsongImg}
           alt="수강구조대 마스코트"
           className="w-full h-full object-contain drop-shadow-md"
         />
