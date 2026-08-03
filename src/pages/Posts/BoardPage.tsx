@@ -84,7 +84,7 @@ const BoardPage = () => {
 
   // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('soo_access_token');
     if (!token) return;
 
     const fetchMyPosts = async () => {
