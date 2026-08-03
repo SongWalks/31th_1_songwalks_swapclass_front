@@ -191,29 +191,8 @@ export default function AlertPage() {
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div className="sticky top-0 z-20 bg-[#fbfbfb]">
         <Header
-          leftNode={
-            <div
-              style={{
-                position: 'absolute',
-                top: 19,
-                left: 12,
-                opacity: 0.6,
-                transform: 'scale(1.1)',
-                transformOrigin: 'top left',
-              }}
-              className="z-10"
-            >
-              <IconButton icon={ICONS.BACK} onClick={handleBack} />
-            </div>
-          }
-          title={
-            <span
-              style={{ color: '#000000B2', marginLeft: 50 }}
-              className="text-semibold-18"
-            >
-              알림
-            </span>
-          }
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title={'알림'}
         />
       </div>
 

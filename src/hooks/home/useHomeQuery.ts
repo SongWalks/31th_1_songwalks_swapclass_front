@@ -26,11 +26,13 @@ export interface Proposal {
 }
 
 export interface Post {
-  postId: number;
+  id: number;
   discardCourse: Course;
   wantedCourses: { priority: number; course: Course }[];
+  senderPostId: number;
+  myDiscardCourse: Course;
+  matchRank: number;
   proposalCount: number;
-  createdAt: string;
   requestStatus?: 'PENDING' | null;
 }
 

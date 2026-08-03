@@ -1,23 +1,28 @@
 import { create } from 'zustand';
 
+export interface Course {
+  id: number;
+  title: string;
+}
+
 // 1. Zustand 스토어 타입 정의
 interface LoungeState {
   activeTab: string;
   searchQuery: string;
   selectedType: string | null;
-  selectedCourses: string[];
+  selectedCourses: Course[];
   isFilterModalOpen: boolean;
 
   setActiveTab: (tab: string) => void;
   setSearchQuery: (query: string) => void;
   setSelectedType: (type: string | null) => void;
-  setSelectedCourses: (courses: string[]) => void;
+  setSelectedCourses: (courses: Course[]) => void;
   setIsFilterModalOpen: (isOpen: boolean) => void;
 
   handleResetFilters: () => void;
-  handleRemoveCourse: (course: string) => void;
+  handleRemoveCourse: (courseId: number) => void;
   handleToggleType: (type: string) => void;
-  handleAddCourse: (course: string) => void;
+  handleAddCourse: (course: Course) => void;
 }
 
 // 2. Zustand 스토어 생성
@@ -36,10 +41,10 @@ const useLoungeStore = create<LoungeState>((set) => ({
 
   handleResetFilters: () => set({ selectedType: null, selectedCourses: [] }),
 
-  handleRemoveCourse: (courseToRemove) =>
+  handleRemoveCourse: (courseIdToRemove) =>
     set((state) => ({
       selectedCourses: state.selectedCourses.filter(
-        (c) => c !== courseToRemove,
+        (c) => c.id !== courseIdToRemove,
       ),
     })),
 
@@ -48,11 +53,13 @@ const useLoungeStore = create<LoungeState>((set) => ({
       selectedType: state.selectedType === type ? null : type,
     })),
 
-  handleAddCourse: (course) =>
+  handleAddCourse: (courseToAdd) =>
     set((state) => ({
-      selectedCourses: state.selectedCourses.includes(course)
+      selectedCourses: state.selectedCourses.some(
+        (c) => c.id === courseToAdd.id,
+      )
         ? state.selectedCourses
-        : [...state.selectedCourses, course],
+        : [...state.selectedCourses, courseToAdd],
     })),
 }));
 

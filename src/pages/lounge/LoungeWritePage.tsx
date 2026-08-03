@@ -151,14 +151,19 @@ export const LoungeWritePage = () => {
                 </div>
 
                 <div className="flex gap-2 shrink-0">
-                  {courseTag.badges.map((badge: any, idx: number) => (
-                    <span
-                      key={idx}
-                      className="px-3 py-1 bg-[#E2F0F9] text-brand-lightBlue text-[12px] font-medium rounded-md w-fit"
-                    >
-                      {badge.label}
-                    </span>
-                  ))}
+                  {courseTag.badges.map(
+                    (
+                      badge: { label: string; variant: string },
+                      idx: number,
+                    ) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 bg-[#E2F0F9] text-brand-lightBlue text-[12px] font-medium rounded-md w-fit"
+                      >
+                        {badge.label}
+                      </span>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
