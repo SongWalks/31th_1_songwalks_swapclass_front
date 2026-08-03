@@ -218,7 +218,7 @@ const ExchangeRequestPage = () => {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard'] pb-28 relative">
+    <div className="w-full h-full min-h-0 flex flex-col font-['Pretendard'] relative bg-[#FBFBFB]">
       <div className="sticky top-0 z-50 bg-[#FBFBFB]">
         {/* 상단 헤더 */}
         <div className="[&>*]:!border-none">
@@ -242,297 +242,304 @@ const ExchangeRequestPage = () => {
         </div>
       </div>
 
-      {/* 3. 본문 영역 */}
-      {activeTabId === 'received' ? (
-        /* --- [받은 요청] 탭 내용 --- */
-        <div className="px-5 pt-6 flex flex-col gap-4">
-          {([1, 2, 3, 'unranked'] as const).map((priority) => {
-            const isOpen = openSections[priority];
-            const isUnranked = priority === 'unranked';
+      {/* 3. 본문 영역 (내부에서만 스크롤되게 함 — min-h-screen이 DefaultLayout의 남는 공간보다
+          커서 EmptyState만 있어도 페이지 자체가 스크롤되던 문제 수정) */}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-28">
+        {activeTabId === 'received' ? (
+          /* --- [받은 요청] 탭 내용 --- */
+          <div className="px-5 pt-6 flex flex-col gap-4">
+            {([1, 2, 3, 'unranked'] as const).map((priority) => {
+              const isOpen = openSections[priority];
+              const isUnranked = priority === 'unranked';
 
-            const rankProposals = receivedProposals.filter((item) =>
-              isUnranked
-                ? item.matchRank === null || item.matchRank === undefined
-                : item.matchRank === priority,
-            );
+              const rankProposals = receivedProposals.filter((item) =>
+                isUnranked
+                  ? item.matchRank === null || item.matchRank === undefined
+                  : item.matchRank === priority,
+              );
 
-            const hasRequest = rankProposals.length > 0;
-            const isInactiveWithRequest = !isOpen && hasRequest;
-            const sectionLabel = isUnranked
-              ? '순위에 없는 과목'
-              : `${priority}순위 과목`;
+              const hasRequest = rankProposals.length > 0;
+              const isInactiveWithRequest = !isOpen && hasRequest;
+              const sectionLabel = isUnranked
+                ? '순위에 없는 과목'
+                : `${priority}순위 과목`;
 
-            return (
-              <div
-                key={priority}
-                className={`w-full flex flex-col transition-all duration-300 ${
-                  isOpen ? 'shadow-sm rounded-lg' : ''
-                }`}
-              >
-                {/* 아코디언 헤더 */}
+              return (
                 <div
-                  onClick={() => toggleSection(priority)}
-                  className={`w-full cursor-pointer flex items-center justify-between transition-all duration-200 select-none ${
-                    isOpen
-                      ? 'h-11 px-4 bg-blue-50 border border-brand-lightBlue rounded-t-lg z-10'
-                      : `h-12 px-5 bg-white rounded-full shadow-sm border ${
-                          isInactiveWithRequest
-                            ? 'border-rose-500'
-                            : 'border-gray-200'
-                        }`
+                  key={priority}
+                  className={`w-full flex flex-col transition-all duration-300 ${
+                    isOpen ? 'shadow-sm rounded-lg' : ''
                   }`}
                 >
-                  <div className="flex items-center gap-1 relative">
-                    <span
-                      className={`text-sm font-medium tracking-tight ${
+                  {/* 아코디언 헤더 */}
+                  <div
+                    onClick={() => toggleSection(priority)}
+                    className={`w-full cursor-pointer flex items-center justify-between transition-all duration-200 select-none ${
+                      isOpen
+                        ? 'h-11 px-4 bg-blue-50 border border-brand-lightBlue rounded-t-lg z-10'
+                        : `h-12 px-5 bg-white rounded-full shadow-sm border ${
+                            isInactiveWithRequest
+                              ? 'border-rose-500'
+                              : 'border-gray-200'
+                          }`
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 relative">
+                      <span
+                        className={`text-sm font-medium tracking-tight ${
+                          isOpen
+                            ? 'text-cyan-950'
+                            : isInactiveWithRequest
+                              ? 'text-rose-500'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        {sectionLabel}
+                      </span>
+                      {isInactiveWithRequest && (
+                        <span className="size-[3.7px] bg-rose-500 rounded-full mb-2" />
+                      )}
+                    </div>
+
+                    <Icon
+                      icon={
+                        isOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'
+                      }
+                      className={`w-5 h-5 transition-transform duration-200 ${
                         isOpen
-                          ? 'text-cyan-950'
+                          ? 'text-brand-lightBlue'
                           : isInactiveWithRequest
                             ? 'text-rose-500'
-                            : 'text-slate-500'
+                            : 'text-gray-300'
                       }`}
-                    >
-                      {sectionLabel}
-                    </span>
-                    {isInactiveWithRequest && (
-                      <span className="size-[3.7px] bg-rose-500 rounded-full mb-2" />
-                    )}
+                    />
                   </div>
 
-                  <Icon
-                    icon={isOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-                    className={`w-5 h-5 transition-transform duration-200 ${
-                      isOpen
-                        ? 'text-brand-lightBlue'
-                        : isInactiveWithRequest
-                          ? 'text-rose-500'
-                          : 'text-gray-300'
-                    }`}
-                  />
-                </div>
+                  {/* 아코디언 바디 */}
+                  {isOpen && (
+                    <div className="min-h-[250px] bg-white border border-t-0 border-gray-300 rounded-b-lg flex flex-col overflow-hidden animate-fade-in-up">
+                      {rankProposals.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+                          <Icon
+                            icon={ICONS.WARNING}
+                            className="w-10 h-10 mb-4 text-brand-lightBlue"
+                          />
+                          <span className="text-black text-sm font-medium leading-5 tracking-wide mb-1">
+                            아직 {sectionLabel}의 교환 요청이 없어요!
+                          </span>
+                          <span className="text-neutral-500 text-sm font-light leading-5 tracking-wide">
+                            교환 요청이 도착하면 이곳에서 확인할 수 있습니다
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col divide-y divide-gray-100">
+                          {rankProposals.map((req) => {
+                            const remainSeconds =
+                              req.expiresAt !== undefined
+                                ? Math.max(
+                                    0,
+                                    Math.round((req.expiresAt - now) / 1000),
+                                  )
+                                : undefined;
 
-                {/* 아코디언 바디 */}
-                {isOpen && (
-                  <div className="min-h-[250px] bg-white border border-t-0 border-gray-300 rounded-b-lg flex flex-col overflow-hidden animate-fade-in-up">
-                    {rankProposals.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
-                        <Icon
-                          icon={ICONS.WARNING}
-                          className="w-10 h-10 mb-4 text-brand-lightBlue"
-                        />
-                        <span className="text-black text-sm font-medium leading-5 tracking-wide mb-1">
-                          아직 {sectionLabel}의 교환 요청이 없어요!
-                        </span>
-                        <span className="text-neutral-500 text-sm font-light leading-5 tracking-wide">
-                          교환 요청이 도착하면 이곳에서 확인할 수 있습니다
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col divide-y divide-gray-100">
-                        {rankProposals.map((req) => {
-                          const remainSeconds =
-                            req.expiresAt !== undefined
-                              ? Math.max(
-                                  0,
-                                  Math.round((req.expiresAt - now) / 1000),
-                                )
-                              : undefined;
+                            const counterpartWanted = [
+                              ...(req.counterpartPost?.wantedCourses || []),
+                            ].sort((a, b) => a.priority - b.priority);
 
-                          const counterpartWanted = [
-                            ...(req.counterpartPost?.wantedCourses || []),
-                          ].sort((a, b) => a.priority - b.priority);
-
-                          return (
-                            <div
-                              key={req.id}
-                              onClick={() =>
-                                navigate(`/proposal/${req.id}`, {
-                                  state: {
-                                    receivedCount: req.receivedCount,
-                                  },
-                                })
-                              }
-                              className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
-                            >
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-black text-lg font-medium leading-5 tracking-wide">
-                                  {req.counterpartPost?.discardCourse?.name}
-                                </span>
-                                <div className="flex items-center gap-2 ">
-                                  {remainSeconds !== undefined && (
-                                    <span
-                                      className={`flex items-center gap-1 text-xs font-bold tracking-wide ${getRemainingColorClass(
-                                        remainSeconds,
-                                      )}`}
-                                    >
-                                      <Icon
-                                        icon="lucide:clock"
-                                        className="w-3 h-3"
-                                      />
-                                      {formatRemaining(remainSeconds)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {counterpartWanted.length > 0 && (
-                                <div className="flex flex-col gap-1.5 pl-1">
-                                  {counterpartWanted.map((item, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="flex items-center gap-2"
-                                    >
-                                      <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
-                                        {idx + 1}
-                                      </div>
-                                      <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
-                                        {item.course?.name}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
+                            return (
                               <div
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                key={req.id}
+                                onClick={() =>
                                   navigate(`/proposal/${req.id}`, {
                                     state: {
                                       receivedCount: req.receivedCount,
                                     },
-                                  });
-                                }}
-                                className="absolute right-5 bottom-4 flex items-center text-neutral-500 text-xs font-light tracking-tight cursor-pointer gap-1"
+                                  })
+                                }
+                                className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
                               >
-                                <img
-                                  src={requestCommentIcon}
-                                  alt="받은 요청"
-                                  className="w-3.5 h-3.5"
-                                />
-                                받은 요청 {req.receivedCount}개
-                                <img
-                                  src={movementIcon}
-                                  alt="이동"
-                                  className="w-3.5 h-3.5"
-                                />
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                                    {req.counterpartPost?.discardCourse?.name}
+                                  </span>
+                                  <div className="flex items-center gap-2 ">
+                                    {remainSeconds !== undefined && (
+                                      <span
+                                        className={`flex items-center gap-1 text-xs font-bold tracking-wide ${getRemainingColorClass(
+                                          remainSeconds,
+                                        )}`}
+                                      >
+                                        <Icon
+                                          icon="lucide:clock"
+                                          className="w-3 h-3"
+                                        />
+                                        {formatRemaining(remainSeconds)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {counterpartWanted.length > 0 && (
+                                  <div className="flex flex-col gap-1.5 pl-1">
+                                    {counterpartWanted.map((item, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
+                                          {idx + 1}
+                                        </div>
+                                        <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                                          {item.course?.name}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/proposal/${req.id}`, {
+                                      state: {
+                                        receivedCount: req.receivedCount,
+                                      },
+                                    });
+                                  }}
+                                  className="absolute right-5 bottom-4 flex items-center text-neutral-500 text-xs font-light tracking-tight cursor-pointer gap-1"
+                                >
+                                  <img
+                                    src={requestCommentIcon}
+                                    alt="받은 요청"
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  받은 요청 {req.receivedCount}개
+                                  <img
+                                    src={movementIcon}
+                                    alt="이동"
+                                    className="w-3.5 h-3.5"
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* --- [보낸 요청] 탭 내용 --- */
-        <div className="flex-1 flex flex-col px-5 pt-6">
-          {!isSentProposalActive ? (
-            /* 1. 보낸 요청 데이터가 없을 때 (비어있을 때) */
-            <div className="flex-1 flex flex-col items-center justify-center py-24 text-center">
-              <Icon
-                icon={ICONS.WARNING}
-                className="w-10 h-10 mb-4 text-brand-lightBlue opacity-50"
-              />
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* --- [보낸 요청] 탭 내용 --- */
+          <div className="flex-1 flex flex-col px-5 pt-6">
+            {!isSentProposalActive ? (
+              /* 1. 보낸 요청 데이터가 없을 때 (비어있을 때) */
+              <div className="flex-1 flex flex-col items-center justify-center py-24 text-center">
+                <Icon
+                  icon={ICONS.WARNING}
+                  className="w-10 h-10 mb-4 text-brand-lightBlue opacity-50"
+                />
 
-              <span className="text-black text-sm font-medium leading-5 tracking-wide mb-1">
-                아직 보낸 교환 게시글이 없어요.
-              </span>
-              <span className="text-neutral-500 text-sm font-light leading-5 tracking-wide mb-6">
-                교환 매칭 추천함에서 조건에 맞는 강의를 찾아 <br />
-                교환을 제안해 보세요!
-              </span>
-
-              <button
-                onClick={() => navigate('/my/exchange-recommend')}
-                className="flex items-center justify-center gap-1 text-brand-lightBlue text-base font-medium underline tracking-wide cursor-pointer hover:opacity-80 transition-opacity mx-auto"
-              >
-                <span>교환 매칭 추천함 가기 &gt; </span>
-              </button>
-            </div>
-          ) : (
-            /* 2. 보낸 요청 데이터가 존재할 때 */
-            <div
-              onClick={() => navigate(`/board/${sentProposal.receiverPostId}`)}
-              className="w-full flex flex-col px-1 relative cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-black text-lg font-medium leading-5 tracking-wide">
-                  {sentProposal.counterpartPost?.discardCourse?.name}
+                <span className="text-black text-sm font-medium leading-5 tracking-wide mb-1">
+                  아직 보낸 교환 게시글이 없어요.
                 </span>
-                {(() => {
-                  const sentRemainSeconds =
-                    sentProposal.expiresAt !== undefined
-                      ? Math.max(
-                          0,
-                          Math.round((sentProposal.expiresAt - now) / 1000),
-                        )
-                      : undefined;
+                <span className="text-neutral-500 text-sm font-light leading-5 tracking-wide mb-6">
+                  교환 매칭 추천함에서 조건에 맞는 강의를 찾아 <br />
+                  교환을 제안해 보세요!
+                </span>
 
-                  if (sentRemainSeconds === undefined) {
+                <button
+                  onClick={() => navigate('/my/exchange-recommend')}
+                  className="flex items-center justify-center gap-1 text-brand-lightBlue text-base font-medium underline tracking-wide cursor-pointer hover:opacity-80 transition-opacity mx-auto"
+                >
+                  <span>교환 매칭 추천함 가기 &gt; </span>
+                </button>
+              </div>
+            ) : (
+              /* 2. 보낸 요청 데이터가 존재할 때 */
+              <div
+                onClick={() =>
+                  navigate(`/board/${sentProposal.receiverPostId}`)
+                }
+                className="w-full flex flex-col px-1 relative cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                    {sentProposal.counterpartPost?.discardCourse?.name}
+                  </span>
+                  {(() => {
+                    const sentRemainSeconds =
+                      sentProposal.expiresAt !== undefined
+                        ? Math.max(
+                            0,
+                            Math.round((sentProposal.expiresAt - now) / 1000),
+                          )
+                        : undefined;
+
+                    if (sentRemainSeconds === undefined) {
+                      return (
+                        <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-zinc-400">
+                          <Icon icon="lucide:clock" className="w-3 h-3" />-
+                        </span>
+                      );
+                    }
+
                     return (
-                      <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-zinc-400">
-                        <Icon icon="lucide:clock" className="w-3 h-3" />-
+                      <span
+                        className={`flex items-center gap-1 text-xs font-bold tracking-wide ${getRemainingColorClass(
+                          sentRemainSeconds,
+                        )}`}
+                      >
+                        <Icon icon="lucide:clock" className="w-3 h-3" />
+                        {formatRemaining(sentRemainSeconds)}
                       </span>
                     );
-                  }
-
-                  return (
-                    <span
-                      className={`flex items-center gap-1 text-xs font-bold tracking-wide ${getRemainingColorClass(
-                        sentRemainSeconds,
-                      )}`}
-                    >
-                      <Icon icon="lucide:clock" className="w-3 h-3" />
-                      {formatRemaining(sentRemainSeconds)}
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div className="flex flex-col gap-1.5 pl-1 mb-5">
-                {[...(sentProposal.counterpartPost?.wantedCourses || [])]
-                  .sort((a, b) => a.priority - b.priority)
-                  .map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
-                        {idx + 1}
-                      </div>
-                      <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
-                        {item.course?.name}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-
-              <div className="flex items-center justify-end text-zinc-400 text-xs font-normal gap-2.5 mb-5">
-                <div className="flex items-center gap-1 cursor-pointer">
-                  <img
-                    src={requestCommentIcon}
-                    alt="받은 요청"
-                    className="w-3.5 h-3.5"
-                  />
-                  <span>받은 요청 {sentProposal.receivedCount}개</span>
-                  <img src={movementIcon} alt="이동" className="w-3 h-3" />
+                  })()}
                 </div>
-              </div>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsWithdrawModalOpen(true);
-                }}
-                className="w-full h-11 bg-brand-lightBlue text-white text-sm font-medium rounded-2xl flex items-center justify-center tracking-wide hover:opacity-90 transition-opacity cursor-pointer"
-              >
-                요청 철회
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+                <div className="flex flex-col gap-1.5 pl-1 mb-5">
+                  {[...(sentProposal.counterpartPost?.wantedCourses || [])]
+                    .sort((a, b) => a.priority - b.priority)
+                    .map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
+                          {idx + 1}
+                        </div>
+                        <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                          {item.course?.name}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="flex items-center justify-end text-zinc-400 text-xs font-normal gap-2.5 mb-5">
+                  <div className="flex items-center gap-1 cursor-pointer">
+                    <img
+                      src={requestCommentIcon}
+                      alt="받은 요청"
+                      className="w-3.5 h-3.5"
+                    />
+                    <span>받은 요청 {sentProposal.receivedCount}개</span>
+                    <img src={movementIcon} alt="이동" className="w-3 h-3" />
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsWithdrawModalOpen(true);
+                  }}
+                  className="w-full h-11 bg-brand-lightBlue text-white text-sm font-medium rounded-2xl flex items-center justify-center tracking-wide hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                  요청 철회
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 4. 하단 고정 안내 박스 */}
       {activeTabId === 'sent' && isSentProposalActive && (

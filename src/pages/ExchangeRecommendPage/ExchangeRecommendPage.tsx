@@ -183,7 +183,7 @@ const ExchangeRecommendPage = () => {
   const currentPosts = postsByRank[activeTab];
 
   return (
-    <div className="relative w-full min-h-screen bg-[#FBFBFB] flex flex-col font-['Pretendard']">
+    <div className="relative w-full h-full min-h-0 flex flex-col font-['Pretendard'] bg-[#FBFBFB]">
       <div className="[&>header]:!border-none sticky top-0 z-40 bg-[#FBFBFB]">
         <Header
           leftNode={
@@ -203,7 +203,7 @@ const ExchangeRecommendPage = () => {
       </div>
 
       {/* 내용 */}
-      <div className="flex-1 px-5 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-2">
         {loading ? (
           <div className="py-20 text-center text-gray-400 text-sm">
             추천 목록을 불러오는 중입니다...
