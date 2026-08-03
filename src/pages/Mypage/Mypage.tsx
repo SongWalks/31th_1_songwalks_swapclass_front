@@ -25,6 +25,7 @@ import {
   type UserProfile,
 } from '@/api/mypage/mypageApi';
 import axiosInstance from '@/api/axiosInstance';
+import { clearTokens } from '@/store/tokenStorage';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -77,7 +78,7 @@ const MyPage = () => {
       // 받은 요청함 뱃지: PENDING(대기 중) 상태인 것만 개수로 카운트
       try {
         const receivedRes = await axiosInstance.get('/api/proposals/received');
-        const received: any[] = receivedRes.data?.data || [];
+        const received: { status: string }[] = receivedRes.data?.data || [];
         setRequestCount(
           received.filter((item) => item.status === 'PENDING').length,
         );
@@ -134,7 +135,7 @@ const MyPage = () => {
       const res = await deleteAccount();
       if (res.success) {
         alert('회원 탈퇴가 정상적으로 처리되었습니다.');
-        // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
+        clearTokens();
         navigate('/'); // 탈퇴 후 로그인 화면으로 이동
       }
     } catch (error) {
@@ -148,8 +149,8 @@ const MyPage = () => {
   // 로그아웃 처리
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
-      // TODO: 로그인 토큰 삭제 로직 추가 (예: localStorage.removeItem('token'))
-      navigate('/'); // 로그아웃 후 메인 화면으로 이동
+      clearTokens();
+      navigate('/');
     }
   };
 
@@ -297,7 +298,10 @@ const MyPage = () => {
       {/* 헤더 바 */}
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <div className="[&>*]:!border-none">
-          <Header title={'마이페이지'} rightNode={<NotificationBell />} />
+          <Header
+            title={<div className="">마이페이지</div>}
+            rightNode={<NotificationBell />}
+          />
         </div>
       </div>
 

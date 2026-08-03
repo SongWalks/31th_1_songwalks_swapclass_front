@@ -61,7 +61,6 @@ export const router = createBrowserRouter([
             path: 'my',
             children: [
               { index: true, element: <Mypage /> },
-              { path: 'password-change', element: <PasswordChangepage /> },
               { path: 'posts', element: <MyPostpage /> },
               { path: 'likes', element: <LikeListPage /> },
               { path: 'lounge', element: <MyLoungePostsPage /> },
@@ -79,6 +78,7 @@ export const router = createBrowserRouter([
         // ==========================================
         element: <FullScreenLayout />,
         children: [
+          { path: 'password-change', element: <PasswordChangepage /> },
           { path: '/report', element: <ReportPage /> },
           { path: '/report/success', element: <ReportSuccessPage /> }, // 신고 완료 페이지 (임시)
           {

@@ -11,6 +11,11 @@ import {
 } from '@/api/mypage/myloungeApi';
 import { NotificationBell } from '@/components/common/NotificationBell';
 
+// 💡 LoungePostItem 타입엔 아직 없지만 실제 응답엔 있는 content 필드를 위한 확장 타입
+interface LoungePostWithContent extends LoungePostItem {
+  content?: string;
+}
+
 const MyLoungePostsPage: React.FC = () => {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<LoungePostItem[]>([]);
@@ -49,7 +54,7 @@ const MyLoungePostsPage: React.FC = () => {
   const toPostCardData = (post: LoungePostItem): Post => ({
     id: post.id,
     title: post.title,
-    content: (post as any).content || '',
+    content: (post as LoungePostWithContent).content || '',
     date: formatDate(post.createdAt),
     postType: post.type === 'CLOSURE' ? '폐강과목' : '강의꿀팁',
     courseTag: post.courseName,
@@ -69,11 +74,7 @@ const MyLoungePostsPage: React.FC = () => {
               className="text-black/40"
             />
           }
-          title={
-            <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-              내 라운지 게시글
-            </div>
-          }
+          title={<div>내 라운지 게시글</div>}
           rightNode={<NotificationBell />}
         />
       </div>
@@ -96,7 +97,7 @@ const MyLoungePostsPage: React.FC = () => {
               <PostCard
                 key={post.id}
                 post={toPostCardData(post)}
-                onClick={() => navigate(`/lounge/${post.id}`)}
+                onClick={() => navigate(`/post/${post.id}`)}
               />
             ))}
           </div>
