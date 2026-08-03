@@ -297,14 +297,7 @@ const MyPage = () => {
       {/* 헤더 바 */}
       <div className="sticky top-0 z-40 bg-[#FBFBFB]">
         <div className="[&>*]:!border-none">
-          <Header
-            title={
-              <div className="whitespace-nowrap transform text-black/70 text-xl font-semibold leading-5 tracking-wide">
-                마이페이지
-              </div>
-            }
-            rightNode={<NotificationBell />}
-          />
+          <Header title={'마이페이지'} rightNode={<NotificationBell />} />
         </div>
       </div>
 
