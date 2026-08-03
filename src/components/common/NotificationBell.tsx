@@ -47,7 +47,7 @@ export const NotificationBell = () => {
   if (!token) return null;
 
   return (
-    <div className="relative inline-flex mt-1">
+    <div className="relative inline-flex">
       <IconButton icon={ICONS.BELL} onClick={() => navigate('/alert')} />
       {unreadCount > 0 && (
         <div className="absolute top-2.5 left-1.5 w-1 h-1 bg-point-red rounded-full pointer-events-none" />
