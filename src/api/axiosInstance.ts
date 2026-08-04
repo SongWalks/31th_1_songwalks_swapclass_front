@@ -45,7 +45,6 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 403) {
       localStorage.removeItem('soo_access_token');
 
-      // 💡 3. 알림이 아직 안 떴을 때만 실행
       if (!isSilentRequest && !isAuthAlertShown) {
         isAuthAlertShown = true; // 스위치 켜기
 
