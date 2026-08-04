@@ -60,7 +60,6 @@ export default function HomePage() {
   }
 
   const {
-    unreadCount = 0, // 혹시 값이 없으면 0으로 처리
     heroBanner,
     receivedProposals = [],
     recommendedFeed,
@@ -182,7 +181,7 @@ export default function HomePage() {
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50">
-          <HomeHeader isScrolled={isScrolled} unreadCount={unreadCount} />
+          <HomeHeader isScrolled={isScrolled} />
         </div>
 
         <div className="px-5 flex flex-col pt-[56px] mt-2">
