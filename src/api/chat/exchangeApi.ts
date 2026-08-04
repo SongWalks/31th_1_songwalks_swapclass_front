@@ -1,7 +1,4 @@
 // src/api/exchangeApi.ts
-// 스웨거 기준 /api/exchanges/{exchangeId}/... 엔드포인트
-// ⚠️ roomId 가 아니라 exchangeId 를 사용해야 한다. exchangeId는
-//    chatRoomApi.getRoom(roomId) 응답의 data.room.exchangeId 로 얻는다.
 
 import { apiPost, apiPostForm } from '@/api/chat/apiClient';
 
@@ -38,8 +35,6 @@ export const exchangeApi = {
     }),
 
   // 2) 교환 결과 선택(성공/실패)
-  // 스웨거 예시 바디가 { success: true } 형태이므로 SUCCESS -> true, FAIL -> false 로 매핑한다.
-  // ⚠️ FAIL 케이스의 실제 바디 예시가 스웨거에 없어 백엔드팀 확인이 되면 값 매핑을 재검증할 것.
   submitResult: (exchangeId: number | string, result: 'SUCCESS' | 'FAIL') =>
     apiPost<ResultResponse>(`/api/exchanges/${exchangeId}/result`, {
       success: result === 'SUCCESS',

@@ -34,6 +34,17 @@ const AMPM_OPTIONS = ['오전', '오후'] as const;
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1); // 1~12
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => i); // 0~59, 5분 단위 아님
 
+// 현재 시각(로컬)을 오전/오후 + 1~12시 + 분 형태로 변환
+const getCurrentTimeParts = () => {
+  const now = new Date();
+  const rawHour = now.getHours(); // 0~23
+  const minute = now.getMinutes();
+  const ampm: (typeof AMPM_OPTIONS)[number] = rawHour < 12 ? '오전' : '오후';
+  let hour = rawHour % 12;
+  if (hour === 0) hour = 12; // 0시/12시 → 12시로 표기
+  return { ampm, hour, minute };
+};
+
 export default function ScheduleDecisionPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,9 +53,11 @@ export default function ScheduleDecisionPage() {
   const [dateOptions] = useState(() => generateDateOptions());
   const [date, setDate] = useState(dateOptions[0].label);
 
-  const [ampm, setAmpm] = useState<(typeof AMPM_OPTIONS)[number]>('오전');
-  const [hour, setHour] = useState(4);
-  const [minute, setMinute] = useState(0);
+  const [{ ampm: initialAmpm, hour: initialHour, minute: initialMinute }] =
+    useState(getCurrentTimeParts);
+  const [ampm, setAmpm] = useState<(typeof AMPM_OPTIONS)[number]>(initialAmpm);
+  const [hour, setHour] = useState(initialHour);
+  const [minute, setMinute] = useState(initialMinute);
 
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState(

@@ -22,10 +22,6 @@ const formatRemaining = (min: number | null) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
-// timerExpiresAt이 있으면 (scheduleState와 무관하게) 카운트다운 대상으로 취급한다.
-// - scheduleState: 'PROPOSED' 인 경우 "교환시간 제안 30분" 타이머
-// - 향후 백엔드가 "무응답 자동파기 30분" 타이머용으로도 이 필드를 채워줄 수 있음
-// 즉 timerExpiresAt 존재 여부만으로 판단하면 두 케이스 모두 코드 변경 없이 대응 가능.
 const calcRemainingMinutes = (timerExpiresAt: string | null): number | null => {
   if (!timerExpiresAt) return null;
   const remainMs = new Date(timerExpiresAt).getTime() - Date.now();
@@ -38,35 +34,40 @@ export default function ExchangeRoomListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const fetchRooms = async () => {
-    setIsLoading(true);
-    try {
-      const data = await chatRoomApi.getRoomList();
-      const mapped: ExchangeRoom[] = data.map((room) => ({
-        id: room.roomId,
-        myCourseName: room.myCourseName,
-        counterpartCourseName: room.partnerCourseName,
-        remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
-        // TODO: 응답에 안읽음 여부 필드가 없어 기본값 false로 둠. 필요하면 백엔드에 필드 추가 요청.
-        isRead: false,
-      }));
-      setRooms(mapped);
-    } catch (err) {
-      setApiError(
-        err instanceof ApiError
-          ? err.message
-          : '채팅방 목록을 불러오지 못했습니다.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    // 마운트 시 1회 데이터 페칭 - 의도된 패턴이라 룰 예외 처리
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    let ignore = false;
+
+    const fetchRooms = async () => {
+      setIsLoading(true);
+      try {
+        const data = await chatRoomApi.getRoomList();
+        const mapped: ExchangeRoom[] = data.map((room) => ({
+          id: room.roomId,
+          myCourseName: room.myCourseName,
+          counterpartCourseName: room.partnerCourseName,
+          remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+          // TODO: 응답에 안읽음 여부 필드가 없어 기본값 false로 둠. 필요하면 백엔드에 필드 추가 요청.
+          isRead: false,
+        }));
+        if (!ignore) setRooms(mapped);
+      } catch (err) {
+        if (!ignore) {
+          setApiError(
+            err instanceof ApiError
+              ? err.message
+              : '채팅방 목록을 불러오지 못했습니다.',
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    };
+
     void fetchRooms();
-     
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const handleRoomClick = (room: ExchangeRoom) =>

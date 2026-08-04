@@ -15,18 +15,11 @@ import { chatRoomApi, type ChatMessageDto } from '@/api/chat/chatRoomApi';
 import { exchangeApi } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 import { useChatSocket } from '@/api/chat/useChatSocket';
-
-// TODO: 실제 로그인 유저 id로 교체 (인증/세션 연동 후)
-const CURRENT_USER_ID = 1;
+import { getTokens, decodeUserId } from '../../store/tokenStorage';
 
 const COUNTDOWN_START = 10;
 const COUNTDOWN_RED_THRESHOLD = 3;
 
-// 채팅방(room.status)에서 파생되는 화면 단계
-// CHAT / GUIDE 는 프론트 로컬 전용 화면(서버 status 없음)
-// VERIFY / COUNTDOWN / DISPUTE 는 서버 room.status 를 기준으로 진입한다.
-// ⚠️ 아래 문자열들은 스웨거에 정확한 enum이 명시돼 있지 않아 기존 기획 문서의
-//    상태값을 그대로 가정한 것. 백엔드 실제 enum과 다르면 STATUS_TO_FLOW_STEP 만 고치면 된다.
 type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
 type VerifySubStep =
   | 'INTRO'
@@ -115,6 +108,10 @@ export default function ChatRoomPage() {
   const counterpartCourseName =
     navCourses?.counterpartCourseName ?? '알 수 없음';
 
+  // JWT의 sub 클레임 = 로그인 유저 id. senderId(number)와 비교해야 하므로 Number 변환 필수.
+  const CURRENT_USER_ID =
+    Number(decodeUserId(getTokens()?.accessToken ?? '')) || null;
+
   // ===== 서버 연동 상태 =====
   const [exchangeId, setExchangeId] = useState<number | null>(null);
   const [roomStatus, setRoomStatus] = useState<string>('CHATTING');
@@ -170,7 +167,13 @@ export default function ChatRoomPage() {
       const data = await chatRoomApi.getRoom(roomId, { size: 50 });
       setExchangeId(data.room.exchangeId);
       setRoomStatus(data.room.status);
-      setMessages(data.messages);
+      // 서버가 커서 페이징 특성상 최신순(내림차순)으로 내려주므로 createdAt 기준 오름차순으로 정렬해 표시한다.
+      setMessages(
+        [...data.messages].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ),
+      );
     } catch (err) {
       setApiError(
         err instanceof ApiError
@@ -189,7 +192,7 @@ export default function ChatRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  // ============ 실시간 채팅 (STOMP) ============
+  // ============ 실시간 채팅 (STOMP / SockJS) ============
   const handleIncomingMessage = (message: ChatMessageDto) => {
     setMessages((prev) => [...prev, message]);
 
@@ -283,7 +286,9 @@ export default function ChatRoomPage() {
 
   const handleBack = () => navigate(-1);
 
-  const handleSend = async () => {
+  // ⚠️ 메시지 전송은 REST POST 엔드포인트가 없음(스웨거 확인 완료) — STOMP publish로만 처리한다.
+  //    STOMP 연결이 안 되어 있으면 전송 자체가 불가하므로 에러만 안내한다.
+  const handleSend = () => {
     const content = inputValue.trim();
     if (!content) return;
     const ok = sendMessage(content);
@@ -291,18 +296,7 @@ export default function ChatRoomPage() {
       setInputValue('');
       return;
     }
-    // STOMP 연결 실패 시 REST로 1회 재시도
-    try {
-      await chatRoomApi.sendMessage(roomId, content);
-      setInputValue('');
-      loadRoom(); // 실시간 push가 안 오니 재조회로 동기화
-    } catch (err) {
-      setApiError(
-        err instanceof ApiError
-          ? err.message
-          : '메시지를 전송하지 못했습니다. 연결 상태를 확인해주세요.',
-      );
-    }
+    setApiError('채팅 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

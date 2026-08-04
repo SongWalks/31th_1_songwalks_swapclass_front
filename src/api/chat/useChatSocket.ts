@@ -1,15 +1,14 @@
 // src/hooks/useChatSocket.ts
-// 연결: /ws, 발행: /app/chat/{roomId}/send, 구독: /topic/chat/{roomId}
+// 연결: SockJS(https://.../ws) → 내부적으로 wss 업그레이드, 발행: /app/chat/{roomId}/send, 구독: /topic/chat/{roomId}
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import { API_BASE } from '@/api/chat/apiClient';
 import { getTokens } from '../../store/tokenStorage';
 import type { ChatMessageDto } from '@/api/chat/chatRoomApi';
 
-const WS_URL = API_BASE
-  ? `${API_BASE.replace(/^http/, 'ws')}/ws`
-  : `${window.location.origin.replace(/^http/, 'ws')}/ws`;
+const SOCKJS_URL = API_BASE ? `${API_BASE}/ws` : `${window.location.origin}/ws`;
 
 interface UseChatSocketOptions {
   roomId: string;
@@ -30,9 +29,8 @@ export function useChatSocket({
   useEffect(() => {
     if (!enabled || !roomId) return;
 
-    const tokens = getTokens();
     const client = new Client({
-      brokerURL: WS_URL,
+      webSocketFactory: () => new SockJS(SOCKJS_URL),
       // ⚠️ 재연결 시에도 매번 최신 토큰을 읽어야 access token 재발급 이후에도 정상 연결된다.
       beforeConnect: () => {
         const latest = getTokens();
@@ -40,9 +38,6 @@ export function useChatSocket({
           ? { Authorization: `Bearer ${latest.accessToken}` }
           : {};
       },
-      connectHeaders: tokens?.accessToken
-        ? { Authorization: `Bearer ${tokens.accessToken}` }
-        : {},
       reconnectDelay: 3000,
       onConnect: () => {
         setIsConnected(true);
@@ -57,9 +52,6 @@ export function useChatSocket({
         });
       },
       onStompError: (frame) => {
-        // ⚠️ Authorization 만료로 인한 연결 거부(예: 401 상당 STOMP 에러)인 경우
-        //    accessToken을 갱신한 뒤 재연결하는 로직이 필요할 수 있음 - 백엔드가 내려주는
-        //    에러 헤더/코드 포맷 확인 후 보강할 것.
         console.error('STOMP 에러', frame.headers['message']);
       },
       onDisconnect: () => setIsConnected(false),
@@ -79,7 +71,6 @@ export function useChatSocket({
     (content: string) => {
       const client = clientRef.current;
       if (!client || !client.connected) {
-        // TODO: 연결 안 된 상태에서 전송 시도 시 재시도 큐 또는 에러 토스트 처리
         console.error('채팅 서버에 연결되어 있지 않습니다.');
         return false;
       }
