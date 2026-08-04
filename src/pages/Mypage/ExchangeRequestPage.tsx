@@ -63,7 +63,7 @@ interface EnrichedProposal extends Omit<RawProposal, 'expiresAt'> {
 const parseAsUtcMs = (dateString?: string): number | undefined => {
   if (!dateString) return undefined;
   const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
-  const normalized = hasTimezone ? dateString : `${dateString}Z`;
+  const normalized = hasTimezone ? dateString : `${dateString}`;
   const ms = new Date(normalized).getTime();
   return Number.isNaN(ms) ? undefined : ms;
 };
@@ -543,7 +543,7 @@ const ExchangeRequestPage = () => {
 
       {/* 4. 하단 고정 안내 박스 */}
       {activeTabId === 'sent' && isSentProposalActive && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-yellow-50 px-6 py-3.5 border-t border-yellow-100 flex items-center justify-start text-left z-40 shadow-lg">
+        <div className="fixed left-1/2 -translate-x-1/2 w-full relative bg-yellow-50 px-6 py-3.5 border-t border-yellow-100 flex items-center justify-start text-left z-40 shadow-lg">
           <span className="text-yellow-700 text-sm font-normal leading-5 tracking-wide whitespace-pre-line">
             {`진행 중인 교환 요청이 있습니다.\n새 요청은 철회 후 보낼 수 있습니다.`}
           </span>

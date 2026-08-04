@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { NotificationBell } from '@/components/common/NotificationBell';
 import Header from '@/components/layout/Header';
-import { IconButton } from '@/components/common/IconButton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { FAB } from '@/components/common/FAB';
 import { Modal } from '@/components/common/Modal';
@@ -27,12 +26,15 @@ interface WantedCourseItem {
 }
 
 // 💡 GET /api/posts 응답의 content 배열 항목
+// 💡 status: 게시판 목록엔 원래 없던 필드였는데, IN_EXCHANGE/COMPLETED 게시글을 걸러내려면
+// 필요해서 옵셔널로 추가함. 응답에 아직 없으면 필터링이 그냥 무해하게 통과됨(에러 안 남).
 interface BoardPostResponse {
   postId: number;
   discardCourse: CourseDetail;
   wantedCourses: WantedCourseItem[];
   proposalCount: number;
   createdAt: string;
+  status?: 'MATCHABLE' | 'IN_EXCHANGE' | 'COMPLETED' | 'DELETED' | string;
 }
 
 // 💡 GET /api/posts/me 응답 항목
@@ -63,6 +65,8 @@ const BoardPage = () => {
 
   // 💡 내 게시글 정보: /api/posts/me로 조회
   const [myPostId, setMyPostId] = useState<number | null>(null); // 제안 보낼 때 senderPostId로 사용
+  // 💡 게시판에서 내 게시글은 안 보여야 해서, 내 게시글 ID들을 따로 모아둠
+  const [myPostIds, setMyPostIds] = useState<Set<number>>(new Set());
 
   // 💡 비로그인 상태에서 스크롤 시 로그인/가입 유도 모달
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -98,6 +102,7 @@ const BoardPage = () => {
         // 제안을 보낼 때 쓸 postId: 교환 가능(MATCHABLE) 상태인 첫 게시글 기준
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
         setMyPostId(activePost ? activePost.postId : null);
+        setMyPostIds(new Set(myPosts.map((p) => p.postId)));
 
         const wantedNames = new Set<string>();
         const discardNames = new Set<string>();
@@ -132,7 +137,12 @@ const BoardPage = () => {
 
   // 2. 게시글 목록 조회 (특정 과목 필터가 걸려있으면 클라이언트에서 그 과목만 추려냄)
   const fetchPosts = useCallback(
-    async (dept: string, targetFilter: string, discardFilter: string) => {
+    async (
+      dept: string,
+      targetFilter: string,
+      discardFilter: string,
+      myPostIds: Set<number>,
+    ) => {
       try {
         setLoading(true);
         setLoadError(null);
@@ -172,6 +182,15 @@ const BoardPage = () => {
           });
           rawPosts = response.data?.data?.content || [];
         }
+
+        // 💡 게시판엔 교환 가능한(MATCHABLE) 게시글만 보여야 함 — 교환 중/완료된 글은 제외
+        rawPosts = rawPosts.filter(
+          (p) => p.status !== 'IN_EXCHANGE' && p.status !== 'COMPLETED',
+        );
+
+        // 💡 내 게시글은 게시판에서 안 보여야 함 — /api/posts 응답 자체엔 작성자 정보가
+        // 없어서, 미리 받아둔 내 게시글 ID 목록(myPostIds)이랑 대조해서 걸러냄
+        rawPosts = rawPosts.filter((p) => !myPostIds.has(p.postId));
 
         const mapped: BoardPost[] = rawPosts.map((post) => {
           const sortedWanted = [...(post.wantedCourses || [])].sort(
@@ -215,10 +234,21 @@ const BoardPage = () => {
   // 검색(dept) 또는 과목 필터 변경 시 디바운스 처리 (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPosts(searchQuery, targetCourseFilter, discardCourseFilter);
+      fetchPosts(
+        searchQuery,
+        targetCourseFilter,
+        discardCourseFilter,
+        myPostIds,
+      );
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, targetCourseFilter, discardCourseFilter, fetchPosts]);
+  }, [
+    searchQuery,
+    targetCourseFilter,
+    discardCourseFilter,
+    myPostIds,
+    fetchPosts,
+  ]);
 
   useEffect(() => {
     const isLoggedIn = !!getTokens();
@@ -281,7 +311,6 @@ const BoardPage = () => {
           rightNode={
             <div className="flex items-center gap-2">
               <NotificationBell />
-              <IconButton icon="mdi:menu" className="text-black" />
             </div>
           }
         />
@@ -303,27 +332,21 @@ const BoardPage = () => {
           </div>
         </div>
 
-        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 (드롭다운, 서로 배타적) */}
+        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 (드롭다운, 동시에 선택 가능) */}
         <div className="px-5 pb-3 flex items-center gap-3">
           {myPostId ? (
             <>
               <Dropdown
                 options={myTargetOptions}
                 value={targetCourseFilter}
-                onChange={(v) => {
-                  setTargetCourseFilter(v);
-                  setDiscardCourseFilter('ALL');
-                }}
+                onChange={(v) => setTargetCourseFilter(v)}
                 placeholder="내 타겟 과목"
                 className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
               />
               <Dropdown
                 options={myDiscardOptions}
                 value={discardCourseFilter}
-                onChange={(v) => {
-                  setDiscardCourseFilter(v);
-                  setTargetCourseFilter('ALL');
-                }}
+                onChange={(v) => setDiscardCourseFilter(v)}
                 placeholder="내 버릴 과목"
                 className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
               />
@@ -374,6 +397,7 @@ const BoardPage = () => {
                     searchQuery,
                     targetCourseFilter,
                     discardCourseFilter,
+                    myPostIds,
                   )
                 }
                 className="mt-1 px-4 py-2 bg-brand-lightBlue text-white text-xs font-medium rounded-full hover:opacity-90 transition-opacity"
@@ -399,7 +423,7 @@ const BoardPage = () => {
                 className="py-6 flex flex-col relative cursor-pointer hover:bg-black/[0.01] transition-colors"
               >
                 {/* 제목 */}
-                <h3 className="text-lg font-medium text-black leading-5 tracking-wide">
+                <h3 className="text-xl font-medium text-black leading-5 tracking-wide">
                   {post.title}
                 </h3>
 
@@ -410,7 +434,7 @@ const BoardPage = () => {
                       <div className="w-3.5 h-3.5 rounded-full bg-blue-100 flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
                         {index + 1}
                       </div>
-                      <span className="text-xs font-light text-black/70 leading-5 tracking-wide">
+                      <span className="text-sm font-light text-black/70 leading-5 tracking-wide">
                         {subject}
                       </span>
                     </div>
