@@ -60,7 +60,7 @@ export default function LoginPage() {
         type: 'success',
         message: `로그인에 성공했습니다. ${autoLogin ? '자동 로그인이 설정됨' : ''}`,
       });
-      navigate('/'); // TODO: 실제 로그인 후 이동할 경로로 교체
+      window.location.href = '/';
     } catch (err) {
       if (err instanceof ApiError) {
         // 400: 비밀번호 불일치, 403: 정지된 계정 등 서버 메시지 그대로 노출
