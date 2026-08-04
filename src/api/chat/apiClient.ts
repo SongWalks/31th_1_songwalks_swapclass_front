@@ -1,7 +1,4 @@
 // src/api/apiClient.ts
-// 공통 fetch 래퍼. 스웨거 공통 응답 포맷 { success, data, message } 을 그대로 다룬다.
-// ⚠️ 인증은 쿠키 세션이 아니라 Bearer 토큰(사용자가 이미 구현한 tokenStorage) 방식이라
-//    Authorization 헤더로 토큰을 실어 보내고, 401을 받으면 refreshToken으로 재발급 후 1회 재시도한다.
 
 import { getTokens, saveTokens, clearTokens } from '../../store/tokenStorage';
 

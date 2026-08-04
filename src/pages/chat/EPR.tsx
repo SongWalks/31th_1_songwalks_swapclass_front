@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import clockIcon from '@/assets/icons/clock.svg';
 import { NotificationBell } from '@/components/common/NotificationBell';
+import { chatRoomApi } from '@/api/chat/chatRoomApi';
+import { ApiError } from '@/api/chat/apiClient';
 
 interface ExchangeRoom {
   id: number;
@@ -12,23 +14,6 @@ interface ExchangeRoom {
   isRead: boolean;
 }
 
-const MOCK_ROOMS: ExchangeRoom[] = [
-  {
-    id: 1,
-    myCourseName: '마케팅과 소비자이슈',
-    counterpartCourseName: '프로그래밍언어론',
-    remainingMinutes: 30,
-    isRead: false,
-  },
-  {
-    id: 2,
-    myCourseName: '자바프로그래밍',
-    counterpartCourseName: '소비자 경제',
-    remainingMinutes: null,
-    isRead: false,
-  },
-];
-
 const formatRemaining = (min: number | null) => {
   if (min === null) return '미정';
   if (min < 60) return `${min}m`;
@@ -37,17 +22,41 @@ const formatRemaining = (min: number | null) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
+// timerExpiresAt이 있으면 (scheduleState와 무관하게) 카운트다운 대상으로 취급한다.
+// - scheduleState: 'PROPOSED' 인 경우 "교환시간 제안 30분" 타이머
+// - 향후 백엔드가 "무응답 자동파기 30분" 타이머용으로도 이 필드를 채워줄 수 있음
+// 즉 timerExpiresAt 존재 여부만으로 판단하면 두 케이스 모두 코드 변경 없이 대응 가능.
+const calcRemainingMinutes = (timerExpiresAt: string | null): number | null => {
+  if (!timerExpiresAt) return null;
+  const remainMs = new Date(timerExpiresAt).getTime() - Date.now();
+  return Math.max(0, Math.floor(remainMs / 60000));
+};
+
 export default function ExchangeRoomListPage() {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<ExchangeRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const fetchRooms = async () => {
     setIsLoading(true);
     try {
-      // TODO: 채팅방 목록 조회 API 붙이기 (지금은 mock)
-      await new Promise((r) => setTimeout(r, 200));
-      setRooms(MOCK_ROOMS);
+      const data = await chatRoomApi.getRoomList();
+      const mapped: ExchangeRoom[] = data.map((room) => ({
+        id: room.roomId,
+        myCourseName: room.myCourseName,
+        counterpartCourseName: room.partnerCourseName,
+        remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+        // TODO: 응답에 안읽음 여부 필드가 없어 기본값 false로 둠. 필요하면 백엔드에 필드 추가 요청.
+        isRead: false,
+      }));
+      setRooms(mapped);
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '채팅방 목록을 불러오지 못했습니다.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -57,9 +66,16 @@ export default function ExchangeRoomListPage() {
     // 마운트 시 1회 데이터 페칭 - 의도된 패턴이라 룰 예외 처리
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchRooms();
+     
   }, []);
 
-  const handleRoomClick = (roomId: number) => navigate(`/chat/${roomId}`);
+  const handleRoomClick = (room: ExchangeRoom) =>
+    navigate(`/chat/${room.id}`, {
+      state: {
+        myCourseName: room.myCourseName,
+        counterpartCourseName: room.counterpartCourseName,
+      },
+    });
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
@@ -83,7 +99,7 @@ export default function ExchangeRoomListPage() {
           <button
             key={room.id}
             type="button"
-            onClick={() => handleRoomClick(room.id)}
+            onClick={() => handleRoomClick(room)}
             className="flex items-center justify-between gap-3 px-5 py-5 text-left border-b border-gray-300"
           >
             <div className="flex items-start gap-4 min-w-0">
@@ -107,6 +123,12 @@ export default function ExchangeRoomListPage() {
           </button>
         ))}
       </div>
+
+      {apiError && (
+        <div className="px-5 py-3 text-xs text-point-red text-center">
+          {apiError}
+        </div>
+      )}
     </div>
   );
 }

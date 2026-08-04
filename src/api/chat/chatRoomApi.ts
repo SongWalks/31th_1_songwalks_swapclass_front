@@ -26,7 +26,30 @@ export interface MessagesDto {
   messages: ChatMessageDto[];
 }
 
+// ===== 채팅방 목록 조회 =====
+export type ScheduleState = 'UNDECIDED' | 'PROPOSED';
+
+export interface ChatRoomListItemDto {
+  roomId: number;
+  status: string;
+  exchangeId: number;
+  partnerId: number;
+  partnerNickname: string;
+  myCourseName: string;
+  partnerCourseName: string;
+  scheduleState: ScheduleState;
+  scheduledAt: string | null;
+  timerExpiresAt: string | null;
+  remainSeconds: number | null;
+  lastMessage: string | null;
+  lastMessageType: 'TEXT' | 'SYSTEM' | null;
+  lastMessageAt: string | null;
+}
+
 export const chatRoomApi = {
+  // 채팅방 목록 조회
+  getRoomList: () => apiGet<ChatRoomListItemDto[]>('/api/chat-rooms'),
+
   // 채팅방 상태 + 메시지 내역 (커서 페이징)
   getRoom: (
     roomId: number | string,

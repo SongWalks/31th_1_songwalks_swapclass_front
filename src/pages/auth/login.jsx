@@ -1,9 +1,9 @@
-import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { useNavigate } from 'react-router-dom';
 import { loginRequest, ApiError } from '@/api/auth/authApi';
-import { saveTokens } from '@/store/tokenStorage';
+import { saveTokens, decodeUserId } from '@/store/tokenStorage';
+import { useAuthStore } from '@/store/useAuthStore';
 import lockIcon from '../../assets/icons/lock.svg';
 import joinIcon from '../../assets/icons/join.svg';
 import checkIcon from '../../assets/icons/check.svg';
@@ -16,9 +16,12 @@ import { Input } from '../../components/common/Input';
 import { Spinner } from '../../components/common/Spinner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FRAME_W = 402;
+const FRAME_H = 874;
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,8 +32,25 @@ export default function LoginPage() {
 
   const refreshTimerRef = useRef(null);
 
+  // 화면 크기(가로/세로)에 맞춰 카드 전체를 스케일링 + 중앙 정렬
+  // FindPasswordPage / SignupPage와 완전히 동일한 계산식 사용
+  const wrapRef = useRef(null);
+  const [scale, setScale] = useState(1);
+
   useEffect(() => {
     return () => clearTimeout(refreshTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      const nextScale = Math.min(width / FRAME_W, height / FRAME_H, 1);
+      setScale(nextScale);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   function validate() {
@@ -54,8 +74,18 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const { data } = await loginRequest({ email: email.trim(), password });
-      saveTokens(data, autoLogin);
+      const trimmedEmail = email.trim();
+      const { data } = await loginRequest({ email: trimmedEmail, password });
+
+      // 토큰과 함께 이메일도 저장 (autoLogin이면 localStorage, 아니면 sessionStorage)
+      saveTokens(data, autoLogin, trimmedEmail);
+
+      // authStore도 같이 채워야 새로고침 전까지 로그인 상태로 인식됨
+      login({
+        id: decodeUserId(data.accessToken),
+        email: trimmedEmail,
+      });
+
       setBanner({
         type: 'success',
         message: `로그인에 성공했습니다. ${autoLogin ? '자동 로그인이 설정됨' : ''}`,
@@ -77,8 +107,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#eeeeee] font-['Pretendard'] overflow-hidden">
-      <div className="flex flex-col w-full h-full flex-1 min-h-0 box-border bg-[#fbfbfb] rounded-[4px] shadow-[0_0_0_1px_rgba(0,0,0,0.02)] overflow-y-auto">
+    <div
+      ref={wrapRef}
+      className="h-full w-full flex items-center justify-center font-['Pretendard'] overflow-hidden"
+    >
+      <div
+        className="flex flex-col bg-[#fbfbfb] shrink-0"
+        style={{ width: FRAME_W, transform: `scale(${scale})` }}
+      >
         <div>
           <div className="block w-[131.397px] h-[59.797px] mt-[214.03px] ml-[135.3px]">
             <img src={logo} alt="SOO" className="w-full h-full block" />
@@ -238,7 +274,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="flex items-center gap-3 mt-[37px] ml-24">
+        <div className="flex items-center gap-3 mt-[37px] ml-24 pb-[37px]">
           <button
             type="button"
             className="bg-none border-none flex items-center gap-1.5 cursor-pointer text-black text-[14px] font-light leading-5 tracking-[0.4px]"

@@ -102,20 +102,18 @@ const formatScheduledDate = (iso: string) => {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
 };
 
-const MOCK_ROOM_COURSES: Record<string, { my: string; counterpart: string }> = {
-  // TODO: 실제 room 상세 API로 대체 (내 과목명 / 상대 과목명) - 현재 스웨거에 과목명 필드가 없어 임시 유지
-  '1': { my: '마케팅과 소비자 이슈', counterpart: '프로그래밍언어론' },
-  '2': { my: '자바프로그래밍', counterpart: '소비자 경제' },
-};
-
 export default function ChatRoomPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
 
-  const myCourseName = MOCK_ROOM_COURSES[roomId]?.my ?? '알 수 없음';
+  const navCourses = location.state as {
+    myCourseName?: string;
+    counterpartCourseName?: string;
+  } | null;
+  const myCourseName = navCourses?.myCourseName ?? '알 수 없음';
   const counterpartCourseName =
-    MOCK_ROOM_COURSES[roomId]?.counterpart ?? '알 수 없음';
+    navCourses?.counterpartCourseName ?? '알 수 없음';
 
   // ===== 서버 연동 상태 =====
   const [exchangeId, setExchangeId] = useState<number | null>(null);
@@ -124,10 +122,6 @@ export default function ChatRoomPage() {
   const [isLoadingRoom, setIsLoadingRoom] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // 교환 확정 시각. 스웨거에는 room 정보에 scheduledAt 필드가 없어,
-  // (1) 스케줄 페이지에서 방금 확정하고 돌아온 경우 location.state로 전달받고
-  // (2) 그 외에는 시스템 메시지(type: 'SYSTEM') 내용에서 파싱해 복원한다.
-  // ⚠️ 시스템 메시지 문구 포맷을 백엔드와 맞춰야 정확히 파싱된다 - 현재는 방어적으로만 시도.
   const [scheduledAt, setScheduledAt] = useState<string | null>(
     (location.state as { scheduledAt?: string } | null)?.scheduledAt ?? null,
   );
@@ -334,7 +328,7 @@ export default function ChatRoomPage() {
 
   const handleReport = () => {
     setIsMenuOpen(false);
-    // TODO: 신고하기 - 다음 단계에서 구현
+    navigate('/report');
   };
 
   const renderMessages = (msgs: ChatMessageDto[] = messages) =>

@@ -1,8 +1,5 @@
 // src/hooks/useChatSocket.ts
-// STOMP 기반 실시간 채팅 (명세 9번)
 // 연결: /ws, 발행: /app/chat/{roomId}/send, 구독: /topic/chat/{roomId}
-// ⚠️ 인증은 Bearer 토큰(tokenStorage) 방식이라 STOMP CONNECT 프레임의
-//    connectHeaders에 Authorization을 실어 보낸다.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
