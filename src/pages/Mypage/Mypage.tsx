@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { Avatar } from '@/components/common/Avatar';
@@ -47,14 +48,19 @@ const MyPage = () => {
   const [hasNewRecommend, setHasNewRecommend] = useState<boolean>(false); // 추천 매칭함 new 여부
   const [requestCount, setRequestCount] = useState<number>(0); // 요청함 알림 개수
 
-  // 탈퇴 모달 2가지를 제어하기 위한 상태
+  // 탈퇴 모달 3가지를 제어하기 위한 상태
   const [isWithdrawBlockModalOpen, setIsWithdrawBlockModalOpen] =
     useState(false); // 교환 진행 중일 때 뜨는 모달
+  const [isDeletePostsConfirmModalOpen, setIsDeletePostsConfirmModalOpen] =
+    useState(false); // 교환 중은 아니지만 게시글이 남아있을 때 뜨는 모달
   const [isWithdrawConfirmModalOpen, setIsWithdrawConfirmModalOpen] =
-    useState(false); // 최종 확인 모달
+    useState(false); // 게시글도 없을 때의 최종 확인 모달
 
-  // 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인하는 상태
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // 탈퇴 시 참고할 내 게시글 상태: 교환 중인 게 있는지, 교환 전(MATCHABLE) 게시글 ID들
   const [hasOngoingExchange, setHasOngoingExchange] = useState(false);
+  const [matchablePostIds, setMatchablePostIds] = useState<number[]>([]);
 
   // 1. 내 정보 불러오기 API 연동
   useEffect(() => {
@@ -72,17 +78,35 @@ const MyPage = () => {
     fetchProfile();
   }, []);
 
-  // 💡 탈퇴 시 "교환 중인 게시글이 있는지" 실제로 확인 (예전엔 하드코딩된 true라 항상 떴었음)
+  // 💡 교환 전(MATCHABLE) 내 게시글 ID들 확인 (탈퇴 시 정리 대상)
+  useEffect(() => {
+    const checkMyPosts = async () => {
+      try {
+        const response = await axiosInstance.get('/api/posts/me', {
+          params: { status: 'MATCHABLE' },
+        });
+        const posts: { postId: number; status: string }[] =
+          response.data?.data || [];
+        setMatchablePostIds(posts.map((p) => p.postId));
+      } catch (error) {
+        console.error('내 게시글 확인 실패:', error);
+      }
+    };
+    checkMyPosts();
+  }, []);
+
+  // 💡 버그 수정: "진행 중인 교환"은 /api/posts/me의 게시글 상태로는 판단이 안 됨 —
+  // 매칭(수락)되는 순간 게시글이 아니라 채팅방/교환 자원으로 넘어가서 /api/posts/me
+  // 목록에서 아예 빠져버림. 그래서 실제로는 /api/chat-rooms에서 상태가 'CHATTING'인
+  // 방이 있는지로 판단해야 함 (status가 'DONE'이면 이미 끝난 교환).
   useEffect(() => {
     const checkOngoingExchange = async () => {
       try {
-        const response = await axiosInstance.get('/api/posts/me', {
-          params: { status: 'IN_EXCHANGE' },
-        });
-        const posts: { status: string }[] = response.data?.data || [];
-        setHasOngoingExchange(posts.length > 0);
+        const response = await axiosInstance.get('/api/chat-rooms');
+        const rooms: { status: string }[] = response.data?.data || [];
+        setHasOngoingExchange(rooms.some((r) => r.status === 'CHATTING'));
       } catch (error) {
-        console.error('교환 중인 게시글 확인 실패:', error);
+        console.error('진행 중인 교환 확인 실패:', error);
       }
     };
     checkOngoingExchange();
@@ -145,20 +169,61 @@ const MyPage = () => {
     }
   };
 
-  // 3. 회원 탈퇴 API 연동
+  // 💡 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
+  const handleWithdrawError = (error: unknown) => {
+    console.error('회원 탈퇴 실패:', error);
+    const axiosError = error as AxiosError<{ message?: string }>;
+    const serverMessage = axiosError.response?.data?.message;
+    alert(serverMessage || '회원 탈퇴 처리 중 오류가 발생했습니다.');
+  };
+
+  const finishWithdraw = () => {
+    alert('회원 탈퇴가 정상적으로 처리되었습니다.');
+    clearTokens();
+    window.location.href = '/';
+  };
+
+  // 3-A. 게시글이 없을 때의 단순 탈퇴 (삭제할 게 없으니 바로 탈퇴 요청만 보냄)
   const handleWithdraw = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       const res = await deleteAccount();
       if (res.success) {
-        alert('회원 탈퇴가 정상적으로 처리되었습니다.');
-        clearTokens();
-        window.location.href = '/';
+        finishWithdraw();
       }
     } catch (error) {
-      console.error('회원 탈퇴 실패:', error);
-      alert('회원 탈퇴 처리 중 오류가 발생했습니다.');
+      handleWithdrawError(error);
     } finally {
+      setIsProcessing(false);
       setIsWithdrawConfirmModalOpen(false);
+    }
+  };
+
+  // 3-B. 교환 전(MATCHABLE) 게시글이 남아있을 때: 명시적으로 동의를 받은 뒤에만 게시글을
+  // 삭제하고 탈퇴함. (예전엔 확인 없이 조용히 지워버려서, 탈퇴 자체가 실패해도 게시글만
+  // 사라지는 버그가 있었음 — 이제 "삭제하고 탈퇴하기"를 직접 눌러야만 삭제가 일어남)
+  const handleDeletePostsAndWithdraw = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      if (matchablePostIds.length > 0) {
+        await Promise.all(
+          matchablePostIds.map((id) =>
+            axiosInstance.delete(`/api/posts/${id}`),
+          ),
+        );
+      }
+
+      const res = await deleteAccount();
+      if (res.success) {
+        finishWithdraw();
+      }
+    } catch (error) {
+      handleWithdrawError(error);
+    } finally {
+      setIsProcessing(false);
+      setIsDeletePostsConfirmModalOpen(false);
     }
   };
 
@@ -460,8 +525,12 @@ const MyPage = () => {
           {/* 회원탈퇴하기 */}
           <button
             onClick={() => {
+              // 💡 3단계 분기: 교환 중인 게 있으면 → 정리 안내, 없지만 게시글이 남아있으면
+              // → 게시글 삭제 동의를 받는 모달, 둘 다 없으면 → 바로 최종 확인 모달
               if (hasOngoingExchange) {
                 setIsWithdrawBlockModalOpen(true);
+              } else if (matchablePostIds.length > 0) {
+                setIsDeletePostsConfirmModalOpen(true);
               } else {
                 setIsWithdrawConfirmModalOpen(true);
               }
@@ -489,16 +558,17 @@ const MyPage = () => {
         onClose={() => setIsWithdrawBlockModalOpen(false)}
         footer={
           <div className="flex flex-col w-full gap-[8.91px] mt-[21.64px]">
-            {/* 교환 중 게시글 삭제하고 탈퇴하기 */}
+            {/* 교환 중인 게시글 정리하러 가기 (여기서 바로 삭제하지 않음 — IN_EXCHANGE
+                게시글은 애초에 삭제가 안 되니, 정리 화면으로 이동만 시킴) */}
             <button
               onClick={() => {
                 setIsWithdrawBlockModalOpen(false);
-                setIsWithdrawConfirmModalOpen(true);
+                navigate('/my/posts', { state: { initialTab: '교환 중' } });
               }}
               className="w-full py-3 px-5 bg-brand-lightBlue rounded-full flex justify-center items-center transition-colors cursor-pointer"
             >
               <span className="text-white text-base font-light font-['Pretendard'] leading-6 tracking-tight">
-                교환 중 게시글 삭제하고 탈퇴하기
+                교환 중 게시글 확인하러 가기
               </span>
             </button>
 
@@ -522,7 +592,49 @@ const MyPage = () => {
         </div>
       </Modal>
 
-      {/* 최종 회원 탈퇴 확인 창 (오른쪽 시안) */}
+      {/* 💡 교환 중은 아니지만 등록된(교환 전) 게시글이 남아있을 때 — 명시적으로 동의를
+          받은 뒤에만 게시글을 삭제하고 탈퇴함 */}
+      <Modal
+        isOpen={isDeletePostsConfirmModalOpen}
+        onClose={() => setIsDeletePostsConfirmModalOpen(false)}
+        icon={
+          <div className="flex items-center justify-center mb-1">
+            <img src={finalAlertIcon} alt="" className="w-[34px] h-[34px]" />
+          </div>
+        }
+        footer={
+          <div className="flex flex-col w-full gap-[8.91px] mt-[21.64px]">
+            <button
+              onClick={handleDeletePostsAndWithdraw}
+              disabled={isProcessing}
+              className="w-full py-3 px-5 bg-rose-500 rounded-full flex justify-center items-center transition-colors cursor-pointer disabled:opacity-60"
+            >
+              <span className="text-white text-base font-light font-['Pretendard'] leading-6 tracking-tight">
+                {isProcessing ? '처리 중...' : '게시글 삭제하고 탈퇴하기'}
+              </span>
+            </button>
+            <button
+              onClick={() => setIsDeletePostsConfirmModalOpen(false)}
+              disabled={isProcessing}
+              className="w-full py-3 px-5 rounded-3xl outline outline-[0.50px] outline-offset-[-0.50px] outline-gray-300 flex justify-center items-center transition-colors cursor-pointer disabled:opacity-60"
+            >
+              <span className="text-cyan-900 text-base font-medium font-['Pretendard'] leading-6 tracking-tight">
+                취소
+              </span>
+            </button>
+          </div>
+        }
+      >
+        <div className="w-72 mx-auto text-center text-cyan-1000 text-base font-medium font-['Pretendard'] leading-5 tracking-wide py-4">
+          등록된 게시글이 있습니다.
+          <br />
+          탈퇴 시 게시글도 함께 삭제되며
+          <br />
+          복구할 수 없습니다.
+        </div>
+      </Modal>
+
+      {/* 최종 회원 탈퇴 확인 창 (게시글이 없을 때) */}
       <Modal
         isOpen={isWithdrawConfirmModalOpen}
         onClose={() => setIsWithdrawConfirmModalOpen(false)}
@@ -535,7 +647,8 @@ const MyPage = () => {
           <div className="flex w-full gap-3 mt-4">
             <button
               onClick={() => setIsWithdrawConfirmModalOpen(false)}
-              className="flex-1 h-11 flex justify-center items-center rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white transition-colors cursor-pointer"
+              disabled={isProcessing}
+              className="flex-1 h-11 flex justify-center items-center rounded-full outline outline-1 outline-offset-[-1px] outline-gray-300 bg-white transition-colors cursor-pointer disabled:opacity-60"
             >
               <span className="text-black text-sm font-medium font-['Pretendard'] leading-5 tracking-tight">
                 취소
@@ -544,10 +657,11 @@ const MyPage = () => {
 
             <button
               onClick={handleWithdraw}
-              className="flex-1 h-11 flex justify-center items-center bg-rose-500 rounded-full transition-colors cursor-pointer"
+              disabled={isProcessing}
+              className="flex-1 h-11 flex justify-center items-center bg-rose-500 rounded-full transition-colors cursor-pointer disabled:opacity-60"
             >
               <span className="text-white text-sm font-light font-['Pretendard'] leading-5 tracking-tight">
-                탈퇴
+                {isProcessing ? '처리 중...' : '탈퇴'}
               </span>
             </button>
           </div>

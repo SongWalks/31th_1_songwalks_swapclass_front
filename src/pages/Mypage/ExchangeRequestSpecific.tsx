@@ -124,7 +124,11 @@ const ExchangeRequestSpecific: React.FC = () => {
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
           }
-          title={<div>게시글 상세</div>}
+          title={
+            <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2">
+              게시글 상세
+            </div>
+          }
           rightNode={
             <IconButton icon={ICONS.MORE_VERTICAL} className="text-black/40" />
           }
@@ -137,7 +141,7 @@ const ExchangeRequestSpecific: React.FC = () => {
           <Avatar size="md" />
           <div className="flex flex-col gap-0.5">
             <div className="text-zinc-900 text-base font-semibold leading-tight tracking-wide">
-              {sender?.authorNickname || '너송'}
+              {'너송'}
             </div>
             {receivedCount !== undefined && (
               <div className="text-neutral-500 text-[12px] font-light leading-tight">
