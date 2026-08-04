@@ -87,13 +87,6 @@ const SpecificPostsPage: React.FC = () => {
   const [showNoPostModal, setShowNoPostModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // 💡 컴포넌트가 처음 뜰 때, justProposed 신호가 있으면 보낸 요청 쿼리를 최신화하고
-  // location.state를 지움. location.state를 그냥 의존성 배열에 넣으면 무한 루프에 빠질 수
-  // 있어서(navigate(..., {state:{}})로 지운 뒤에도 {}는 truthy라 가드가 안 걸러지고, {} 자체가
-  // "새로운 값"이라 effect가 계속 재실행됨) ref로 "이미 처리했는지" 기억해뒀다가 그 이후로는
-  // location.state가 다시 바뀌어도 즉시 멈추게 해서 루프를 끊음.
-  // queryClient.invalidateQueries는 우리 코드의 setState가 아니라 React Query 내부
-  // 상태 관리 호출이라 set-state-in-effect 규칙 대상이 아님.
   const hasHandledJustProposedRef = useRef(false);
   useEffect(() => {
     if (hasHandledJustProposedRef.current) return;
@@ -270,10 +263,12 @@ const SpecificPostsPage: React.FC = () => {
 
   const handleReport = () => {
     if (!post) return;
+    // 💡 이 앱엔 실제 닉네임이 없어서(항상 나송/너송), 신고 버튼도 상대방 글일 때만
+    // 뜨니까(!post.mine) 여기선 항상 '너송'으로 고정
     navigate('/report', {
       state: {
         reportedUserId: post.authorId,
-        reportedUserNickname: post.authorNickname,
+        reportedUserNickname: '너송',
       },
     });
   };
@@ -284,7 +279,10 @@ const SpecificPostsPage: React.FC = () => {
         <div className="relative sticky top-0 z-50 bg-neutral-50">
           <Header
             leftNode={
-              <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+              <IconButton
+                icon={ICONS.BACK}
+                onClick={() => navigate('/board')}
+              />
             }
             rightNode={
               <IconButton
@@ -321,7 +319,7 @@ const SpecificPostsPage: React.FC = () => {
       <div className="relative sticky top-0 z-50 bg-neutral-50">
         <Header
           leftNode={
-            <IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />
+            <IconButton icon={ICONS.BACK} onClick={() => navigate('/board')} />
           }
           rightNode={
             <IconButton icon={ICONS.MORE_VERTICAL} className="text-black/40" />
@@ -343,7 +341,7 @@ const SpecificPostsPage: React.FC = () => {
             <Avatar size="md" />
             <div className="flex flex-col gap-0.5">
               <div className="text-black text-[16px] font-medium leading-tight">
-                {post.authorNickname}
+                {post.mine ? '나송' : '너송'}
               </div>
               {/* 💡 남의 글일 땐 GET /api/proposals/received로 알 방법이 없어 0 고정, 내 글이면 실제 값 */}
               <div className="text-black/60 text-[12px] font-light leading-tight">
