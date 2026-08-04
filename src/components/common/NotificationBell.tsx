@@ -26,6 +26,15 @@ export const NotificationBell = () => {
           },
         );
 
+        // ✨ 핵심 수정 포인트: 정상 응답이 아닐 때의 방어 로직 추가
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            // 토큰이 만료되었거나 유효하지 않으므로 로컬 스토리지에서 삭제
+            localStorage.removeItem('soo_access_token');
+          }
+          return; // 에러 응답이므로 아래의 .json() 파싱을 건너뛰고 함수 종료
+        }
+
         const result = await response.json();
 
         if (result.success && result.data) {
