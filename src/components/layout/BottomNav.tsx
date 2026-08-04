@@ -66,7 +66,7 @@ export default function BottomNav() {
 
             {/* 텍스트 영역 (활성화 시 파란색 글씨) */}
             <span
-              className={`text-[10px] font-medium ${
+              className={`text-[13px] font-medium ${
                 isActive
                   ? 'text-brand-lightBlue font-semibold'
                   : 'text-gray-400'
