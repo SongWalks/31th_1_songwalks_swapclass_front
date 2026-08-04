@@ -13,33 +13,52 @@ import { chatRoomApi } from '@/api/chat/chatRoomApi';
 import { exchangeApi, type CancelReason } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 
-interface ReasonGroup {
-  key: CancelReason;
+interface SubReason {
   label: string;
-  subReasons?: string[];
+  value: CancelReason;
+}
+
+interface ReasonGroup {
+  label: string;
+  subReasons?: SubReason[];
   freeText?: boolean;
   blocked?: boolean;
+  // subReasons가 없는 그룹(차단 그룹, 기타 그룹)이 제출 시 사용할 고정 enum 값
+  singleValue?: CancelReason;
 }
 
 // ⚠️ 백엔드 enum에는 MONEY_DEMAND도 있지만, 디자인상 선택 UI가 없어 프론트에는 노출하지 않는다.
 const REASON_GROUPS: ReasonGroup[] = [
   {
-    key: 'MUTUAL',
     label: '상호 합의로 거래 취소',
-    subReasons: ['시간 조율 실패', '서로 다른 과목으로 진행하기로 함'],
+    subReasons: [
+      { label: '시간 조율 실패', value: 'MUTUAL_TIME_ISSUE' },
+      {
+        label: '서로 다른 과목으로 진행하기로 함',
+        value: 'MUTUAL_COURSE_CHANGE',
+      },
+    ],
   },
   {
-    key: 'FRAUD',
     label: '인증 정보가 의심됨',
-    subReasons: ['보유 과목 인증 사진이 의심됨', '다른 과목 사진 제출'],
+    subReasons: [
+      { label: '보유 과목 인증 사진이 의심됨', value: 'FRAUD_SUSPECT_IMAGE' },
+      { label: '다른 과목 사진 제출', value: 'FRAUD_DIFFERENT_COURSE' },
+    ],
   },
   {
-    key: 'ABUSE',
     label: '상대방이 거래를 진행하지 않음',
-    subReasons: ['과목을 버리지 않음', '거래를 일방적으로 중단함'],
+    subReasons: [
+      { label: '과목을 버리지 않음', value: 'NO_SHOW_COURSE' },
+      { label: '거래를 일방적으로 중단함', value: 'NO_SHOW_STOPPED' },
+    ],
   },
-  { key: 'OTHER', label: '상대방과 연락이 원활하지 않음', blocked: true },
-  { key: 'OTHER', label: '기타', freeText: true },
+  {
+    label: '상대방과 연락이 원활하지 않음',
+    blocked: true,
+    singleValue: 'NO_CONTACT',
+  },
+  { label: '기타', freeText: true, singleValue: 'OTHER' },
 ];
 
 export default function TerminateDealPage() {
@@ -59,12 +78,11 @@ export default function TerminateDealPage() {
       .catch(() => setExchangeId(null));
   }, [roomId, exchangeId]);
 
-  // NO_RESPONSE(연락 두절) 항목과 OTHER(기타) 항목이 둘 다 키가 'OTHER'라 openKey 구분을 위해 인덱스도 함께 관리
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [selectedSubReason, setSelectedSubReason] = useState<string | null>(
-    null,
-  );
+  // 선택된 서브 사유의 enum 값 (subReasons가 있는 그룹에서만 사용)
+  const [selectedReasonValue, setSelectedReasonValue] =
+    useState<CancelReason | null>(null);
   const [otherDetail, setOtherDetail] = useState('');
   const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,12 +100,12 @@ export default function TerminateDealPage() {
     }
     setOpenIndex((prev) => (prev === index ? null : index));
     setSelectedIndex(index);
-    setSelectedSubReason(null);
+    setSelectedReasonValue(null);
   };
 
-  const handleSelectSubReason = (index: number, sub: string) => {
+  const handleSelectSubReason = (index: number, sub: SubReason) => {
     setSelectedIndex(index);
-    setSelectedSubReason(sub);
+    setSelectedReasonValue(sub.value);
   };
 
   const selectedGroup =
@@ -96,16 +114,21 @@ export default function TerminateDealPage() {
     selectedGroup != null &&
     (selectedGroup.freeText
       ? otherDetail.trim().length > 0
-      : selectedSubReason !== null);
+      : selectedReasonValue !== null);
 
   const handleSubmit = async () => {
     if (!canSubmit || !selectedGroup || !exchangeId) return;
+
+    const reason: CancelReason | undefined = selectedGroup.freeText
+      ? selectedGroup.singleValue // 'OTHER'
+      : (selectedReasonValue ?? undefined);
+    if (!reason) return;
+
+    const detail = selectedGroup.freeText ? otherDetail : undefined;
+
     setIsSubmitting(true);
     try {
-      const detail = selectedGroup.freeText
-        ? otherDetail
-        : (selectedSubReason ?? undefined);
-      await exchangeApi.cancel(exchangeId, selectedGroup.key, detail);
+      await exchangeApi.cancel(exchangeId, reason, detail);
       navigate(`/chat/${roomId}`);
     } catch (err) {
       setErrorMessage(
@@ -156,7 +179,7 @@ export default function TerminateDealPage() {
             const isOpen = openIndex === index;
             return (
               <div
-                key={`${group.key}-${group.label}`}
+                key={`${group.singleValue ?? 'group'}-${group.label}`}
                 className="border border-gray-200 rounded-lg overflow-hidden"
               >
                 <button
@@ -179,18 +202,19 @@ export default function TerminateDealPage() {
                   <div className="flex flex-col border-t border-gray-100">
                     {group.subReasons.map((sub) => (
                       <label
-                        key={sub}
+                        key={sub.value}
                         className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 border-b last:border-b-0 border-gray-100"
                       >
                         <input
                           type="radio"
                           name={`reason-${index}`}
                           checked={
-                            selectedSubReason === sub && selectedIndex === index
+                            selectedReasonValue === sub.value &&
+                            selectedIndex === index
                           }
                           onChange={() => handleSelectSubReason(index, sub)}
                         />
-                        {sub}
+                        {sub.label}
                       </label>
                     ))}
                   </div>

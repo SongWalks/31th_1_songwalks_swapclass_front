@@ -108,6 +108,12 @@ export default function ScheduleDecisionPage() {
     setIsSubmitting(true);
     try {
       const scheduledAt = parseToIso();
+      // 디버깅용: 실제 전송값과 현재 시각(UTC) 비교
+      console.log('[디버그] 선택한 날짜/시간:', date, timePreview);
+      console.log('[디버그] 서버로 보내는 scheduledAt:', scheduledAt);
+      console.log('[디버그] 현재 시각(UTC):', new Date().toISOString());
+      console.log('[디버그] 현재 시각(로컬):', new Date().toString());
+
       const res = await exchangeApi.confirmSchedule(exchangeId, scheduledAt);
       // 확정된 시각을 채팅방으로 되돌려주면서 즉시 안내 배너를 그릴 수 있게 한다.
       // (스웨거 chat-room 응답에는 scheduledAt 필드가 없어, 시스템 메시지 파싱 전까지는
@@ -117,6 +123,7 @@ export default function ScheduleDecisionPage() {
         state: { scheduledAt: res.scheduledAt },
       });
     } catch (err) {
+      console.log('[디버그] 에러 발생:', err);
       setErrorMessage(
         err instanceof ApiError
           ? err.message
@@ -127,7 +134,6 @@ export default function ScheduleDecisionPage() {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>

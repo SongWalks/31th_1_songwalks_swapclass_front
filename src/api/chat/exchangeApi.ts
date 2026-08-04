@@ -2,7 +2,16 @@
 
 import { apiPost, apiPostForm } from '@/api/chat/apiClient';
 
-export type CancelReason = 'MUTUAL' | 'FRAUD' | 'ABUSE' | 'OTHER';
+// 백엔드 CancelRequest.reason이 String -> enum으로 변경됨에 따라 세부 사유별 값으로 교체
+export type CancelReason =
+  | 'MUTUAL_TIME_ISSUE' // 시간 조율 실패
+  | 'MUTUAL_COURSE_CHANGE' // 서로 다른 과목으로 교환하고자 함
+  | 'FRAUD_SUSPECT_IMAGE' // 보유 과목 인증 사진이 의심됨
+  | 'FRAUD_DIFFERENT_COURSE' // 다른 과목 사진 제출
+  | 'NO_SHOW_COURSE' // 과목을 버리지 않음
+  | 'NO_SHOW_STOPPED' // 거래를 일방적으로 중단함
+  | 'NO_CONTACT' // 상대방과 연락이 원활하지 않음 (프론트에서는 직접 파기 차단, 값만 보존)
+  | 'OTHER'; // 기타 (detail 필드에 직접 입력)
 // ⚠️ MONEY_DEMAND 는 백엔드 enum에는 있으나 기획/디자인상 선택 UI가 없어 프론트에서는 사용하지 않는다.
 
 export interface ScheduleResponse {
@@ -40,7 +49,7 @@ export const exchangeApi = {
       success: result === 'SUCCESS',
     }),
 
-  // 3) 거래 파기
+  // 3) 거래 파기 (reason은 세부 사유 enum, detail은 OTHER일 때만 사용)
   cancel: (
     exchangeId: number | string,
     reason: CancelReason,
