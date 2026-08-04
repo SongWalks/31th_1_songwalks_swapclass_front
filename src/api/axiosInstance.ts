@@ -24,16 +24,16 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 💡 에러가 발생한 요청의 URL 확인
+    // 에러가 발생한 요청의 URL 확인
     const errorUrl = error.config?.url || '';
 
-    // 💡 조용히 넘어가야 하는(강제 이동을 막아야 하는) 백그라운드 API 목록
+    // 조용히 넘어가야 하는(강제 이동을 막아야 하는) 백그라운드 API 목록
     const silentUrls = ['/api/posts/me'];
     const isSilentRequest = silentUrls.some((url) => errorUrl.includes(url));
 
     // 1. 401 에러: 토큰 만료 또는 로그인 안 된 상태
     if (error.response?.status === 401) {
-      localStorage.removeItem('soo_access_token'); // 👈 Key 이름 수정!
+      localStorage.removeItem('soo_access_token');
 
       if (!isSilentRequest) {
         alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
@@ -43,7 +43,7 @@ axiosInstance.interceptors.response.use(
 
     // 2. 403 에러: 권한 없음
     if (error.response?.status === 403) {
-      localStorage.removeItem('soo_access_token'); // 👈 Key 이름 수정!
+      localStorage.removeItem('soo_access_token');
 
       if (!isSilentRequest) {
         const backendMessage = error.response?.data?.message;
