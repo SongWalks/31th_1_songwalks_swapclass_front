@@ -597,17 +597,12 @@ const MyPage = () => {
       <Modal
         isOpen={isDeletePostsConfirmModalOpen}
         onClose={() => setIsDeletePostsConfirmModalOpen(false)}
-        icon={
-          <div className="flex items-center justify-center mb-1">
-            <img src={finalAlertIcon} alt="" className="w-[34px] h-[34px]" />
-          </div>
-        }
         footer={
           <div className="flex flex-col w-full gap-[8.91px] mt-[21.64px]">
             <button
               onClick={handleDeletePostsAndWithdraw}
               disabled={isProcessing}
-              className="w-full py-3 px-5 bg-rose-500 rounded-full flex justify-center items-center transition-colors cursor-pointer disabled:opacity-60"
+              className="w-full py-3 px-5 bg-brand-lightBlue rounded-full flex justify-center items-center transition-colors cursor-pointer disabled:opacity-60"
             >
               <span className="text-white text-base font-light font-['Pretendard'] leading-6 tracking-tight">
                 {isProcessing ? '처리 중...' : '게시글 삭제하고 탈퇴하기'}
@@ -625,7 +620,7 @@ const MyPage = () => {
           </div>
         }
       >
-        <div className="w-72 mx-auto text-center text-cyan-1000 text-base font-medium font-['Pretendard'] leading-5 tracking-wide py-4">
+        <div className="w-72 mx-auto text-center text-cyan-1000 text-base font-medium font-['Pretendard'] leading-5 tracking-wide py-4 -mb-5">
           등록된 게시글이 있습니다.
           <br />
           탈퇴 시 게시글도 함께 삭제되며
