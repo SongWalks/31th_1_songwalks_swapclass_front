@@ -1,5 +1,5 @@
 // pages/chat/ChatRoomPage.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
@@ -98,10 +98,13 @@ const formatScheduledDate = (iso: string) => {
 
 export default function ChatRoomPage() {
   const [exchangeStatus, setExchangeStatus] = useState<string | null>(null);
-  const [isCancelled, setIsCancelled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
+  const getTerminatedKey = (id: string) => `terminated_room_${id}`;
+  const [isCancelled, setIsCancelled] = useState(
+    () => localStorage.getItem(getTerminatedKey(roomId)) === 'true',
+  );
 
   const navCourses = location.state as {
     myCourseName?: string;
@@ -188,8 +191,6 @@ export default function ChatRoomPage() {
     'CHAT';
 
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
-  const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
-  const prevScheduledAtRef = useRef(scheduledAt);
   const [showPreviousChat, setShowPreviousChat] = useState(false);
 
   // ----- VERIFY 관련 상태 -----
@@ -286,9 +287,7 @@ export default function ChatRoomPage() {
       loadRoom();
 
       // "N월 N일 (요일)" + "오전/오후 h:mm" 패턴이 포함된 시스템 메시지라면 확정 시각으로 간주해 파싱 시도
-      const match = message.content.match(
-        /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/,
-      );
+      const match = message.content.match(SCHEDULE_SYSTEM_MSG_PATTERN);
       if (match) {
         const [, mm, dd, ampm, hh, min] = match;
         const now = new Date();
@@ -313,13 +312,18 @@ export default function ChatRoomPage() {
     enabled: !isLoadingRoom,
   });
 
-  // 교환 시간이 방금 확정된 시점(false -> true 전환)의 메시지 개수를 기록
-  useEffect(() => {
-    if (!prevScheduledAtRef.current && scheduledAt) {
-      setScheduleInsertIndex(messages.length);
-    }
-    prevScheduledAtRef.current = scheduledAt;
-  }, [scheduledAt, messages.length]);
+  const scheduleInsertIndex = useMemo(() => {
+    if (!scheduledAt) return messages.length;
+    const idx = messages.findIndex(
+      (m) => m.type === 'SYSTEM' && SCHEDULE_SYSTEM_MSG_PATTERN.test(m.content),
+    );
+    return idx === -1 ? messages.length : idx + 1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, scheduledAt]);
+
+  // 컴포넌트 바깥, 다른 상수들 옆에
+  const SCHEDULE_SYSTEM_MSG_PATTERN =
+    /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/;
 
   // 새 카드/메시지가 생기면 맨 아래로 자동 스크롤 (GUIDE 진입 시엔 맨 위로)
   const prevFlowStepRef = useRef(flowStep);
@@ -1447,7 +1451,8 @@ export default function ChatRoomPage() {
           onClose={() => setIsTerminateOpen(false)}
           onSuccess={() => {
             setIsTerminateOpen(false);
-            setIsCancelled(true); // 서버가 별도 상태를 안 주므로 로컬 플래그로 채팅 잠금 처리
+            setIsCancelled(true);
+            localStorage.setItem(getTerminatedKey(roomId), 'true');
           }}
         />
       )}
