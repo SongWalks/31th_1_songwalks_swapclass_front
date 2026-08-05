@@ -36,6 +36,7 @@ interface PostDetailResponse {
   wantedCourses: WantedCourseItem[];
   createdAt: string;
   mine: boolean;
+  proposalCount: number;
 }
 
 interface CourseSelection {
@@ -124,14 +125,8 @@ const PostEditPage: React.FC = () => {
     enabled: !!postId,
   });
 
-  const { data: receivedRequestCount = 0 } = useQuery({
-    queryKey: ['receivedRequestCountForEdit'],
-    queryFn: async (): Promise<number> => {
-      const response = await axiosInstance.get('/api/proposals/received');
-      const received: unknown[] = response.data?.data || [];
-      return received.length;
-    },
-  });
+  // 💡 이제 별도 API로 우회 계산 안 하고, GET /api/posts/{postId} 응답의 proposalCount를
+  // 바로 씀 (SpecificPostsPage.tsx와 동일한 방식)
 
   // 💡 서버에서 온 원하는 과목 목록을 화면용 형태로 변환 (표시용 "기본값")
   const serverWanted = useMemo((): (CourseSelection | null)[] => {
@@ -257,7 +252,6 @@ const PostEditPage: React.FC = () => {
           </span>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-32">
         {/* 프로필 + 상태 뱃지 */}
         <div className="flex items-center justify-between gap-3.5 py-2 px-6 border-b border-gray-200/60">
@@ -265,10 +259,10 @@ const PostEditPage: React.FC = () => {
             <Avatar size="md" />
             <div className="flex flex-col gap-0.5">
               <div className="text-black text-[16px] font-medium leading-tight">
-                {post.authorNickname}
+                나송
               </div>
               <div className="text-black/60 text-[12px] font-light leading-tight">
-                받은 요청 {receivedRequestCount}개
+                받은 요청 {post.proposalCount ?? 0}개
               </div>
             </div>
           </div>
@@ -291,151 +285,159 @@ const PostEditPage: React.FC = () => {
             없습니다. 잘못 입력한 경우 게시글을 삭제 후 재작성해 주세요.
           </p>
         </div>
-
-        {/* 버릴 과목 (읽기 전용) */}
-        <section className="mb-9">
-          <h2 className="text-point-red text-base font-bold mb-3 tracking-wide">
-            버릴 과목
-          </h2>
-
-          <CourseCard
-            title={post.discardCourse.name}
-            professor={post.discardCourse.professor}
-            time={post.discardCourse.classTime}
-            className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-            leftNode={
-              <div className="relative w-7 h-7 flex items-center justify-center">
-                <div className="size-6 bg-rose-200 rounded-full" />
-                <img src={throwArrow} alt="throw" className="absolute size-6" />
-              </div>
-            }
-            badges={
-              <div className="flex flex-wrap gap-1.5">
-                <Badge
-                  variant="lightRed"
-                  className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
-                >
-                  {post.discardCourse.courseType}
-                </Badge>
-                {post.discardCourse.department && (
+        <div className="px-4">
+          {/* 버릴 과목 (읽기 전용) */}
+          <section className="mb-9">
+            <h2 className="text-point-red text-[15px] font-bold mb-1">
+              버릴 과목
+            </h2>
+            <CourseCard
+              title={post.discardCourse.name}
+              professor={post.discardCourse.professor}
+              time={post.discardCourse.classTime}
+              className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+              leftNode={
+                <div className="relative w-7 h-7 flex items-center justify-center">
+                  <div className="size-6 bg-rose-200 rounded-full" />
+                  <img
+                    src={throwArrow}
+                    alt="throw"
+                    className="absolute size-6"
+                  />
+                </div>
+              }
+              badges={
+                <div className="flex flex-wrap gap-1.5">
                   <Badge
                     variant="lightRed"
                     className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
                   >
-                    {post.discardCourse.department}
+                    {post.discardCourse.courseType}
                   </Badge>
-                )}
-              </div>
-            }
-          />
-        </section>
+                  {post.discardCourse.department && (
+                    <Badge
+                      variant="lightRed"
+                      className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                    >
+                      {post.discardCourse.department}
+                    </Badge>
+                  )}
+                </div>
+              }
+            />
+          </section>
 
-        {/* 원하는 과목 (수정 가능) */}
-        <section className="mb-6">
-          <div className="mb-4 flex flex-col gap-1">
-            <h2 className="text-brand-lightBlue text-base font-bold tracking-wide">
-              원하는 과목
-            </h2>
-            <p className="text-neutral-500 text-xs font-normal">
-              최소 1개 이상 선택해주세요
-            </p>
-          </div>
+          {/* 원하는 과목 (수정 가능) */}
+          <section className="mt-4 mb-10">
+            <div className="mb-4 flex flex-col gap-1">
+              <h2 className="text-brand-lightBlue text-[15px] font-bold">
+                원하는 과목
+              </h2>
+              <p className="text-gray-400 text-[11px] font-normal">
+                최소 1개 이상 선택해주세요
+              </p>
+            </div>
 
-          <div className="flex flex-col gap-4">
-            {[0, 1, 2].map((index) => {
-              const course = wantedCourses[index];
-              return (
-                <div key={index}>
-                  <div className="text-zinc-900 text-xs font-medium mb-2 ml-1">
-                    {index + 1}순위
-                  </div>
+            <div className="flex flex-col gap-4">
+              {[0, 1, 2].map((index) => {
+                const course = wantedCourses[index];
+                return (
+                  <div key={index}>
+                    <div className="text-gray-800 text-[13px] font-medium mb-1.5">
+                      {index + 1}순위
+                    </div>
 
-                  {course ? (
-                    <CourseCard
-                      title={course.name}
-                      professor={course.professor}
-                      time={course.classTime}
-                      className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-                      leftNode={
-                        <div className="relative w-7 h-7 flex items-center justify-center">
-                          <div className="size-6 bg-sky-200 rounded-full" />
-                          <img
-                            src={wantArrow}
-                            alt="want"
-                            className="absolute size-5"
+                    {course ? (
+                      <CourseCard
+                        title={course.name}
+                        professor={course.professor}
+                        time={course.classTime}
+                        className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+                        leftNode={
+                          <div className="relative w-7 h-7 flex items-center justify-center">
+                            <div className="size-6 bg-sky-200 rounded-full" />
+                            <img
+                              src={wantArrow}
+                              alt="want"
+                              className="absolute size-5"
+                            />
+                          </div>
+                        }
+                        rightNode={
+                          <IconButton
+                            icon="ph:x"
+                            variant="ghost"
+                            className="text-gray-400"
+                            onClick={() => handleRemoveWantedCourse(index)}
                           />
-                        </div>
-                      }
-                      rightNode={
-                        <IconButton
-                          icon="ph:x"
-                          variant="ghost"
-                          className="text-gray-400"
-                          onClick={() => handleRemoveWantedCourse(index)}
-                        />
-                      }
-                      badges={
-                        <div className="flex flex-wrap gap-1.5">
-                          <Badge
-                            variant="lightBlueOutline"
-                            className="!font-normal !rounded-lg"
-                          >
-                            {course.courseType}
-                          </Badge>
-                          {course.department && (
+                        }
+                        badges={
+                          <div className="flex flex-wrap gap-1.5">
                             <Badge
                               variant="lightBlueOutline"
                               className="!font-normal !rounded-lg"
                             >
-                              {course.department}
+                              {course.courseType}
                             </Badge>
-                          )}
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <button
-                      onClick={() => handleSelectWantedCourse(index)}
-                      className="w-full h-9 bg-white rounded-md border-[0.7px] border-zinc-400 px-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-zinc-400 text-sm">
-                        과목을 검색해주세요.
-                      </span>
-                      <Icon
-                        icon={ICONS.SEARCH}
-                        className="w-5 h-5 text-neutral-400"
+                            {course.department && (
+                              <Badge
+                                variant="lightBlueOutline"
+                                className="!font-normal !rounded-lg"
+                              >
+                                {course.department}
+                              </Badge>
+                            )}
+                          </div>
+                        }
                       />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                    ) : (
+                      <button
+                        onClick={() => handleSelectWantedCourse(index)}
+                        className="w-full h-9 bg-white rounded-md border-[0.7px] border-zinc-400 px-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="text-zinc-400 text-sm">
+                          과목을 검색해주세요.
+                        </span>
+                        <Icon
+                          icon={ICONS.SEARCH}
+                          className="w-5 h-5 text-neutral-400"
+                        />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </div>
 
-      {/* 하단 고정 영역: 매칭 팁 문구 + 수정 완료하기 버튼 (둘이 함께 고정) */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-5 bg-gradient-to-t from-neutral-50 via-neutral-50/90 to-transparent">
-        <div className="w-full text-center mb-8">
-          <span className="text-cyan-900 text-base font-bold font-['Pretendard'] leading-5 tracking-tight">
-            상대방의 1순위 과목을{' '}
-          </span>
-          <span className="text-cyan-900 text-sm font-normal font-['Pretendard'] leading-5 tracking-tight">
-            교환 요청 시 <br />
-            매칭 성공률이 올라가요!
-          </span>
+      {/* 하단 고정 영역: 매칭 팁 문구 + 수정 완료하기 버튼 (SpecificPostsPage.tsx와 동일한
+          sticky 패턴 — fixed + left-0/right-0는 모바일 프레임이 아니라 브라우저 전체 너비를
+          기준으로 퍼져버리는 버그가 있어서 sticky로 맞춤) */}
+      <div className="sticky bottom-0 left-0 right-0 z-10 pointer-events-none mt-auto">
+        <div className="bg-gradient-to-t from-neutral-50 via-neutral-50/90 to-transparent px-4 pb-6 pt-5 pointer-events-auto">
+          <div className="w-full text-center mb-8">
+            <span className="text-cyan-900 text-base font-bold font-['Pretendard'] leading-5 tracking-tight">
+              상대방의 1순위 과목을{' '}
+            </span>
+            <span className="text-cyan-900 text-sm font-normal font-['Pretendard'] leading-5 tracking-tight">
+              교환 요청 시 <br />
+              매칭 성공률이 올라가요!
+            </span>
+          </div>
+          <button
+            onClick={handleSubmitEdit}
+            disabled={!canSubmit || submitMutation.isPending}
+            className={`w-full h-14 text-white text-lg font-semibold tracking-wide transition-all ${
+              canSubmit
+                ? 'bg-brand-lightBlue rounded-2xl hover:opacity-90 cursor-pointer'
+                : 'bg-zinc-400 rounded-md shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] cursor-not-allowed'
+            } ${submitMutation.isPending ? 'opacity-60' : ''}`}
+          >
+            {submitMutation.isPending ? '수정 중...' : '수정 완료하기'}
+          </button>
         </div>
-        <button
-          onClick={handleSubmitEdit}
-          disabled={!canSubmit || submitMutation.isPending}
-          className={`w-full h-14 text-white text-lg font-semibold tracking-wide transition-all ${
-            canSubmit
-              ? 'bg-brand-lightBlue rounded-2xl hover:opacity-90 cursor-pointer'
-              : 'bg-zinc-400 rounded-md shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] cursor-not-allowed'
-          } ${submitMutation.isPending ? 'opacity-60' : ''}`}
-        >
-          {submitMutation.isPending ? '수정 중...' : '수정 완료하기'}
-        </button>
       </div>
     </div>
   );

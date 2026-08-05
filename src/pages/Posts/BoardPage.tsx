@@ -6,7 +6,7 @@ import Header from '@/components/layout/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import { FAB } from '@/components/common/FAB';
 import { Modal } from '@/components/common/Modal';
-import { Dropdown } from '@/components/common/Dropdown';
+import { FilterChip } from '@/components/common/FilterChip';
 import { ICONS } from '@/constants/icons';
 import axiosInstance from '@/api/axiosInstance';
 import { getTokens } from '@/store/tokenStorage';
@@ -41,9 +41,6 @@ interface BoardPostResponse {
 interface MyPostResponse {
   postId: number;
   status: 'MATCHABLE' | 'IN_EXCHANGE' | 'COMPLETED' | 'DELETED' | string;
-  discardCourse: CourseDetail;
-  wantedCourses: WantedCourseItem[];
-  createdAt: string;
 }
 
 interface BoardPost {
@@ -57,7 +54,7 @@ interface BoardPost {
 const BoardPage = () => {
   const navigate = useNavigate();
 
-  const [searchQuery, setSearchQuery] = useState(''); // 💡 GET /api/posts의 dept 파라미터로 사용됨 (자유 검색어 아님)
+  const [searchQuery, setSearchQuery] = useState(''); // 💡 GET /api/posts의 dept 파라미터로 사용됨 (자유 검색어 아님 — 학과명 정확히 일치해야 할 가능성 높음, Swagger로 확인 필요)
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [loading, setLoading] = useState(true);
   // 💡 "진짜로 게시글이 0개"인지 "API 호출 자체가 실패한 건지" 구분하기 위한 에러 상태
@@ -75,19 +72,13 @@ const BoardPage = () => {
   // 💡 게시글 미등록 상태에서 메뉴(필터) 버튼 클릭 시 안내 모달
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // 💡 맞춤 필터: 드롭다운으로 특정 과목 하나를 골라서 필터링 (둘 중 하나만 선택 가능 — 고르면 반대쪽은 '전체'로 리셋)
-  const [targetCourseFilter, setTargetCourseFilter] = useState('ALL');
-  const [discardCourseFilter, setDiscardCourseFilter] = useState('ALL');
+  // 💡 맞춤 필터: 특정 과목 하나를 고르는 게 아니라, 그냥 켜고 끄는 토글.
+  // "내 타겟 과목" 켜면 my-targets(남들이 버린다고 올린 게시글 중 내가 원하는 과목이 있는 것들
+  // 전체)를, "내 버릴 과목" 켜면 my-seekers(내가 버릴 과목을 원하는 게시글들 전체)를 그대로 보여줌.
+  const [showTargetFilter, setShowTargetFilter] = useState(false);
+  const [showDiscardFilter, setShowDiscardFilter] = useState(false);
 
-  // 💡 드롭다운에 뿌릴 옵션: 내가 올린 모든 게시글에서 모은 과목명들 (중복 제거)
-  const [myTargetOptions, setMyTargetOptions] = useState([
-    { value: 'ALL', label: '내 타겟 과목' },
-  ]);
-  const [myDiscardOptions, setMyDiscardOptions] = useState([
-    { value: 'ALL', label: '내 버릴 과목' },
-  ]);
-
-  // 1. 내 게시글 목록 조회 (senderPostId 확보 + 드롭다운 옵션 채우기)
+  // 1. 내 게시글 목록 조회 (senderPostId 확보 + 게시판 필터용 내 게시글 ID 모으기)
   useEffect(() => {
     const tokens = getTokens();
     if (!tokens) return;
@@ -103,29 +94,6 @@ const BoardPage = () => {
         const activePost = myPosts.find((p) => p.status === 'MATCHABLE');
         setMyPostId(activePost ? activePost.postId : null);
         setMyPostIds(new Set(myPosts.map((p) => p.postId)));
-
-        const wantedNames = new Set<string>();
-        const discardNames = new Set<string>();
-        myPosts.forEach((p) => {
-          if (p.discardCourse?.name) discardNames.add(p.discardCourse.name);
-          (p.wantedCourses || []).forEach((w) => {
-            if (w.course?.name) wantedNames.add(w.course.name);
-          });
-        });
-        setMyTargetOptions([
-          { value: 'ALL', label: '내 타겟 과목' },
-          ...Array.from(wantedNames).map((name) => ({
-            value: name,
-            label: name,
-          })),
-        ]);
-        setMyDiscardOptions([
-          { value: 'ALL', label: '내 버릴 과목' },
-          ...Array.from(discardNames).map((name) => ({
-            value: name,
-            label: name,
-          })),
-        ]);
       } catch (error) {
         console.error('내 게시글 조회 실패:', error);
         setMyPostId(null);
@@ -135,12 +103,12 @@ const BoardPage = () => {
     fetchMyPosts();
   }, []);
 
-  // 2. 게시글 목록 조회 (특정 과목 필터가 걸려있으면 클라이언트에서 그 과목만 추려냄)
+  // 2. 게시글 목록 조회
   const fetchPosts = useCallback(
     async (
       dept: string,
-      targetFilter: string,
-      discardFilter: string,
+      targetOn: boolean,
+      discardOn: boolean,
       myPostIds: Set<number>,
     ) => {
       try {
@@ -149,32 +117,25 @@ const BoardPage = () => {
 
         let rawPosts: BoardPostResponse[] = [];
 
-        if (targetFilter !== 'ALL' && discardFilter !== 'ALL') {
-          // 💡 버그 수정: 둘 다 골랐을 때 이 조건이 없어서 targetFilter만 적용되고
-          // discardFilter는 무시되고 있었음. my-targets 받아서 두 조건 다(AND) 만족하는 것만 남김.
+        if (targetOn && discardOn) {
+          // 💡 둘 다 켜짐: my-targets(내가 원하는 과목을 버린다는 글) ∩ my-seekers(내가 버릴
+          // 과목을 원하는 글) — 두 목록에 동시에 있는 게시글만 postId 기준으로 남김
+          const [targetRes, seekerRes] = await Promise.all([
+            axiosInstance.get('/api/posts/my-targets'),
+            axiosInstance.get('/api/posts/my-seekers'),
+          ]);
+          const targetPosts: BoardPostResponse[] = targetRes.data?.data || [];
+          const seekerPosts: BoardPostResponse[] = seekerRes.data?.data || [];
+          const seekerIds = new Set(seekerPosts.map((p) => p.postId));
+          rawPosts = targetPosts.filter((p) => seekerIds.has(p.postId));
+        } else if (targetOn) {
+          // 내 타겟 과목: 남들이 버린다고 올린 것 중 내가 원하는 과목이 있는 게시글 전체
           const response = await axiosInstance.get('/api/posts/my-targets');
-          const all: BoardPostResponse[] = response.data?.data || [];
-          rawPosts = all.filter(
-            (p) =>
-              p.discardCourse?.name === targetFilter &&
-              (p.wantedCourses || []).some(
-                (w) => w.course?.name === discardFilter,
-              ),
-          );
-        } else if (targetFilter !== 'ALL') {
-          // 내가 want로 등록한 과목 중 하나를 골랐을 때: my-targets 받아서 그 과목만 추림
-          const response = await axiosInstance.get('/api/posts/my-targets');
-          const all: BoardPostResponse[] = response.data?.data || [];
-          rawPosts = all.filter((p) => p.discardCourse?.name === targetFilter);
-        } else if (discardFilter !== 'ALL') {
-          // 내가 버릴 과목 중 하나를 골랐을 때: my-seekers 받아서 그 과목만 추림
+          rawPosts = response.data?.data || [];
+        } else if (discardOn) {
+          // 내 버릴 과목: 내가 버릴 과목을 원한다고 올린 게시글 전체
           const response = await axiosInstance.get('/api/posts/my-seekers');
-          const all: BoardPostResponse[] = response.data?.data || [];
-          rawPosts = all.filter((p) =>
-            (p.wantedCourses || []).some(
-              (w) => w.course?.name === discardFilter,
-            ),
-          );
+          rawPosts = response.data?.data || [];
         } else {
           // 필터 없음: 전체 게시판 (dept 검색 + 페이지네이션)
           const response = await axiosInstance.get('/api/posts', {
@@ -231,24 +192,13 @@ const BoardPage = () => {
     [],
   );
 
-  // 검색(dept) 또는 과목 필터 변경 시 디바운스 처리 (300ms)
+  // 검색(dept) 또는 필터 토글 변경 시 디바운스 처리 (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPosts(
-        searchQuery,
-        targetCourseFilter,
-        discardCourseFilter,
-        myPostIds,
-      );
+      fetchPosts(searchQuery, showTargetFilter, showDiscardFilter, myPostIds);
     }, 300);
     return () => clearTimeout(timer);
-  }, [
-    searchQuery,
-    targetCourseFilter,
-    discardCourseFilter,
-    myPostIds,
-    fetchPosts,
-  ]);
+  }, [searchQuery, showTargetFilter, showDiscardFilter, myPostIds, fetchPosts]);
 
   useEffect(() => {
     const isLoggedIn = !!getTokens();
@@ -322,8 +272,8 @@ const BoardPage = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="교환해요"
-              className="flex-1 bg-transparent border-none outline-none text-xs font-light text-black placeholder-stone-300 leading-5 tracking-wide"
+              placeholder="학과명을 입력해주세요"
+              className="flex-1 bg-transparent border-none outline-none text-sm text-black placeholder-stone-300"
             />
             <Icon
               icon={ICONS.SEARCH}
@@ -332,50 +282,42 @@ const BoardPage = () => {
           </div>
         </div>
 
-        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 (드롭다운, 동시에 선택 가능) */}
-        <div className="px-5 pb-3 flex items-center gap-3">
+        {/* 맞춤 필터: 내 타겟 과목 / 내 버릴 과목 (각각 켜고 끄는 토글, 동시에 켤 수 있음) */}
+        <div className="px-5 pb-3 flex items-center gap-2">
           {myPostId ? (
             <>
-              <Dropdown
-                options={myTargetOptions}
-                value={targetCourseFilter}
-                onChange={(v) => setTargetCourseFilter(v)}
-                placeholder="내 타겟 과목"
-                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
+              <FilterChip
+                label="내 타겟 과목"
+                isActive={showTargetFilter}
+                hasClose={showTargetFilter}
+                onClick={() => setShowTargetFilter((prev) => !prev)}
+                onClose={() => setShowTargetFilter(false)}
               />
-              <Dropdown
-                options={myDiscardOptions}
-                value={discardCourseFilter}
-                onChange={(v) => setDiscardCourseFilter(v)}
-                placeholder="내 버릴 과목"
-                className="!w-32 [&>button]:!bg-slate-100 [&>button]:!border [&>button]:!border-blue-400 [&>button]:!rounded-2xl [&>button]:!text-slate-600 [&>button]:!text-xs [&>button]:!font-light"
+              <FilterChip
+                label="내 버릴 과목"
+                isActive={showDiscardFilter}
+                hasClose={showDiscardFilter}
+                onClick={() => setShowDiscardFilter((prev) => !prev)}
+                onClose={() => setShowDiscardFilter(false)}
               />
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <FilterChip
+                label="내 타겟 과목"
                 onClick={handleFilterButtonClick}
-                className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
-              >
-                <span>내 타겟 과목</span>
-                <Icon icon="ph:caret-down" className="text-cyan-900" />
-              </button>
-              <button
-                type="button"
+              />
+              <FilterChip
+                label="내 버릴 과목"
                 onClick={handleFilterButtonClick}
-                className="w-28 flex items-center justify-between px-3.5 py-2 bg-slate-100 border border-blue-400 rounded-2xl text-xs text-slate-600 font-light"
-              >
-                <span>내 버릴 과목</span>
-                <Icon icon="ph:caret-down" className="text-cyan-900" />
-              </button>
+              />
             </>
           )}
         </div>
       </div>
 
       {/* 게시글 목록 */}
-      <div className="flex-1 px-5">
+      <div className="flex-1 px-8">
         {loading ? (
           <div className="py-20 text-center text-gray-400 text-sm">
             목록을 불러오는 중입니다...
@@ -395,8 +337,8 @@ const BoardPage = () => {
                 onClick={() =>
                   fetchPosts(
                     searchQuery,
-                    targetCourseFilter,
-                    discardCourseFilter,
+                    showTargetFilter,
+                    showDiscardFilter,
                     myPostIds,
                   )
                 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
@@ -29,6 +30,7 @@ interface CourseDetail {
   classTime: string;
   department: string;
   courseType: string;
+  category?: string;
 }
 
 interface WantedCourseItem {
@@ -45,6 +47,7 @@ interface PostDetailResponse {
   wantedCourses: WantedCourseItem[];
   createdAt: string;
   mine: boolean;
+  proposalCount: number;
 }
 
 interface MyPostResponse {
@@ -57,16 +60,14 @@ interface EnrichedProposal extends ProposalData {
   receiverPostId?: number;
 }
 
-// 💡 GET /api/proposals/received 응답 항목 (이 화면에선 receiverPostId만 필요)
-interface ReceivedProposalItem {
-  receiverPostId?: number;
-}
-
 const STATUS_LABEL: Record<string, string> = {
   MATCHABLE: '교환 전',
   IN_EXCHANGE: '교환 중',
   COMPLETED: '교환 완료',
 };
+
+// 💡 뱃지 색상은 과목 종류(교양/전공)가 아니라, 어느 섹션인지로 결정함 —
+// 버릴 과목 = lightRed, 원하는 과목 = blueSolid (아래 각 섹션에서 직접 지정)
 
 const SpecificPostsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -86,6 +87,8 @@ const SpecificPostsPage: React.FC = () => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showNoPostModal, setShowNoPostModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // 💡 헤더 "..." 아이콘 눌렀을 때 뜨는 수정하기/삭제하기 드롭다운 메뉴
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const hasHandledJustProposedRef = useRef(false);
   useEffect(() => {
@@ -136,18 +139,6 @@ const SpecificPostsPage: React.FC = () => {
       return response.data.data as PostDetailResponse;
     },
     enabled: !!postId,
-  });
-
-  const { data: receivedRequestCount = 0 } = useQuery({
-    queryKey: ['receivedRequestCountForPost', postId],
-    queryFn: async (): Promise<number> => {
-      const response = await axiosInstance.get('/api/proposals/received');
-      const received: ReceivedProposalItem[] = response.data?.data || [];
-      return received.filter((item) => item.receiverPostId === Number(postId))
-        .length;
-    },
-    // 💡 남의 글일 땐 GET /api/proposals/received로 알 방법이 없어 0 고정, 내 글이면 실제 값
-    enabled: !!post?.mine && !!postId,
   });
 
   const handleRequestExchange = () => {
@@ -212,7 +203,9 @@ const SpecificPostsPage: React.FC = () => {
     },
     onError: (error) => {
       console.error('게시글 삭제 실패:', error);
-      alert('게시글 삭제 중 오류가 발생했습니다.');
+      const axiosError = error as AxiosError<{ message?: string }>;
+      const serverMessage = axiosError.response?.data?.message;
+      alert(serverMessage || '게시글 삭제 중 오류가 발생했습니다.');
     },
     onSettled: () => {
       setShowDeleteModal(false);
@@ -263,8 +256,6 @@ const SpecificPostsPage: React.FC = () => {
 
   const handleReport = () => {
     if (!post) return;
-    // 💡 이 앱엔 실제 닉네임이 없어서(항상 나송/너송), 신고 버튼도 상대방 글일 때만
-    // 뜨니까(!post.mine) 여기선 항상 '너송'으로 고정
     navigate('/report', {
       state: {
         reportedUserId: post.authorId,
@@ -284,6 +275,11 @@ const SpecificPostsPage: React.FC = () => {
                 onClick={() => navigate('/board')}
               />
             }
+            title={
+              <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2">
+                게시글 상세
+              </div>
+            }
             rightNode={
               <IconButton
                 icon={ICONS.MORE_VERTICAL}
@@ -291,11 +287,6 @@ const SpecificPostsPage: React.FC = () => {
               />
             }
           />
-          <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-            <span className="text-black/70 text-[17px] font-semibold pointer-events-auto">
-              게시글 상세
-            </span>
-          </div>
         </div>
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
           불러오는 중입니다...
@@ -313,6 +304,10 @@ const SpecificPostsPage: React.FC = () => {
     sentProposal?.status === 'PENDING' &&
     sentProposal.receiverPostId === Number(postId);
 
+  // 💡 category(전공선택/전공필수 등)를 courseType보다 우선해서 가져옴
+  const discardLabel =
+    post.discardCourse.category || post.discardCourse.courseType;
+
   return (
     <div className="relative w-full h-full flex flex-col font-['Pretendard'] bg-neutral-50">
       {/* 고정 헤더 */}
@@ -321,13 +316,46 @@ const SpecificPostsPage: React.FC = () => {
           leftNode={
             <IconButton icon={ICONS.BACK} onClick={() => navigate('/board')} />
           }
+          title={
+            <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2">
+              게시글 상세
+            </div>
+          }
           rightNode={
-            <IconButton icon={ICONS.MORE_VERTICAL} className="text-black/40" />
+            <div className="relative">
+              <IconButton
+                icon={ICONS.MORE_VERTICAL}
+                className="text-black/40"
+                onClick={() => {
+                  if (!post.mine) return;
+                  setShowMoreMenu((prev) => !prev);
+                }}
+              />
+              {showMoreMenu && post.mine && (
+                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg border border-gray-200 shadow-lg z-50 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleEditPost();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-zinc-900 hover:bg-gray-50 transition-colors"
+                  >
+                    수정하기
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleDeletePost();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-rose-500 hover:bg-gray-50 transition-colors"
+                  >
+                    삭제하기
+                  </button>
+                </div>
+              )}
+            </div>
           }
         />
-        <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-          <span className="pointer-events-auto">게시글 상세</span>
-        </div>
       </div>
 
       <div
@@ -343,9 +371,8 @@ const SpecificPostsPage: React.FC = () => {
               <div className="text-black text-[16px] font-medium leading-tight">
                 {post.mine ? '나송' : '너송'}
               </div>
-              {/* 💡 남의 글일 땐 GET /api/proposals/received로 알 방법이 없어 0 고정, 내 글이면 실제 값 */}
               <div className="text-black/60 text-[12px] font-light leading-tight">
-                받은 요청 {receivedRequestCount}개
+                받은 요청 {post.proposalCount ?? 0}개
               </div>
             </div>
           </div>
@@ -357,97 +384,115 @@ const SpecificPostsPage: React.FC = () => {
             </Badge>
           )}
         </div>
-
-        {/* 버릴 과목 영역 */}
-        <section className="mb-9">
-          <h2 className="text-point-red text-[15px] font-bold px-3 mb-1">
-            버릴 과목
-          </h2>
-
-          <CourseCard
-            title={post.discardCourse.name}
-            professor={post.discardCourse.professor}
-            time={post.discardCourse.classTime}
-            className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-            leftNode={
-              <div className="relative w-7 h-7 shrink-0 mt-0.5 flex items-center justify-center">
-                <div className="size-6 bg-rose-200 rounded-full" />
-                <img src={throwArrow} alt="throw" className="absolute size-6" />
-              </div>
-            }
-            badges={
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant="lightRed" className="!font-normal !rounded-lg">
-                  {post.discardCourse.courseType}
-                </Badge>
-                {post.discardCourse.department && (
-                  <Badge
-                    variant="lightRed"
-                    className="!font-normal !rounded-lg"
-                  >
-                    {post.discardCourse.department}
-                  </Badge>
-                )}
-              </div>
-            }
-          />
-        </section>
-
-        {/* 원하는 과목 영역 */}
-        <section className="mt-4 mb-10">
-          <div className="mb-4 flex flex-col gap-1 px-3">
-            <h2 className="text-brand-lightBlue text-[15px] font-bold">
-              원하는 과목
+        <div className="px-2">
+          {/* 버릴 과목 영역 */}
+          <section className="mb-9">
+            <h2 className="text-point-red text-[15px] font-bold mb-1">
+              버릴 과목
             </h2>
-            <p className="text-gray-400 text-[11px] font-normal">
-              최소 1개 이상 선택해주세요
-            </p>
-          </div>
 
-          <div className="flex flex-col gap-4">
-            {sortedWantedCourses.map((item) => (
-              <div key={item.priority}>
-                <div className="text-gray-800 text-[13px] font-medium mb-1.5 ml-1">
-                  {item.priority}순위
+            <CourseCard
+              title={post.discardCourse.name}
+              professor={post.discardCourse.professor}
+              time={post.discardCourse.classTime}
+              className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+              leftNode={
+                <div className="relative w-7 h-7 shrink-0 mt-0.5 flex items-center justify-center">
+                  <div className="size-6 bg-rose-200 rounded-full" />
+                  <img
+                    src={throwArrow}
+                    alt="throw"
+                    className="absolute size-6"
+                  />
                 </div>
-                <CourseCard
-                  title={item.course.name}
-                  professor={item.course.professor}
-                  time={item.course.classTime}
-                  className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-                  leftNode={
-                    <div className="relative w-7 h-6 shrink-0 mt-0.5 flex items-center justify-center">
-                      <div className="size-6 bg-sky-200 rounded-full" />
-                      <img
-                        src={wantArrow}
-                        alt="want"
-                        className="absolute size-5"
-                      />
+              }
+              badges={
+                <div className="flex flex-wrap gap-1.5">
+                  {discardLabel && (
+                    <Badge
+                      variant="lightRed"
+                      className="!font-normal !rounded-lg"
+                    >
+                      {discardLabel}
+                    </Badge>
+                  )}
+                  {post.discardCourse.department && (
+                    <Badge
+                      variant="lightRed"
+                      className="!font-normal !rounded-lg"
+                    >
+                      {post.discardCourse.department}
+                    </Badge>
+                  )}
+                </div>
+              }
+            />
+          </section>
+
+          {/* 원하는 과목 영역 */}
+          <section className="mt-4 mb-10">
+            <div className="mb-4 flex flex-col gap-1">
+              <h2 className="text-brand-lightBlue text-[15px] font-bold">
+                원하는 과목
+              </h2>
+              <p className="text-gray-400 text-[11px] font-normal">
+                최소 1개 이상 선택해주세요
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {sortedWantedCourses.map((item) => {
+                // 💡 category(전공선택/전공필수 등)를 courseType보다 우선해서 가져옴
+                const wantedLabel =
+                  item.course.category || item.course.courseType;
+
+                return (
+                  <div key={item.priority}>
+                    <div className="text-gray-800 text-[13px] font-medium mb-1.5">
+                      {item.priority}순위
                     </div>
-                  }
-                  badges={
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge
-                        variant="lightBlueOutline"
-                        className="!font-normal !rounded-lg"
-                      >
-                        {item.course.courseType}
-                      </Badge>
-                      {item.course.department && (
-                        <Badge
-                          variant="lightBlueOutline"
-                          className="!font-normal !rounded-lg"
-                        >
-                          {item.course.department}
-                        </Badge>
-                      )}
-                    </div>
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        </section>
+                    <CourseCard
+                      title={item.course.name}
+                      professor={item.course.professor}
+                      time={item.course.classTime}
+                      className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+                      leftNode={
+                        <div className="relative w-7 h-6 shrink-0 mt-0.5 flex items-center justify-center">
+                          <div className="size-6 bg-sky-200 rounded-full" />
+                          <img
+                            src={wantArrow}
+                            alt="want"
+                            className="absolute size-5"
+                          />
+                        </div>
+                      }
+                      badges={
+                        <div className="flex flex-wrap gap-1.5">
+                          {wantedLabel && (
+                            <Badge
+                              variant="lightBlueOutline"
+                              className="!font-normal !rounded-lg"
+                            >
+                              {wantedLabel}
+                            </Badge>
+                          )}
+                          {item.course.department && (
+                            <Badge
+                              variant="lightBlueOutline"
+                              className="!font-normal !rounded-lg"
+                            >
+                              {item.course.department}
+                            </Badge>
+                          )}
+                        </div>
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
 
         {/* 💡 상대방 글일 때만: 찜하기 / 공유하기 / 신고하기 */}
         {!post.mine && (
@@ -483,7 +528,7 @@ const SpecificPostsPage: React.FC = () => {
         )}
 
         {/* 안내사항 */}
-        <section className="mb-6">
+        <section className="mb-6 px-2">
           {post.mine && (
             <div className="w-full bg-[#E6EFF5] rounded-xl border border-brand-lightBlue p-5">
               <h3 className="text-zinc-900 text-lg font-semibold mb-3">
