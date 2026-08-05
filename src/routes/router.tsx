@@ -13,7 +13,6 @@ import AlertPage from '../pages/alert/alert';
 import EPRPage from '../pages/chat/EPR';
 import CRPPage from '../pages/chat/CRP';
 import SDPPage from '../pages/chat/SDP';
-import TDPPage from '../pages/chat/TDP';
 import ReportPage from '@/pages/report/ReportPage';
 import ReportSuccessPage from '@/pages/report/ReportSuccessPage';
 import ExchangeRecommendPage from '@/pages/ExchangeRecommendPage/ExchangeRecommendPage';
@@ -104,7 +103,6 @@ export const router = createBrowserRouter([
           { path: '/findPW', element: <FindPWPage /> },
           { path: '/chat/:roomId', element: <CRPPage /> },
           { path: '/chat/:roomId/schedule', element: <SDPPage /> },
-          { path: '/chat/:roomId/terminate', element: <TDPPage /> },
           { path: '/board/write', element: <PostWritePage /> },
           { path: '/post/:postId', element: <PostDetailPage /> },
           { path: '/lounge/write', element: <LoungeWritePage /> },
