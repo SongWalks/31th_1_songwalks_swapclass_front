@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import { ICONS } from '@/constants/icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import { FAB } from '@/components/common/FAB';
 import axiosInstance from '@/api/axiosInstance'; // 💡 API 통신용 인스턴스 추가
 import { NotificationBell } from '@/components/common/NotificationBell';
 
@@ -34,7 +35,18 @@ interface RawMyPost {
 
 const MyPostpage = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('전체');
+  const location = useLocation();
+
+  // 💡 Mypage.tsx의 "교환 중 게시글 삭제하고 탈퇴하기" 버튼처럼, 특정 탭을 지정해서
+  // 넘어온 경우 그 탭으로 바로 열림 (useState 초기값 계산 함수로 마운트 시 한 번만 읽음)
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const requestedTab = (location.state as { initialTab?: TabType } | null)
+      ?.initialTab;
+    const validTabs: TabType[] = ['전체', '교환 전', '교환 중', '교환 완료'];
+    return requestedTab && validTabs.includes(requestedTab)
+      ? requestedTab
+      : '전체';
+  });
 
   // 💡 상태 관리 추가 (게시글 데이터 및 로딩 상태)
   const [posts, setPosts] = useState<Post[]>([]);
@@ -254,15 +266,13 @@ const MyPostpage = () => {
       </div>
 
       {/* 플로팅 버튼 */}
-      <button
-        className="fixed bottom-32 right-5 w-14 h-14 bg-[#4C9DD1] rounded-full shadow-lg flex items-center justify-center text-white z-50 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-        onClick={() => navigate('/board/write')}
-      >
-        <div className="w-12 h-12 flex items-center justify-center relative">
-          <div className="w-[3.13px] h-5 absolute bg-white rounded-full" />
-          <div className="w-5 h-[3.13px] absolute bg-white rounded-full" />
-        </div>
-      </button>
+      <div className="fixed bottom-0 inset-x-0 mx-auto w-full max-w-md h-0 z-50 pointer-events-none">
+        <FAB
+          onClick={() => navigate('/board/write')}
+          icon={ICONS.PLUS}
+          className="absolute bottom-32 right-5 !pointer-events-auto !w-14 !h-14 !rounded-full !bg-[#4C9DD1] !text-white"
+        />
+      </div>
     </div>
   );
 };

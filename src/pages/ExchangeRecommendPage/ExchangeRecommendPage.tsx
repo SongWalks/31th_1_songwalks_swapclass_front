@@ -203,7 +203,7 @@ const ExchangeRecommendPage = () => {
       </div>
 
       {/* 내용 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 py-2">
         {loading ? (
           <div className="py-20 text-center text-gray-400 text-sm">
             추천 목록을 불러오는 중입니다...
@@ -233,7 +233,9 @@ const ExchangeRecommendPage = () => {
                       onClick={() => navigate(`/board/${post.id}`)}
                       className="text-lg font-medium tracking-wide text-left hover:opacity-80 transition-opacity"
                     >
-                      {post.title}
+                      <h3 className="text-xl font-medium text-black leading-5 tracking-wide">
+                        {post.title}
+                      </h3>
                     </button>
 
                     <button
@@ -257,7 +259,7 @@ const ExchangeRecommendPage = () => {
                           {index + 1}
                         </div>
 
-                        <span className="text-xs font-light text-black/70">
+                        <span className="text-sm font-light text-black/70 leading-5 tracking-wide">
                           {subject}
                         </span>
                       </div>
