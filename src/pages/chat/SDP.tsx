@@ -1,5 +1,5 @@
 // pages/chat/ScheduleDecisionPage.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
@@ -12,21 +12,53 @@ import { chatRoomApi } from '@/api/chat/chatRoomApi';
 import { exchangeApi } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 
-// TODO: 실제로는 수강신청 가능 날짜/시간 범위 API로 대체
-const DATE_OPTIONS = [
-  '2026년 6월 05일 화요일',
-  '2026년 6월 06일 수요일',
-  '2026년 6월 07일 목요일',
-];
-const TIME_OPTIONS = ['오전 4:00', '오전 4:30', '오전 5:00', '오전 5:30'];
+// ⚠️ 수강신청 가능 날짜 범위를 내려주는 전용 API가 명세서/스웨거에 없어
+//    오늘 날짜 기준으로 다음 3일을 동적 생성한다. (백엔드에 관련 API가 생기면 교체할 것)
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+const generateDateOptions = (count = 3) => {
+  const options: { label: string; date: Date }[] = [];
+  const today = new Date();
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const label = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${String(
+      d.getDate(),
+    ).padStart(2, '0')}일 ${DAY_NAMES[d.getDay()]}요일`;
+    options.push({ label, date: d });
+  }
+  return options;
+};
+
+const AMPM_OPTIONS = ['오전', '오후'] as const;
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1); // 1~12
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => i); // 0~59, 5분 단위 아님
+
+// 현재 시각(로컬)을 오전/오후 + 1~12시 + 분 형태로 변환
+const getCurrentTimeParts = () => {
+  const now = new Date();
+  const rawHour = now.getHours(); // 0~23
+  const minute = now.getMinutes();
+  const ampm: (typeof AMPM_OPTIONS)[number] = rawHour < 12 ? '오전' : '오후';
+  let hour = rawHour % 12;
+  if (hour === 0) hour = 12; // 0시/12시 → 12시로 표기
+  return { ampm, hour, minute };
+};
 
 export default function ScheduleDecisionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
 
-  const [date, setDate] = useState(DATE_OPTIONS[0]);
-  const [time, setTime] = useState(TIME_OPTIONS[0]);
+  const [dateOptions] = useState(() => generateDateOptions());
+  const [date, setDate] = useState(dateOptions[0].label);
+
+  const [{ ampm: initialAmpm, hour: initialHour, minute: initialMinute }] =
+    useState(getCurrentTimeParts);
+  const [ampm, setAmpm] = useState<(typeof AMPM_OPTIONS)[number]>(initialAmpm);
+  const [hour, setHour] = useState(initialHour);
+  const [minute, setMinute] = useState(initialMinute);
+
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState(
     '시간을 확정하지 못했습니다. 다시 시도해주세요.',
@@ -48,19 +80,22 @@ export default function ScheduleDecisionPage() {
 
   const handleBack = () => navigate(-1);
 
+  const timePreview = useMemo(
+    () => `${ampm} ${hour}:${String(minute).padStart(2, '0')}`,
+    [ampm, hour, minute],
+  );
+
   const parseToIso = () => {
     const [, y, m, d] = date.match(/(\d+)년 (\d+)월 (\d+)일/) ?? [];
-    const isPM = time.includes('오후');
-    const [, hRaw, min] = time.match(/(\d+):(\d+)/) ?? [];
-    let hour = Number(hRaw ?? 0);
-    if (isPM && hour !== 12) hour += 12;
-    if (!isPM && hour === 12) hour = 0;
+    let h = hour;
+    if (ampm === '오후' && h !== 12) h += 12;
+    if (ampm === '오전' && h === 12) h = 0;
     return new Date(
       Number(y),
       Number(m) - 1,
       Number(d),
-      hour,
-      Number(min ?? 0),
+      h,
+      minute,
     ).toISOString();
   };
 
@@ -73,6 +108,12 @@ export default function ScheduleDecisionPage() {
     setIsSubmitting(true);
     try {
       const scheduledAt = parseToIso();
+      // 디버깅용: 실제 전송값과 현재 시각(UTC) 비교
+      console.log('[디버그] 선택한 날짜/시간:', date, timePreview);
+      console.log('[디버그] 서버로 보내는 scheduledAt:', scheduledAt);
+      console.log('[디버그] 현재 시각(UTC):', new Date().toISOString());
+      console.log('[디버그] 현재 시각(로컬):', new Date().toString());
+
       const res = await exchangeApi.confirmSchedule(exchangeId, scheduledAt);
       // 확정된 시각을 채팅방으로 되돌려주면서 즉시 안내 배너를 그릴 수 있게 한다.
       // (스웨거 chat-room 응답에는 scheduledAt 필드가 없어, 시스템 메시지 파싱 전까지는
@@ -82,6 +123,7 @@ export default function ScheduleDecisionPage() {
         state: { scheduledAt: res.scheduledAt },
       });
     } catch (err) {
+      console.log('[디버그] 에러 발생:', err);
       setErrorMessage(
         err instanceof ApiError
           ? err.message
@@ -92,7 +134,6 @@ export default function ScheduleDecisionPage() {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
@@ -113,9 +154,9 @@ export default function ScheduleDecisionPage() {
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-sm text-[#19191B] bg-white"
               >
-                {DATE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                {dateOptions.map((opt) => (
+                  <option key={opt.label} value={opt.label}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -128,23 +169,66 @@ export default function ScheduleDecisionPage() {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-semibold text-[#19191B]">시간</span>
-            <div className="relative">
-              <select
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-3 text-sm text-[#19191B] bg-white"
-              >
-                {TIME_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-              <Icon
-                icon="mdi:chevron-down"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-gray-400 pointer-events-none"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <select
+                  value={ampm}
+                  onChange={(e) =>
+                    setAmpm(e.target.value as (typeof AMPM_OPTIONS)[number])
+                  }
+                  className="w-full appearance-none border border-gray-200 rounded-xl px-3 py-3 text-sm text-[#19191B] bg-white"
+                >
+                  {AMPM_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <Icon
+                  icon="mdi:chevron-down"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-gray-400 pointer-events-none"
+                />
+              </div>
+
+              <div className="relative flex-1">
+                <select
+                  value={hour}
+                  onChange={(e) => setHour(Number(e.target.value))}
+                  className="w-full appearance-none border border-gray-200 rounded-xl px-3 py-3 text-sm text-[#19191B] bg-white"
+                >
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>
+                      {h}시
+                    </option>
+                  ))}
+                </select>
+                <Icon
+                  icon="mdi:chevron-down"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-gray-400 pointer-events-none"
+                />
+              </div>
+
+              <div className="relative flex-1">
+                <select
+                  value={minute}
+                  onChange={(e) => setMinute(Number(e.target.value))}
+                  className="w-full appearance-none border border-gray-200 rounded-xl px-3 py-3 text-sm text-[#19191B] bg-white"
+                >
+                  {MINUTE_OPTIONS.map((m) => (
+                    <option key={m} value={m}>
+                      {String(m).padStart(2, '0')}분
+                    </option>
+                  ))}
+                </select>
+                <Icon
+                  icon="mdi:chevron-down"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-gray-400 pointer-events-none"
+                />
+              </div>
             </div>
+            <span className="text-[11px] text-gray-400 mt-0.5">
+              선택한 시간: {timePreview}
+            </span>
           </label>
         </div>
 

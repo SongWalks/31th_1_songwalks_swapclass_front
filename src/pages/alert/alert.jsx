@@ -72,10 +72,6 @@ export default function AlertPage() {
   const pageRef = useRef(0);
   const listRef = useRef(null);
 
-  useEffect(() => {
-    fetchNotifications({ reset: true });
-  }, []);
-
   const showToast = (message) => {
     setToastMessage(message);
     setIsToastVisible(true);
@@ -109,6 +105,14 @@ export default function AlertPage() {
       setIsLoadingMore(false);
     }
   };
+
+  useEffect(() => {
+    // 마운트 시 알림 목록을 불러오는 정상적인 데이터 페칭 effect입니다.
+    // fetchNotifications 내부에서 로딩 상태를 setState하는 것을 이 규칙이
+    // 오탐(false positive)하고 있어 해당 라인만 예외 처리합니다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchNotifications({ reset: true });
+  }, []);
 
   // API 1. 안 읽은 알림 개수 조회
   // TODO: 헤더/탭바 뱃지 UI 나오면 마운트 시(or 폴링)로 연결

@@ -15,18 +15,16 @@ import { chatRoomApi, type ChatMessageDto } from '@/api/chat/chatRoomApi';
 import { exchangeApi } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 import { useChatSocket } from '@/api/chat/useChatSocket';
-
-// TODO: 실제 로그인 유저 id로 교체 (인증/세션 연동 후)
-const CURRENT_USER_ID = 1;
+import { getTokens, decodeUserId } from '../../store/tokenStorage';
+import TerminateDealOverlay from './TDP';
 
 const COUNTDOWN_START = 10;
 const COUNTDOWN_RED_THRESHOLD = 3;
+// ⚠️ 인증은 교환 예정 시간 5분 전부터 가능 (기능명세서 기준)
+const VERIFY_LEAD_MS = 5 * 60 * 1000;
+// ⚠️ 실제 채팅방 목록 라우트 경로에 맞게 확인/수정 필요
+const ROOM_LIST_PATH = '/chat';
 
-// 채팅방(room.status)에서 파생되는 화면 단계
-// CHAT / GUIDE 는 프론트 로컬 전용 화면(서버 status 없음)
-// VERIFY / COUNTDOWN / DISPUTE 는 서버 room.status 를 기준으로 진입한다.
-// ⚠️ 아래 문자열들은 스웨거에 정확한 enum이 명시돼 있지 않아 기존 기획 문서의
-//    상태값을 그대로 가정한 것. 백엔드 실제 enum과 다르면 STATUS_TO_FLOW_STEP 만 고치면 된다.
 type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
 type VerifySubStep =
   | 'INTRO'
@@ -39,14 +37,10 @@ type DisputeSubStep = 'CAPTURE' | 'SUBMITTED';
 
 const STATUS_TO_FLOW_STEP: Record<string, FlowStep> = {
   CHATTING: 'CHAT',
+  SCHEDULED: 'CHAT',
   VERIFYING: 'VERIFY',
-  READY: 'VERIFY',
   COUNTDOWN: 'COUNTDOWN',
-  RESULT_SELECT: 'COUNTDOWN',
-  DISPUTE: 'DISPUTE',
-  DISPUTE_SUBMITTED: 'CHAT',
-  COMPLETED: 'CHAT',
-  TERMINATED: 'CHAT',
+  DONE: 'CHAT',
 };
 
 const CHAT_INPUT_UNLOCKED_STEPS: FlowStep[] = ['CHAT', 'GUIDE'];
@@ -102,20 +96,70 @@ const formatScheduledDate = (iso: string) => {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
 };
 
-const MOCK_ROOM_COURSES: Record<string, { my: string; counterpart: string }> = {
-  // TODO: 실제 room 상세 API로 대체 (내 과목명 / 상대 과목명) - 현재 스웨거에 과목명 필드가 없어 임시 유지
-  '1': { my: '마케팅과 소비자 이슈', counterpart: '프로그래밍언어론' },
-  '2': { my: '자바프로그래밍', counterpart: '소비자 경제' },
-};
-
 export default function ChatRoomPage() {
+  const [exchangeStatus, setExchangeStatus] = useState<string | null>(null);
+  const [isCancelled, setIsCancelled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
 
-  const myCourseName = MOCK_ROOM_COURSES[roomId]?.my ?? '알 수 없음';
-  const counterpartCourseName =
-    MOCK_ROOM_COURSES[roomId]?.counterpart ?? '알 수 없음';
+  const navCourses = location.state as {
+    myCourseName?: string;
+    counterpartCourseName?: string;
+    scheduledAt?: string;
+  } | null;
+
+  // ============ VERIFY ============
+  const handleEnterVerify = async () => {
+    setCardInsertIndex(messages.length);
+    setShowPreviousChat(false);
+    setLocalFlowStep(null);
+    setVerifyStep('INTRO');
+    setMyVerified(false);
+    if (!exchangeId) return;
+    try {
+      // QR 발급은 서버가 VERIFYING 상태일 때만 허용하므로, 발급 전에 최신 상태를 한 번 확인한다.
+      const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
+      setRoomStatus(roomData.room.status);
+      if (
+        roomData.room.status !== 'VERIFYING' &&
+        roomData.room.status !== 'READY'
+      ) {
+        setApiError(
+          '아직 인증을 시작할 수 없는 상태입니다. 잠시 후 다시 시도해주세요.',
+        );
+        return;
+      }
+      const qr = await exchangeApi.createQr(exchangeId);
+      setQrImageUrl(qr.qrImageUrl);
+      setQrExpiresAt(qr.expiresAt);
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : 'QR 코드를 발급받지 못했습니다.',
+      );
+    }
+  };
+
+  // ===== 과목명 상태 =====
+  const [courseNames, setCourseNames] = useState<{
+    my: string;
+    counterpart: string;
+  } | null>(
+    navCourses?.myCourseName && navCourses?.counterpartCourseName
+      ? {
+          my: navCourses.myCourseName,
+          counterpart: navCourses.counterpartCourseName,
+        }
+      : null,
+  );
+  const myCourseName = courseNames?.my ?? '알 수 없음';
+  const counterpartCourseName = courseNames?.counterpart ?? '알 수 없음';
+
+  // JWT의 sub 클레임 = 로그인 유저 id. senderId(number)와 비교해야 하므로 Number 변환 필수.
+  const CURRENT_USER_ID =
+    Number(decodeUserId(getTokens()?.accessToken ?? '')) || null;
 
   // ===== 서버 연동 상태 =====
   const [exchangeId, setExchangeId] = useState<number | null>(null);
@@ -124,23 +168,24 @@ export default function ChatRoomPage() {
   const [isLoadingRoom, setIsLoadingRoom] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // 교환 확정 시각. 스웨거에는 room 정보에 scheduledAt 필드가 없어,
-  // (1) 스케줄 페이지에서 방금 확정하고 돌아온 경우 location.state로 전달받고
-  // (2) 그 외에는 시스템 메시지(type: 'SYSTEM') 내용에서 파싱해 복원한다.
-  // ⚠️ 시스템 메시지 문구 포맷을 백엔드와 맞춰야 정확히 파싱된다 - 현재는 방어적으로만 시도.
   const [scheduledAt, setScheduledAt] = useState<string | null>(
-    (location.state as { scheduledAt?: string } | null)?.scheduledAt ?? null,
+    navCourses?.scheduledAt ?? null,
   );
 
   const [inputValue, setInputValue] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTerminateOpen, setIsTerminateOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
 
   // ===== 화면 전환 로컬 상태 =====
-  const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null); // GUIDE 처럼 서버 status 없는 화면 진입용
+  const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null);
   const flowStep: FlowStep =
-    localFlowStep ?? STATUS_TO_FLOW_STEP[roomStatus] ?? 'CHAT';
+    localFlowStep ??
+    (exchangeStatus === 'DISPUTE'
+      ? 'DISPUTE'
+      : STATUS_TO_FLOW_STEP[roomStatus]) ??
+    'CHAT';
 
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
   const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
@@ -157,6 +202,9 @@ export default function ChatRoomPage() {
     useState(false);
   const [myVerified, setMyVerified] = useState(false);
 
+  // ----- 5분 전 자동 인증 진입 -----
+  const [verifyWindowReached, setVerifyWindowReached] = useState(false);
+
   // ----- COUNTDOWN 관련 상태 -----
   const [countdownPhase, setCountdownPhase] =
     useState<CountdownPhase>('COUNTING');
@@ -167,8 +215,8 @@ export default function ChatRoomPage() {
   const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
   const [disputeStep, setDisputeStep] = useState<DisputeSubStep>('CAPTURE');
 
-  const isTerminated = roomStatus === 'TERMINATED';
-  const isCompleted = roomStatus === 'COMPLETED';
+  const isCompleted = exchangeStatus === 'COMPLETED';
+  const isTerminated = isCancelled;
 
   // ============ 채팅방/교환 정보 최초 로딩 ============
   const loadRoom = async () => {
@@ -176,7 +224,13 @@ export default function ChatRoomPage() {
       const data = await chatRoomApi.getRoom(roomId, { size: 50 });
       setExchangeId(data.room.exchangeId);
       setRoomStatus(data.room.status);
-      setMessages(data.messages);
+      // 서버가 커서 페이징 특성상 최신순(내림차순)으로 내려주므로 createdAt 기준 오름차순으로 정렬해 표시한다.
+      setMessages(
+        [...data.messages].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ),
+      );
     } catch (err) {
       setApiError(
         err instanceof ApiError
@@ -195,7 +249,34 @@ export default function ChatRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  // ============ 실시간 채팅 (STOMP) ============
+  // ============ 과목명 / 확정시간 보완 조회 ============
+  // ⚠️ 채팅방 상세 조회(getRoom) 응답에 과목명·확정시간 필드가 없어(스웨거 확인 완료)
+  //    새로고침 등으로 location.state가 없을 때 목록 API에서 동일 roomId를 찾아 보완한다.
+  //    백엔드가 상세 응답에 필드를 추가하면 이 로직은 제거 가능.
+  useEffect(() => {
+    if (courseNames && scheduledAt) return;
+    chatRoomApi
+      .getRoomList()
+      .then((list) => {
+        const found = list.find((r) => String(r.roomId) === String(roomId));
+        if (!found) return;
+        setCourseNames((prev) =>
+          prev
+            ? prev
+            : {
+                my: found.myCourseName,
+                counterpart: found.partnerCourseName,
+              },
+        );
+        setScheduledAt((prev) => prev ?? found.scheduledAt ?? null);
+      })
+      .catch(() => {
+        // 실패 시 조용히 무시 (기존 '알 수 없음' fallback 유지)
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
+  // ============ 실시간 채팅 (STOMP / SockJS) ============
   const handleIncomingMessage = (message: ChatMessageDto) => {
     setMessages((prev) => [...prev, message]);
 
@@ -263,6 +344,56 @@ export default function ChatRoomPage() {
     scheduleInsertIndex,
   ]);
 
+  // ============ 5분 전 자동 인증 진입 트리거 ============
+  // scheduledAt 기준 5분 전 시각을 계산해 도달 여부를 추적한다. 이 상태가 true가 되는 순간부터
+  // 채팅 입력이 잠기고, 아래 폴링 효과에서 VERIFY 단계로 자동 진입을 시도한다.
+  useEffect(() => {
+    if (!scheduledAt || isTerminated || isCompleted || flowStep !== 'CHAT') {
+      return;
+    }
+    const triggerAt = new Date(scheduledAt).getTime() - VERIFY_LEAD_MS;
+    const now = Date.now();
+    if (now >= triggerAt) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVerifyWindowReached(true);
+      return;
+    }
+    setVerifyWindowReached(false);
+    const timer = setTimeout(
+      () => setVerifyWindowReached(true),
+      triggerAt - now,
+    );
+    return () => clearTimeout(timer);
+  }, [scheduledAt, flowStep, isTerminated, isCompleted]);
+
+  // 인증 가능 시각이 되면, 서버 상태가 VERIFYING/READY로 바뀔 때까지 짧게 폴링한 뒤 인증 화면으로 진입한다.
+  // ⚠️ 5분 전 상태 전환을 알려주는 서버 이벤트가 스웨거에 없어 클라이언트 폴링으로 감지한다.
+  useEffect(() => {
+    if (!verifyWindowReached || flowStep !== 'CHAT') return;
+    let cancelled = false;
+
+    const tryEnter = async () => {
+      try {
+        const data = await chatRoomApi.getRoom(roomId, { size: 1 });
+        if (cancelled) return;
+        setRoomStatus(data.room.status);
+        if (data.room.status === 'VERIFYING' || data.room.status === 'READY') {
+          handleEnterVerify();
+        }
+      } catch {
+        // 폴링 실패는 조용히 무시하고 다음 tick에 재시도
+      }
+    };
+
+    void tryEnter();
+    const timer = setInterval(tryEnter, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyWindowReached, flowStep, roomId]);
+
   // ============ VERIFY: 서버 status 폴링으로 상대방 인증 완료 감지 ============
   // ⚠️ 스웨거에 "상대방 인증 완료 여부"를 알려주는 전용 API/이벤트가 없어
   //    임시로 폴링 방식을 사용한다. 백엔드가 시스템 메시지나 별도 API로 알려줄 수 있다면 교체할 것.
@@ -287,9 +418,18 @@ export default function ChatRoomPage() {
     return () => clearInterval(timer);
   }, [flowStep, myVerified, verifyStep, roomId]);
 
-  const handleBack = () => navigate(-1);
+  const handleBack = () => {
+    // 거래가 파기된 상태에서는 뒤로가기를 누르면 목록으로 바로 이동한다.
+    if (isTerminated) {
+      navigate(ROOM_LIST_PATH, { replace: true });
+      return;
+    }
+    navigate(-1);
+  };
 
-  const handleSend = async () => {
+  // ⚠️ 메시지 전송은 REST POST 엔드포인트가 없음(스웨거 확인 완료) — STOMP publish로만 처리한다.
+  //    STOMP 연결이 안 되어 있으면 전송 자체가 불가하므로 에러만 안내한다.
+  const handleSend = () => {
     const content = inputValue.trim();
     if (!content) return;
     const ok = sendMessage(content);
@@ -297,18 +437,7 @@ export default function ChatRoomPage() {
       setInputValue('');
       return;
     }
-    // STOMP 연결 실패 시 REST로 1회 재시도
-    try {
-      await chatRoomApi.sendMessage(roomId, content);
-      setInputValue('');
-      loadRoom(); // 실시간 push가 안 오니 재조회로 동기화
-    } catch (err) {
-      setApiError(
-        err instanceof ApiError
-          ? err.message
-          : '메시지를 전송하지 못했습니다. 연결 상태를 확인해주세요.',
-      );
-    }
+    setApiError('채팅 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -327,14 +456,15 @@ export default function ChatRoomPage() {
     navigate(`/chat/${roomId}/schedule`, { state: { exchangeId } });
   };
 
+  // 거래 파기: 라우트 이동 없이 오버레이 카드로 처리한다 (페이지 교체 시 과목명 등 state가 유실되는 문제 방지).
   const handleGoTerminate = () => {
     setIsMenuOpen(false);
-    navigate(`/chat/${roomId}/terminate`, { state: { exchangeId } });
+    setIsTerminateOpen(true);
   };
 
   const handleReport = () => {
     setIsMenuOpen(false);
-    // TODO: 신고하기 - 다음 단계에서 구현
+    navigate('/report');
   };
 
   const renderMessages = (msgs: ChatMessageDto[] = messages) =>
@@ -435,39 +565,6 @@ export default function ChatRoomPage() {
     setLocalFlowStep('GUIDE');
   };
 
-  // ============ VERIFY ============
-  const handleEnterVerify = async () => {
-    setCardInsertIndex(messages.length);
-    setShowPreviousChat(false);
-    setLocalFlowStep(null);
-    setVerifyStep('INTRO');
-    setMyVerified(false);
-    if (!exchangeId) return;
-    try {
-      // QR 발급은 서버가 VERIFYING 상태일 때만 허용하므로, 발급 전에 최신 상태를 한 번 확인한다.
-      const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
-      setRoomStatus(roomData.room.status);
-      if (
-        roomData.room.status !== 'VERIFYING' &&
-        roomData.room.status !== 'READY'
-      ) {
-        setApiError(
-          '아직 인증을 시작할 수 없는 상태입니다. 잠시 후 다시 시도해주세요.',
-        );
-        return;
-      }
-      const qr = await exchangeApi.createQr(exchangeId);
-      setQrImageUrl(qr.qrImageUrl);
-      setQrExpiresAt(qr.expiresAt);
-    } catch (err) {
-      setApiError(
-        err instanceof ApiError
-          ? err.message
-          : 'QR 코드를 발급받지 못했습니다.',
-      );
-    }
-  };
-
   // 서버가 내려준 expiresAt 기준으로 남은 시간 계산 (로컬 타이머가 아니라 서버 시각과 동기화)
   useEffect(() => {
     if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO' || !qrExpiresAt) return;
@@ -559,9 +656,9 @@ export default function ChatRoomPage() {
     if (!exchangeId) return;
     try {
       const res = await exchangeApi.submitResult(exchangeId, result);
-      setRoomStatus(res.exchangeStatus);
+      setExchangeStatus(res.exchangeStatus); // COMPLETED 또는 DISPUTE, 즉시 확정
       setLocalFlowStep(null);
-      if (result === 'FAIL') {
+      if (res.exchangeStatus === 'DISPUTE') {
         setCardInsertIndex(messages.length);
         setShowPreviousChat(false);
         setDisputeStep('CAPTURE');
@@ -1298,10 +1395,11 @@ export default function ChatRoomPage() {
         </Modal>
       )}
 
-      {/* ============ 푸터 (CHAT/GUIDE 단계에서만 노출) ============ */}
+      {/* ============ 푸터 (CHAT/GUIDE 단계 + 인증 가능 시각 이전에만 노출) ============ */}
       {CHAT_INPUT_UNLOCKED_STEPS.includes(flowStep) &&
         !isTerminated &&
-        !isCompleted && (
+        !isCompleted &&
+        !verifyWindowReached && (
           <div className="px-6 py-3 bg-[#fbfbfb]">
             <Input
               variant="pill"
@@ -1341,6 +1439,18 @@ export default function ChatRoomPage() {
       >
         {apiError}
       </Modal>
+
+      {/* ============ 거래 파기 오버레이 (라우트 이동 없이 카드처럼 얹는다) ============ */}
+      {isTerminateOpen && (
+        <TerminateDealOverlay
+          exchangeId={exchangeId}
+          onClose={() => setIsTerminateOpen(false)}
+          onSuccess={() => {
+            setIsTerminateOpen(false);
+            setIsCancelled(true); // 서버가 별도 상태를 안 주므로 로컬 플래그로 채팅 잠금 처리
+          }}
+        />
+      )}
     </div>
   );
 }

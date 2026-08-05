@@ -1,4 +1,3 @@
-import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '@/components/common/Button';
@@ -45,7 +44,7 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [showPwConfirm, setShowPwConfirm] = useState(false);
 
-  // 화면 크기에 맞춰 402x874 프레임을 통째로 스케일링
+  // 화면 크기(가로/세로)에 맞춰 402x874 프레임을 통째로 스케일링 + 중앙 정렬
   const wrapRef = useRef(null);
   const [scale, setScale] = useState(1);
 
@@ -53,8 +52,11 @@ export default function SignupPage() {
     const el = wrapRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0].contentRect.width;
-      setScale(w / FRAME_W);
+      const { width, height } = entries[0].contentRect;
+      // 가로 비율과 세로 비율 중 더 작은 쪽을 선택해야
+      // 어떤 화면 크기에서도 세로 스크롤 없이 프레임 전체가 보임
+      const nextScale = Math.min(width / FRAME_W, height / FRAME_H, 1);
+      setScale(nextScale);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -171,14 +173,14 @@ export default function SignupPage() {
     email.length === 0 || isSending || (isCodeSent && secondsLeft > 0);
 
   return (
-    // 바깥 wrapRef가 실제 사용 가능한 너비를 재고, 그 비율만큼 402x874 프레임을 scale
+    // wrapRef가 실제 사용 가능한 가로/세로 크기를 재고,
+    // 그 중 더 작은 비율만큼 402x874 프레임을 scale + 중앙 정렬
     <div
       ref={wrapRef}
-      className="w-full max-w-[402px] mx-auto"
-      style={{ height: FRAME_H * scale }}
+      className="w-full h-full flex items-center justify-center overflow-hidden"
     >
       <div
-        className="relative bg-[#FBFBFB] overflow-hidden origin-top-left"
+        className="relative bg-[#FBFBFB] overflow-hidden shrink-0"
         style={{
           width: FRAME_W,
           height: FRAME_H,
