@@ -1,70 +1,79 @@
-// pages/chat/TerminateDealPage.tsx
-import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+// pages/chat/TerminateDealOverlay.tsx
+// ChatRoomPage 위에 올라가는 거래 파기 오버레이. 라우트 이동을 하지 않으므로
+// 과목명/확정시간 등 부모(ChatRoomPage)의 상태가 유실되지 않는다.
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
-import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import Button from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
 
-import { chatRoomApi } from '@/api/chat/chatRoomApi';
 import { exchangeApi, type CancelReason } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 
-interface ReasonGroup {
-  key: CancelReason;
+interface SubReason {
   label: string;
-  subReasons?: string[];
+  value: CancelReason;
+}
+
+interface ReasonGroup {
+  label: string;
+  subReasons?: SubReason[];
   freeText?: boolean;
   blocked?: boolean;
+  singleValue?: CancelReason;
 }
 
 // ⚠️ 백엔드 enum에는 MONEY_DEMAND도 있지만, 디자인상 선택 UI가 없어 프론트에는 노출하지 않는다.
 const REASON_GROUPS: ReasonGroup[] = [
   {
-    key: 'MUTUAL',
     label: '상호 합의로 거래 취소',
-    subReasons: ['시간 조율 실패', '서로 다른 과목으로 진행하기로 함'],
+    subReasons: [
+      { label: '시간 조율 실패', value: 'MUTUAL_TIME_ISSUE' },
+      {
+        label: '서로 다른 과목으로 진행하기로 함',
+        value: 'MUTUAL_COURSE_CHANGE',
+      },
+    ],
   },
   {
-    key: 'FRAUD',
     label: '인증 정보가 의심됨',
-    subReasons: ['보유 과목 인증 사진이 의심됨', '다른 과목 사진 제출'],
+    subReasons: [
+      { label: '보유 과목 인증 사진이 의심됨', value: 'FRAUD_SUSPECT_IMAGE' },
+      { label: '다른 과목 사진 제출', value: 'FRAUD_DIFFERENT_COURSE' },
+    ],
   },
   {
-    key: 'ABUSE',
     label: '상대방이 거래를 진행하지 않음',
-    subReasons: ['과목을 버리지 않음', '거래를 일방적으로 중단함'],
+    subReasons: [
+      { label: '과목을 버리지 않음', value: 'NO_SHOW_COURSE' },
+      { label: '거래를 일방적으로 중단함', value: 'NO_SHOW_STOPPED' },
+    ],
   },
-  { key: 'OTHER', label: '상대방과 연락이 원활하지 않음', blocked: true },
-  { key: 'OTHER', label: '기타', freeText: true },
+  {
+    label: '상대방과 연락이 원활하지 않음',
+    blocked: true,
+    singleValue: 'NO_CONTACT',
+  },
+  { label: '기타', freeText: true, singleValue: 'OTHER' },
 ];
 
-export default function TerminateDealPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { roomId = '' } = useParams();
+interface TerminateDealOverlayProps {
+  exchangeId: number | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
 
-  const [exchangeId, setExchangeId] = useState<number | null>(
-    (location.state as { exchangeId?: number } | null)?.exchangeId ?? null,
-  );
-
-  useEffect(() => {
-    if (exchangeId != null) return;
-    chatRoomApi
-      .getRoom(roomId, { size: 1 })
-      .then((data) => setExchangeId(data.room.exchangeId))
-      .catch(() => setExchangeId(null));
-  }, [roomId, exchangeId]);
-
-  // NO_RESPONSE(연락 두절) 항목과 OTHER(기타) 항목이 둘 다 키가 'OTHER'라 openKey 구분을 위해 인덱스도 함께 관리
+export default function TerminateDealOverlay({
+  exchangeId,
+  onClose,
+  onSuccess,
+}: TerminateDealOverlayProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [selectedSubReason, setSelectedSubReason] = useState<string | null>(
-    null,
-  );
+  const [selectedReasonValue, setSelectedReasonValue] =
+    useState<CancelReason | null>(null);
   const [otherDetail, setOtherDetail] = useState('');
   const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,8 +82,6 @@ export default function TerminateDealPage() {
     '거래를 파기하지 못했습니다. 다시 시도해주세요.',
   );
 
-  const handleBack = () => navigate(-1);
-
   const handleToggleGroup = (group: ReasonGroup, index: number) => {
     if (group.blocked) {
       setIsBlockedModalOpen(true);
@@ -82,12 +89,12 @@ export default function TerminateDealPage() {
     }
     setOpenIndex((prev) => (prev === index ? null : index));
     setSelectedIndex(index);
-    setSelectedSubReason(null);
+    setSelectedReasonValue(null);
   };
 
-  const handleSelectSubReason = (index: number, sub: string) => {
+  const handleSelectSubReason = (index: number, sub: SubReason) => {
     setSelectedIndex(index);
-    setSelectedSubReason(sub);
+    setSelectedReasonValue(sub.value);
   };
 
   const selectedGroup =
@@ -96,17 +103,22 @@ export default function TerminateDealPage() {
     selectedGroup != null &&
     (selectedGroup.freeText
       ? otherDetail.trim().length > 0
-      : selectedSubReason !== null);
+      : selectedReasonValue !== null);
 
   const handleSubmit = async () => {
     if (!canSubmit || !selectedGroup || !exchangeId) return;
+
+    const reason: CancelReason | undefined = selectedGroup.freeText
+      ? selectedGroup.singleValue
+      : (selectedReasonValue ?? undefined);
+    if (!reason) return;
+
+    const detail = selectedGroup.freeText ? otherDetail : undefined;
+
     setIsSubmitting(true);
     try {
-      const detail = selectedGroup.freeText
-        ? otherDetail
-        : (selectedSubReason ?? undefined);
-      await exchangeApi.cancel(exchangeId, selectedGroup.key, detail);
-      navigate(`/chat/${roomId}`);
+      await exchangeApi.cancel(exchangeId, reason, detail);
+      onSuccess();
     } catch (err) {
       setErrorMessage(
         err instanceof ApiError
@@ -120,13 +132,11 @@ export default function TerminateDealPage() {
   };
 
   return (
-    <div className="relative bg-white mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
-      <div>
-        <Header
-          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
-          title="거래 파기"
-          rightNode={<IconButton icon={ICONS.CLOSE} onClick={handleBack} />}
-        />
+    <div className="absolute inset-0 z-50 bg-white flex flex-col">
+      <div className="flex items-center justify-between px-2 py-2 border-b border-gray-100">
+        <IconButton icon={ICONS.BACK} onClick={onClose} />
+        <span className="text-base font-semibold text-gray-900">거래 파기</span>
+        <IconButton icon={ICONS.CLOSE} onClick={onClose} />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
@@ -156,7 +166,7 @@ export default function TerminateDealPage() {
             const isOpen = openIndex === index;
             return (
               <div
-                key={`${group.key}-${group.label}`}
+                key={`${group.singleValue ?? 'group'}-${group.label}`}
                 className="border border-gray-200 rounded-lg overflow-hidden"
               >
                 <button
@@ -179,18 +189,19 @@ export default function TerminateDealPage() {
                   <div className="flex flex-col border-t border-gray-100">
                     {group.subReasons.map((sub) => (
                       <label
-                        key={sub}
+                        key={sub.value}
                         className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 border-b last:border-b-0 border-gray-100"
                       >
                         <input
                           type="radio"
                           name={`reason-${index}`}
                           checked={
-                            selectedSubReason === sub && selectedIndex === index
+                            selectedReasonValue === sub.value &&
+                            selectedIndex === index
                           }
                           onChange={() => handleSelectSubReason(index, sub)}
                         />
-                        {sub}
+                        {sub.label}
                       </label>
                     ))}
                   </div>
@@ -223,7 +234,7 @@ export default function TerminateDealPage() {
         <Button
           variant="primary"
           size="lg"
-          disabled={!canSubmit || isSubmitting}
+          disabled={!canSubmit || isSubmitting || !exchangeId}
           onClick={handleSubmit}
         >
           {isSubmitting ? '처리 중...' : '거래 파기하기'}
