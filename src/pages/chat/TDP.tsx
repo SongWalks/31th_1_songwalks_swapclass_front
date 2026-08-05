@@ -1,15 +1,14 @@
-// pages/chat/TerminateDealPage.tsx
-import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+// pages/chat/TerminateDealOverlay.tsx
+// ChatRoomPage 위에 올라가는 거래 파기 오버레이. 라우트 이동을 하지 않으므로
+// 과목명/확정시간 등 부모(ChatRoomPage)의 상태가 유실되지 않는다.
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
-import Header from '@/components/layout/Header';
 import { IconButton } from '@/components/common/IconButton';
 import Button from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { ICONS } from '@/constants/icons';
 
-import { chatRoomApi } from '@/api/chat/chatRoomApi';
 import { exchangeApi, type CancelReason } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 
@@ -23,7 +22,6 @@ interface ReasonGroup {
   subReasons?: SubReason[];
   freeText?: boolean;
   blocked?: boolean;
-  // subReasons가 없는 그룹(차단 그룹, 기타 그룹)이 제출 시 사용할 고정 enum 값
   singleValue?: CancelReason;
 }
 
@@ -61,26 +59,19 @@ const REASON_GROUPS: ReasonGroup[] = [
   { label: '기타', freeText: true, singleValue: 'OTHER' },
 ];
 
-export default function TerminateDealPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { roomId = '' } = useParams();
+interface TerminateDealOverlayProps {
+  exchangeId: number | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
 
-  const [exchangeId, setExchangeId] = useState<number | null>(
-    (location.state as { exchangeId?: number } | null)?.exchangeId ?? null,
-  );
-
-  useEffect(() => {
-    if (exchangeId != null) return;
-    chatRoomApi
-      .getRoom(roomId, { size: 1 })
-      .then((data) => setExchangeId(data.room.exchangeId))
-      .catch(() => setExchangeId(null));
-  }, [roomId, exchangeId]);
-
+export default function TerminateDealOverlay({
+  exchangeId,
+  onClose,
+  onSuccess,
+}: TerminateDealOverlayProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  // 선택된 서브 사유의 enum 값 (subReasons가 있는 그룹에서만 사용)
   const [selectedReasonValue, setSelectedReasonValue] =
     useState<CancelReason | null>(null);
   const [otherDetail, setOtherDetail] = useState('');
@@ -90,8 +81,6 @@ export default function TerminateDealPage() {
   const [errorMessage, setErrorMessage] = useState(
     '거래를 파기하지 못했습니다. 다시 시도해주세요.',
   );
-
-  const handleBack = () => navigate(-1);
 
   const handleToggleGroup = (group: ReasonGroup, index: number) => {
     if (group.blocked) {
@@ -120,7 +109,7 @@ export default function TerminateDealPage() {
     if (!canSubmit || !selectedGroup || !exchangeId) return;
 
     const reason: CancelReason | undefined = selectedGroup.freeText
-      ? selectedGroup.singleValue // 'OTHER'
+      ? selectedGroup.singleValue
       : (selectedReasonValue ?? undefined);
     if (!reason) return;
 
@@ -129,7 +118,7 @@ export default function TerminateDealPage() {
     setIsSubmitting(true);
     try {
       await exchangeApi.cancel(exchangeId, reason, detail);
-      navigate(`/chat/${roomId}`);
+      onSuccess();
     } catch (err) {
       setErrorMessage(
         err instanceof ApiError
@@ -143,13 +132,11 @@ export default function TerminateDealPage() {
   };
 
   return (
-    <div className="relative bg-white mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
-      <div>
-        <Header
-          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
-          title="거래 파기"
-          rightNode={<IconButton icon={ICONS.CLOSE} onClick={handleBack} />}
-        />
+    <div className="absolute inset-0 z-50 bg-white flex flex-col">
+      <div className="flex items-center justify-between px-2 py-2 border-b border-gray-100">
+        <IconButton icon={ICONS.BACK} onClick={onClose} />
+        <span className="text-base font-semibold text-gray-900">거래 파기</span>
+        <IconButton icon={ICONS.CLOSE} onClick={onClose} />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
@@ -247,7 +234,7 @@ export default function TerminateDealPage() {
         <Button
           variant="primary"
           size="lg"
-          disabled={!canSubmit || isSubmitting}
+          disabled={!canSubmit || isSubmitting || !exchangeId}
           onClick={handleSubmit}
         >
           {isSubmitting ? '처리 중...' : '거래 파기하기'}

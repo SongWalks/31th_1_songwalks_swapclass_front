@@ -10,9 +10,21 @@ interface ExchangeRoom {
   id: number;
   myCourseName: string;
   counterpartCourseName: string;
-  remainingMinutes: number | null; // null이면 '미정'
+  timerExpiresAt: string | null;
+  lastMessageAt: string | null; // 메시지 존재 여부로 무응답 타임아웃 무효화 판단용
+  remainingMinutes: number | null;
   isRead: boolean;
 }
+
+// 메시지가 한 번도 없었고(lastMessageAt === null), 타이머까지 지난 경우에만 '무응답 만료'로 판단
+const isExpired = (
+  timerExpiresAt: string | null,
+  lastMessageAt: string | null,
+) => {
+  if (!timerExpiresAt) return false;
+  if (lastMessageAt) return false; // 메시지가 오갔다면 무응답 타임아웃 자체가 무효
+  return new Date(timerExpiresAt).getTime() <= Date.now();
+};
 
 const formatRemaining = (min: number | null) => {
   if (min === null) return '미정';
@@ -41,14 +53,20 @@ export default function ExchangeRoomListPage() {
       setIsLoading(true);
       try {
         const data = await chatRoomApi.getRoomList();
-        const mapped: ExchangeRoom[] = data.map((room) => ({
-          id: room.roomId,
-          myCourseName: room.myCourseName,
-          counterpartCourseName: room.partnerCourseName,
-          remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
-          // TODO: 응답에 안읽음 여부 필드가 없어 기본값 false로 둠. 필요하면 백엔드에 필드 추가 요청.
-          isRead: false,
-        }));
+        const mapped: ExchangeRoom[] = data
+          .map((room) => ({
+            id: room.roomId,
+            myCourseName: room.myCourseName,
+            counterpartCourseName: room.partnerCourseName,
+            timerExpiresAt: room.timerExpiresAt,
+            lastMessageAt: room.lastMessageAt,
+            remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+            isRead: false,
+          }))
+          .filter(
+            (room) => !isExpired(room.timerExpiresAt, room.lastMessageAt),
+          );
+
         if (!ignore) setRooms(mapped);
       } catch (err) {
         if (!ignore) {
@@ -68,6 +86,21 @@ export default function ExchangeRoomListPage() {
     return () => {
       ignore = true;
     };
+  }, []);
+
+  // 30초마다 만료된 방을 목록에서 제거 + 남은시간 갱신
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRooms((prev) =>
+        prev
+          .filter((room) => !isExpired(room.timerExpiresAt, room.lastMessageAt))
+          .map((room) => ({
+            ...room,
+            remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+          })),
+      );
+    }, 30_000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleRoomClick = (room: ExchangeRoom) =>
