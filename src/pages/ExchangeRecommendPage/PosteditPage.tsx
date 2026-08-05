@@ -252,7 +252,6 @@ const PostEditPage: React.FC = () => {
           </span>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-32">
         {/* 프로필 + 상태 뱃지 */}
         <div className="flex items-center justify-between gap-3.5 py-2 px-6 border-b border-gray-200/60">
@@ -286,126 +285,131 @@ const PostEditPage: React.FC = () => {
             없습니다. 잘못 입력한 경우 게시글을 삭제 후 재작성해 주세요.
           </p>
         </div>
-
-        {/* 버릴 과목 (읽기 전용) */}
-        <section className="mb-9">
-          <h2 className="text-point-red text-[15px] font-bold mb-1">
-            버릴 과목
-          </h2>
-          <CourseCard
-            title={post.discardCourse.name}
-            professor={post.discardCourse.professor}
-            time={post.discardCourse.classTime}
-            className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-            leftNode={
-              <div className="relative w-7 h-7 flex items-center justify-center">
-                <div className="size-6 bg-rose-200 rounded-full" />
-                <img src={throwArrow} alt="throw" className="absolute size-6" />
-              </div>
-            }
-            badges={
-              <div className="flex flex-wrap gap-1.5">
-                <Badge
-                  variant="lightRed"
-                  className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
-                >
-                  {post.discardCourse.courseType}
-                </Badge>
-                {post.discardCourse.department && (
+        <div className="px-4">
+          {/* 버릴 과목 (읽기 전용) */}
+          <section className="mb-9">
+            <h2 className="text-point-red text-[15px] font-bold mb-1">
+              버릴 과목
+            </h2>
+            <CourseCard
+              title={post.discardCourse.name}
+              professor={post.discardCourse.professor}
+              time={post.discardCourse.classTime}
+              className="!bg-[#FFF0F0] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+              leftNode={
+                <div className="relative w-7 h-7 flex items-center justify-center">
+                  <div className="size-6 bg-rose-200 rounded-full" />
+                  <img
+                    src={throwArrow}
+                    alt="throw"
+                    className="absolute size-6"
+                  />
+                </div>
+              }
+              badges={
+                <div className="flex flex-wrap gap-1.5">
                   <Badge
                     variant="lightRed"
                     className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
                   >
-                    {post.discardCourse.department}
+                    {post.discardCourse.courseType}
                   </Badge>
-                )}
-              </div>
-            }
-          />
-        </section>
+                  {post.discardCourse.department && (
+                    <Badge
+                      variant="lightRed"
+                      className="!border !border-neutral-400 !text-zinc-900 !font-normal !rounded-lg"
+                    >
+                      {post.discardCourse.department}
+                    </Badge>
+                  )}
+                </div>
+              }
+            />
+          </section>
 
-        {/* 원하는 과목 (수정 가능) */}
-        <section className="mt-4 mb-10">
-          <div className="mb-4 flex flex-col gap-1">
-            <h2 className="text-brand-lightBlue text-[15px] font-bold">
-              원하는 과목
-            </h2>
-            <p className="text-gray-400 text-[11px] font-normal">
-              최소 1개 이상 선택해주세요
-            </p>
-          </div>
+          {/* 원하는 과목 (수정 가능) */}
+          <section className="mt-4 mb-10">
+            <div className="mb-4 flex flex-col gap-1">
+              <h2 className="text-brand-lightBlue text-[15px] font-bold">
+                원하는 과목
+              </h2>
+              <p className="text-gray-400 text-[11px] font-normal">
+                최소 1개 이상 선택해주세요
+              </p>
+            </div>
 
-          <div className="flex flex-col gap-4">
-            {[0, 1, 2].map((index) => {
-              const course = wantedCourses[index];
-              return (
-                <div key={index}>
-                  <div className="text-gray-800 text-[13px] font-medium mb-1.5">
-                    {index + 1}순위
-                  </div>
+            <div className="flex flex-col gap-4">
+              {[0, 1, 2].map((index) => {
+                const course = wantedCourses[index];
+                return (
+                  <div key={index}>
+                    <div className="text-gray-800 text-[13px] font-medium mb-1.5">
+                      {index + 1}순위
+                    </div>
 
-                  {course ? (
-                    <CourseCard
-                      title={course.name}
-                      professor={course.professor}
-                      time={course.classTime}
-                      className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
-                      leftNode={
-                        <div className="relative w-7 h-7 flex items-center justify-center">
-                          <div className="size-6 bg-sky-200 rounded-full" />
-                          <img
-                            src={wantArrow}
-                            alt="want"
-                            className="absolute size-5"
+                    {course ? (
+                      <CourseCard
+                        title={course.name}
+                        professor={course.professor}
+                        time={course.classTime}
+                        className="!bg-[#F4F8FB] !border-0 outline outline-[0.25px] outline-offset-[-0.25px] !outline-gray-200 !rounded-xl"
+                        leftNode={
+                          <div className="relative w-7 h-7 flex items-center justify-center">
+                            <div className="size-6 bg-sky-200 rounded-full" />
+                            <img
+                              src={wantArrow}
+                              alt="want"
+                              className="absolute size-5"
+                            />
+                          </div>
+                        }
+                        rightNode={
+                          <IconButton
+                            icon="ph:x"
+                            variant="ghost"
+                            className="text-gray-400"
+                            onClick={() => handleRemoveWantedCourse(index)}
                           />
-                        </div>
-                      }
-                      rightNode={
-                        <IconButton
-                          icon="ph:x"
-                          variant="ghost"
-                          className="text-gray-400"
-                          onClick={() => handleRemoveWantedCourse(index)}
-                        />
-                      }
-                      badges={
-                        <div className="flex flex-wrap gap-1.5">
-                          <Badge
-                            variant="lightBlueOutline"
-                            className="!font-normal !rounded-lg"
-                          >
-                            {course.courseType}
-                          </Badge>
-                          {course.department && (
+                        }
+                        badges={
+                          <div className="flex flex-wrap gap-1.5">
                             <Badge
                               variant="lightBlueOutline"
                               className="!font-normal !rounded-lg"
                             >
-                              {course.department}
+                              {course.courseType}
                             </Badge>
-                          )}
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <button
-                      onClick={() => handleSelectWantedCourse(index)}
-                      className="w-full h-9 bg-white rounded-md border-[0.7px] border-zinc-400 px-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-zinc-400 text-sm">
-                        과목을 검색해주세요.
-                      </span>
-                      <Icon
-                        icon={ICONS.SEARCH}
-                        className="w-5 h-5 text-neutral-400"
+                            {course.department && (
+                              <Badge
+                                variant="lightBlueOutline"
+                                className="!font-normal !rounded-lg"
+                              >
+                                {course.department}
+                              </Badge>
+                            )}
+                          </div>
+                        }
                       />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                    ) : (
+                      <button
+                        onClick={() => handleSelectWantedCourse(index)}
+                        className="w-full h-9 bg-white rounded-md border-[0.7px] border-zinc-400 px-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="text-zinc-400 text-sm">
+                          과목을 검색해주세요.
+                        </span>
+                        <Icon
+                          icon={ICONS.SEARCH}
+                          className="w-5 h-5 text-neutral-400"
+                        />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </div>
 
       {/* 하단 고정 영역: 매칭 팁 문구 + 수정 완료하기 버튼 (SpecificPostsPage.tsx와 동일한
