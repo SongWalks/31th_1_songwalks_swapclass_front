@@ -11,7 +11,7 @@ import { Badge } from '@/components/common/Badge';
 import { Input } from '@/components/common/Input';
 import { CourseCard } from '@/components/common/CourseCard';
 import { Dropdown } from '@/components/common/Dropdown';
-import { useLounge } from '../../store/useLounge';
+import { useLounge } from '../../store/lounge/useLounge';
 import { ICONS } from '@/constants/icons';
 import { IconButton } from '@/components/common/IconButton';
 
