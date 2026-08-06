@@ -27,10 +27,13 @@ export interface MessagesDto {
 
 // ===== 채팅방 목록 조회 =====
 export type ScheduleState = 'UNDECIDED' | 'PROPOSED';
+export type ExchangeStatus =
+  'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'DISPUTE';
 
 export interface ChatRoomListItemDto {
   roomId: number;
   status: string;
+  exchangeStatus: ExchangeStatus;
   exchangeId: number;
   partnerId: number;
   partnerNickname: string;
@@ -38,8 +41,7 @@ export interface ChatRoomListItemDto {
   partnerCourseName: string;
   scheduleState: ScheduleState;
   scheduledAt: string | null;
-  timerExpiresAt: string | null;
-  remainSeconds: number | null;
+  createdAt: string;
   lastMessage: string | null;
   lastMessageType: 'TEXT' | 'SYSTEM' | null;
   lastMessageAt: string | null;

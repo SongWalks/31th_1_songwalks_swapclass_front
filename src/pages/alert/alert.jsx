@@ -153,6 +153,7 @@ export default function AlertPage() {
   const handleBack = () => navigate(-1);
 
   const handleNotificationClick = async (item) => {
+    console.log('클릭됨:', JSON.stringify(item));
     if (!item.isRead) {
       if (USE_MOCK) {
         setNotifications((prev) =>
@@ -169,6 +170,27 @@ export default function AlertPage() {
           // 읽음 처리 실패는 조용히 무시 (다음 진입 시 재시도됨)
         }
       }
+    }
+
+    // 💡 알림 타입별 이동: 방 관련 알림(교환 시간 확정/인증 단계)은 deepLink가
+    // 곧 방 경로(/chat/{roomId})라고 보고 만료 체크 없이 바로 이동.
+    // 매칭완료/새 교환 요청은 고정 경로로 이동. 나머지 타입만 기존 deepLink
+    // 만료(404/410) 체크 흐름을 탄다.
+    switch (item.type) {
+      case 'EXCHANGE_SCHEDULED':
+      case 'VERIFY_30MIN':
+      case 'VERIFY_10MIN':
+      case 'VERIFY_5MIN':
+        if (item.relatedId != null) navigate(`/chat/${item.relatedId}`);
+        return;
+      case 'MATCH_ACCEPTED':
+        navigate('/chat');
+        return;
+      case 'MATCH_REQUESTED':
+        navigate('/my/request');
+        return;
+      default:
+        break;
     }
 
     if (!item.deepLink) return;

@@ -16,8 +16,6 @@ import { Input } from '../../components/common/Input';
 import { Spinner } from '../../components/common/Spinner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const FRAME_W = 402;
-const FRAME_H = 874;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -32,25 +30,8 @@ export default function LoginPage() {
 
   const refreshTimerRef = useRef(null);
 
-  // 화면 크기(가로/세로)에 맞춰 카드 전체를 스케일링 + 중앙 정렬
-  // FindPasswordPage / SignupPage와 완전히 동일한 계산식 사용
-  const wrapRef = useRef(null);
-  const [scale, setScale] = useState(1);
-
   useEffect(() => {
     return () => clearTimeout(refreshTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      const nextScale = Math.min(width / FRAME_W, height / FRAME_H, 1);
-      setScale(nextScale);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
   }, []);
 
   function validate() {
@@ -77,10 +58,8 @@ export default function LoginPage() {
       const trimmedEmail = email.trim();
       const { data } = await loginRequest({ email: trimmedEmail, password });
 
-      // 토큰과 함께 이메일도 저장 (autoLogin이면 localStorage, 아니면 sessionStorage)
       saveTokens(data, autoLogin, trimmedEmail);
 
-      // authStore도 같이 채워야 새로고침 전까지 로그인 상태로 인식됨
       login({
         id: decodeUserId(data.accessToken),
         email: trimmedEmail,
@@ -93,7 +72,6 @@ export default function LoginPage() {
       window.location.href = '/';
     } catch (err) {
       if (err instanceof ApiError) {
-        // 400: 비밀번호 불일치, 403: 정지된 계정 등 서버 메시지 그대로 노출
         setBanner({ type: 'error', message: err.message });
       } else {
         setBanner({
@@ -106,20 +84,16 @@ export default function LoginPage() {
     }
   }
 
+  const isLoginDisabled = isSubmitting || !email.trim() || !password;
+
   return (
-    <div
-      ref={wrapRef}
-      className="h-full w-full flex items-center justify-center font-['Pretendard'] overflow-hidden"
-    >
-      <div
-        className="flex flex-col bg-[#fbfbfb] shrink-0"
-        style={{ width: FRAME_W, transform: `scale(${scale})` }}
-      >
+    <div className="h-full w-full flex items-center justify-center font-['Pretendard'] overflow-y-auto px-4 py-6">
+      <div className="w-full max-w-[402px] flex flex-col bg-[#fbfbfb]">
         <div>
-          <div className="block w-[131.397px] h-[59.797px] mt-[214.03px] ml-[135.3px]">
-            <img src={logo} alt="SOO" className="w-full h-full block" />
+          <div className="w-1/3 min-w-[110px] max-w-[140px] mx-auto mt-14">
+            <img src={logo} alt="SOO" className="w-full h-auto block" />
           </div>
-          <p className="w-[242.66px] mt-[14px] ml-[79.67px] text-[#657a88] text-center text-[11px] font-normal leading-[18.384px] tracking-[0.368px]">
+          <p className="w-4/5 max-w-[280px] mx-auto mt-3 text-[#657a88] text-center text-[11px] font-normal leading-[18.384px] tracking-[0.368px]">
             눈송이들의 수강신청을 구조해줄 간편하고
             <br />
             안전한 강의 교환 매칭 제안 서비스
@@ -128,7 +102,7 @@ export default function LoginPage() {
 
         <div
           className={twMerge(
-            'min-h-[17px] mt-[1.86px] mb-[6px] mx-[27.23px] text-center text-[12px] font-medium leading-[17px] overflow-hidden',
+            'min-h-[17px] mt-2 mb-1.5 mx-6 text-center text-[12px] font-medium leading-[17px] overflow-hidden',
             banner?.type === 'error' && 'text-[#e15252]',
             banner?.type === 'success' && 'text-[#2f7a3d]',
           )}
@@ -136,18 +110,18 @@ export default function LoginPage() {
           {banner?.message || ''}
         </div>
 
-        <form className="flex flex-col" onSubmit={handleSubmit} noValidate>
+        <form className="flex flex-col px-6" onSubmit={handleSubmit} noValidate>
           {/* ── 이메일 ── */}
-          <div className="flex flex-col mt-[7px]">
+          <div className="flex flex-col mt-2">
             <label
-              className="block ml-[27.23px] mb-[7.78px] text-[#657a88] text-[15px] font-medium leading-[20px] tracking-[0.4px]"
+              className="mb-2 text-[#657a88] text-[15px] font-medium leading-[20px] tracking-[0.4px]"
               htmlFor="email"
             >
               이메일
             </label>
             <div
               className={twMerge(
-                'flex items-center gap-2 px-3 box-border w-[344.5px] h-[40.371px] ml-[30.27px] border-[0.7px] border-[#afb1b6] rounded-[6px] bg-white focus-within:border-[#4c9dd1]',
+                'flex items-center gap-2 px-3 w-full h-[40.371px] border-[0.7px] border-[#afb1b6] rounded-[6px] bg-white focus-within:border-[#4c9dd1]',
                 fieldErrors.email && 'border-[#e15252]',
               )}
             >
@@ -167,27 +141,28 @@ export default function LoginPage() {
                   setEmail(e.target.value);
                   if (e.target.value.trim())
                     setFieldErrors((prev) => ({ ...prev, email: '' }));
+                  if (banner) setBanner(null);
                 }}
                 autoComplete="email"
                 className="flex-1 min-w-0 !border-none !bg-transparent !p-0 !rounded-none !shadow-none placeholder:text-[11px] placeholder:leading-[18.384px] placeholder:tracking-[0.368px] placeholder:text-[#657a88] placeholder:font-['Pretendard'] placeholder:font-normal"
               />
             </div>
-            <p className="h-[18.384px] overflow-hidden mt-1 ml-[30.27px] text-[11px] leading-[18.384px] tracking-[0.368px] text-[#e15252]">
+            <p className="h-[18.384px] overflow-hidden mt-1 text-[11px] leading-[18.384px] tracking-[0.368px] text-[#e15252]">
               {fieldErrors.email}
             </p>
           </div>
 
           {/* ── 비밀번호 ── */}
-          <div className="flex flex-col mt-[14.47px]">
+          <div className="flex flex-col mt-1">
             <label
-              className="block ml-[27.23px] mb-[10.89px] text-[#657a88] text-[15px] font-medium leading-[20px] tracking-[0.4px]"
+              className="mb-2.5 text-[#657a88] text-[15px] font-medium leading-[20px] tracking-[0.4px]"
               htmlFor="password"
             >
               비밀번호
             </label>
             <div
               className={twMerge(
-                'flex items-center gap-2 px-3 box-border w-[344.5px] h-[40.371px] ml-[30.27px] border-[0.7px] border-[#afb1b6] rounded-[6px] bg-white focus-within:border-[#4c9dd1]',
+                'flex items-center gap-2 px-3 w-full h-[40.371px] border-[0.7px] border-[#afb1b6] rounded-[6px] bg-white focus-within:border-[#4c9dd1]',
                 fieldErrors.password && 'border-[#e15252]',
               )}
             >
@@ -207,6 +182,7 @@ export default function LoginPage() {
                   setPassword(e.target.value);
                   if (e.target.value)
                     setFieldErrors((prev) => ({ ...prev, password: '' }));
+                  if (banner) setBanner(null);
                 }}
                 autoComplete="current-password"
                 className="flex-1 min-w-0 !border-none !bg-transparent !p-0 !rounded-none !shadow-none [&::placeholder]:text-[11px] [&::placeholder]:leading-[18.384px] [&::placeholder]:tracking-[0.368px] placeholder:text-[#657a88] placeholder:font-['Pretendard'] placeholder:font-normal"
@@ -224,14 +200,14 @@ export default function LoginPage() {
                 />
               </button>
             </div>
-            <p className="h-[18.384px] overflow-hidden mt-1 ml-[30.27px] text-[11px] leading-[18.384px] tracking-[0.368px] text-[#e15252]">
+            <p className="h-[18.384px] overflow-hidden mt-1 text-[11px] leading-[18.384px] tracking-[0.368px] text-[#e15252]">
               {fieldErrors.password}
             </p>
           </div>
 
           {/* ── 자동 로그인 ── */}
           <div
-            className="flex items-center gap-2 mt-[10.72px] ml-[32.05px] cursor-pointer w-fit select-none"
+            className="flex items-center gap-2 mt-1 cursor-pointer w-fit select-none"
             onClick={() => setAutoLogin((v) => !v)}
             role="checkbox"
             aria-checked={autoLogin}
@@ -265,16 +241,16 @@ export default function LoginPage() {
           {/* ── 로그인 버튼 ── */}
           <Button
             type="submit"
-            disabled={isSubmitting}
-            fullWidth={false}
-            className="!w-[359px] flex h-[53px] mt-[14.74px] ml-[21.5px] px-5 py-4 box-border justify-center items-center gap-1.5 !rounded-2xl bg-[#4c9dd1] text-white text-[15px] font-bold leading-6 tracking-[0.2px]"
+            disabled={isLoginDisabled}
+            fullWidth
+            className="flex h-[53px] mt-3 px-5 py-4 justify-center items-center gap-1.5 !rounded-2xl bg-[#4c9dd1] text-white text-[15px] font-bold leading-6 tracking-[0.2px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting && <Spinner size="sm" className="mr-1" />}
             {isSubmitting ? '로그인 중...' : '로그인'}
           </Button>
         </form>
 
-        <div className="flex items-center gap-3 mt-[37px] ml-24 pb-[37px]">
+        <div className="flex items-center justify-center gap-3 mt-8 pb-8">
           <button
             type="button"
             className="bg-none border-none flex items-center gap-1.5 cursor-pointer text-black text-[14px] font-light leading-5 tracking-[0.4px]"

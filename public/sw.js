@@ -9,7 +9,7 @@ self.addEventListener('activate', (event) => {
 
 // 서버(FCM/Web Push)가 보낸 푸시를 받아서 브라우저 알림으로 표시
 self.addEventListener('push', (event) => {
-  let payload = {};
+  let payload;
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
