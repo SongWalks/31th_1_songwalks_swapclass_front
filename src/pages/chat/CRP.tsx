@@ -1,5 +1,5 @@
 // pages/chat/ChatRoomPage.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
@@ -24,6 +24,42 @@ const COUNTDOWN_RED_THRESHOLD = 3;
 const VERIFY_LEAD_MS = 5 * 60 * 1000;
 // ⚠️ 실제 채팅방 목록 라우트 경로에 맞게 확인/수정 필요
 const ROOM_LIST_PATH = '/chat';
+
+// ===== QR 캐시 (재진입/새로고침 시 불필요한 재발급 방지) =====
+const QR_CACHE_PREFIX = 'exchange_qr_';
+const getQrCacheKey = (id: number) => `${QR_CACHE_PREFIX}${id}`;
+type CachedQr = { qrImageUrl: string; expiresAt: string };
+
+const readCachedQr = (exchangeId: number): CachedQr | null => {
+  try {
+    const raw = sessionStorage.getItem(getQrCacheKey(exchangeId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedQr;
+    if (new Date(parsed.expiresAt).getTime() <= Date.now()) {
+      sessionStorage.removeItem(getQrCacheKey(exchangeId));
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedQr = (exchangeId: number, qr: CachedQr) => {
+  try {
+    sessionStorage.setItem(getQrCacheKey(exchangeId), JSON.stringify(qr));
+  } catch {
+    // sessionStorage 사용 불가 환경은 캐시 없이 동작
+  }
+};
+
+const clearCachedQr = (exchangeId: number) => {
+  try {
+    sessionStorage.removeItem(getQrCacheKey(exchangeId));
+  } catch {
+    // ignore
+  }
+};
 
 type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
 type VerifySubStep =
@@ -98,13 +134,10 @@ const formatScheduledDate = (iso: string) => {
 
 export default function ChatRoomPage() {
   const [exchangeStatus, setExchangeStatus] = useState<string | null>(null);
+  const [isCancelled, setIsCancelled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
-  const getTerminatedKey = (id: string) => `terminated_room_${id}`;
-  const [isCancelled, setIsCancelled] = useState(
-    () => localStorage.getItem(getTerminatedKey(roomId)) === 'true',
-  );
 
   const navCourses = location.state as {
     myCourseName?: string;
@@ -133,9 +166,21 @@ export default function ChatRoomPage() {
         );
         return;
       }
+      // 캐시에 아직 유효한 QR이 있으면 재사용하고, 없을 때만 새로 발급한다.
+      // (채팅방을 나갔다 들어올 때마다 QR/타이머가 리셋되는 문제 방지)
+      const cached = readCachedQr(exchangeId);
+      if (cached) {
+        setQrImageUrl(cached.qrImageUrl);
+        setQrExpiresAt(cached.expiresAt);
+        return;
+      }
       const qr = await exchangeApi.createQr(exchangeId);
       setQrImageUrl(qr.qrImageUrl);
       setQrExpiresAt(qr.expiresAt);
+      writeCachedQr(exchangeId, {
+        qrImageUrl: qr.qrImageUrl,
+        expiresAt: qr.expiresAt,
+      });
     } catch (err) {
       setApiError(
         err instanceof ApiError
@@ -191,7 +236,25 @@ export default function ChatRoomPage() {
     'CHAT';
 
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
+  const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
+  const prevScheduledAtRef = useRef(scheduledAt);
   const [showPreviousChat, setShowPreviousChat] = useState(false);
+
+  // flowStep이 VERIFY/DISPUTE로 "전환되는 시점"을 감지해서 cardInsertIndex를 세팅한다.
+  // handleEnterVerify()/handleExchangeResult()를 거치지 않고 새로고침 등으로
+  // 서버 상태 매핑을 통해 곧장 VERIFY/DISPUTE로 진입하는 경우까지 커버하기 위함.
+  // (이게 없으면 cardInsertIndex가 0으로 남아 이전 채팅이 전부 그냥 노출됨)
+  const prevFlowStepForCardRef = useRef<FlowStep>(flowStep);
+  useEffect(() => {
+    const prev = prevFlowStepForCardRef.current;
+    const enteringHiddenHistoryStep =
+      (flowStep === 'VERIFY' || flowStep === 'DISPUTE') && prev !== flowStep;
+    if (enteringHiddenHistoryStep) {
+      setCardInsertIndex(messages.length);
+      setShowPreviousChat(false);
+    }
+    prevFlowStepForCardRef.current = flowStep;
+  }, [flowStep, messages.length]);
 
   // ----- VERIFY 관련 상태 -----
   const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
@@ -233,6 +296,10 @@ export default function ChatRoomPage() {
         ),
       );
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate('/login');
+        return;
+      }
       setApiError(
         err instanceof ApiError
           ? err.message
@@ -287,7 +354,9 @@ export default function ChatRoomPage() {
       loadRoom();
 
       // "N월 N일 (요일)" + "오전/오후 h:mm" 패턴이 포함된 시스템 메시지라면 확정 시각으로 간주해 파싱 시도
-      const match = message.content.match(SCHEDULE_SYSTEM_MSG_PATTERN);
+      const match = message.content.match(
+        /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/,
+      );
       if (match) {
         const [, mm, dd, ampm, hh, min] = match;
         const now = new Date();
@@ -312,18 +381,13 @@ export default function ChatRoomPage() {
     enabled: !isLoadingRoom,
   });
 
-  const scheduleInsertIndex = useMemo(() => {
-    if (!scheduledAt) return messages.length;
-    const idx = messages.findIndex(
-      (m) => m.type === 'SYSTEM' && SCHEDULE_SYSTEM_MSG_PATTERN.test(m.content),
-    );
-    return idx === -1 ? messages.length : idx + 1;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, scheduledAt]);
-
-  // 컴포넌트 바깥, 다른 상수들 옆에
-  const SCHEDULE_SYSTEM_MSG_PATTERN =
-    /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/;
+  // 교환 시간이 방금 확정된 시점(false -> true 전환)의 메시지 개수를 기록
+  useEffect(() => {
+    if (!prevScheduledAtRef.current && scheduledAt) {
+      setScheduleInsertIndex(messages.length);
+    }
+    prevScheduledAtRef.current = scheduledAt;
+  }, [scheduledAt, messages.length]);
 
   // 새 카드/메시지가 생기면 맨 아래로 자동 스크롤 (GUIDE 진입 시엔 맨 위로)
   const prevFlowStepRef = useRef(flowStep);
@@ -421,6 +485,54 @@ export default function ChatRoomPage() {
     }, 4000);
     return () => clearInterval(timer);
   }, [flowStep, myVerified, verifyStep, roomId]);
+
+  // ============ VERIFY: 새로고침/재진입 시 QR 복구 ============
+  // 컴포넌트가 리마운트되면 qrImageUrl state가 초기화되지만, 서버 상태가 여전히
+  // VERIFYING이면 flowStep이 handleEnterVerify()를 거치지 않고 곧장 'VERIFY'로 계산된다.
+  // 이때 무조건 새 QR을 발급하면 재진입할 때마다 유효시간이 리셋되므로,
+  // 캐시에 아직 유효한 QR이 있으면 그걸 복원하고 없을 때만 새로 발급한다.
+  useEffect(() => {
+    if (
+      flowStep !== 'VERIFY' ||
+      verifyStep !== 'INTRO' ||
+      qrImageUrl ||
+      !exchangeId
+    )
+      return;
+
+    const cached = readCachedQr(exchangeId);
+    if (cached) {
+      setQrImageUrl(cached.qrImageUrl);
+      setQrExpiresAt(cached.expiresAt);
+      return;
+    }
+
+    let ignore = false;
+    const fetchQr = async () => {
+      try {
+        const qr = await exchangeApi.createQr(exchangeId);
+        if (ignore) return;
+        setQrImageUrl(qr.qrImageUrl);
+        setQrExpiresAt(qr.expiresAt);
+        writeCachedQr(exchangeId, {
+          qrImageUrl: qr.qrImageUrl,
+          expiresAt: qr.expiresAt,
+        });
+      } catch (err) {
+        if (ignore) return;
+        setApiError(
+          err instanceof ApiError
+            ? err.message
+            : 'QR 코드를 재발급받지 못했습니다.',
+        );
+      }
+    };
+    void fetchQr();
+
+    return () => {
+      ignore = true;
+    };
+  }, [flowStep, verifyStep, qrImageUrl, exchangeId]);
 
   const handleBack = () => {
     // 거래가 파기된 상태에서는 뒤로가기를 누르면 목록으로 바로 이동한다.
@@ -623,6 +735,8 @@ export default function ChatRoomPage() {
       }
       setMyVerified(true);
       setVerifyStep('WAITING_COUNTERPART');
+      // 인증이 끝났으니 재사용할 필요가 없는 QR 캐시를 정리한다.
+      clearCachedQr(exchangeId);
     } catch (err) {
       setIsCaptureFailModalOpen(true);
       setVerifyStep('INTRO');
@@ -700,6 +814,7 @@ export default function ChatRoomPage() {
 
   const handleConfirmDisputeSubmitted = () => {
     setLocalFlowStep(null);
+    if (exchangeId) clearCachedQr(exchangeId);
     loadRoom();
   };
 
@@ -1451,8 +1566,8 @@ export default function ChatRoomPage() {
           onClose={() => setIsTerminateOpen(false)}
           onSuccess={() => {
             setIsTerminateOpen(false);
-            setIsCancelled(true);
-            localStorage.setItem(getTerminatedKey(roomId), 'true');
+            setIsCancelled(true); // 서버가 별도 상태를 안 주므로 로컬 플래그로 채팅 잠금 처리
+            if (exchangeId) clearCachedQr(exchangeId);
           }}
         />
       )}

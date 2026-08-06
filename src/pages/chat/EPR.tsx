@@ -5,6 +5,7 @@ import clockIcon from '@/assets/icons/clock.svg';
 import { NotificationBell } from '@/components/common/NotificationBell';
 import { chatRoomApi } from '@/api/chat/chatRoomApi';
 import { ApiError } from '@/api/chat/apiClient';
+import { getTokens } from '../../store/tokenStorage';
 
 interface ExchangeRoom {
   id: number;
@@ -63,12 +64,15 @@ export default function ExchangeRoomListPage() {
             remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
             isRead: false,
           }))
-          .filter(
-            (room) => !isExpired(room.timerExpiresAt, room.lastMessageAt),
-          );
+          .filter((room) => !isExpired(room.timerExpiresAt, room.lastMessageAt))
+          .sort((a, b) => b.id - a.id); // 생성 최신순 (roomId 큰 값이 상단)
 
         if (!ignore) setRooms(mapped);
       } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          navigate('/login');
+          return;
+        }
         if (!ignore) {
           setApiError(
             err instanceof ApiError
@@ -86,7 +90,7 @@ export default function ExchangeRoomListPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [navigate]);
 
   // 30초마다 만료된 방을 목록에서 제거 + 남은시간 갱신
   useEffect(() => {
@@ -103,13 +107,22 @@ export default function ExchangeRoomListPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleRoomClick = (room: ExchangeRoom) =>
+  const handleRoomClick = (room: ExchangeRoom) => {
+    // accessToken 자체가 없거나 refreshToken까지 없으면(=재발급도 불가) 즉시 로그인으로 보낸다.
+    // accessToken만 만료된 경우는 여기서 막지 않고, ChatRoomPage 진입 후 apiClient가 자동 refresh 처리하도록 둔다.
+    const tokens = getTokens();
+    if (!tokens?.refreshToken) {
+      navigate('/login');
+      return;
+    }
+
     navigate(`/chat/${room.id}`, {
       state: {
         myCourseName: room.myCourseName,
         counterpartCourseName: room.counterpartCourseName,
       },
     });
+  };
 
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
