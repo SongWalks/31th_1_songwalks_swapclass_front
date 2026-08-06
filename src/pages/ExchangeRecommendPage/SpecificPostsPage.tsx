@@ -364,7 +364,7 @@ const SpecificPostsPage: React.FC = () => {
         }`}
       >
         {/* 프로필 영역 */}
-        <div className="flex items-center justify-between gap-3.5 py-2 px-6 border-b border-gray-200/60 mb-2">
+        <div className="flex items-center justify-between gap-3.5 py-2 px-2 border-b border-gray-200/60 mb-2">
           <div className="flex items-center gap-3.5">
             <Avatar size="md" />
             <div className="flex flex-col gap-0.5">

@@ -200,7 +200,7 @@ const MyPostpage = () => {
                   {/* 상단 라인: 과목 타이틀 & 상태 배지 */}
                   <div className="flex items-center justify-between">
                     <h3
-                      className={`text-lg font-semibold leading-5 tracking-wide ${titleColor}`}
+                      className={`text-xl font-medium leading-5 tracking-wide ${titleColor}`}
                     >
                       {post.title}
                     </h3>
@@ -222,7 +222,7 @@ const MyPostpage = () => {
                           {index + 1}
                         </div>
                         <span
-                          className={`text-xs font-light leading-5 tracking-wide ${subjectColor}`}
+                          className={`text-sm font-light leading-5 tracking-wide ${subjectColor}`}
                         >
                           {sub}
                         </span>
