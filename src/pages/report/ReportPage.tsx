@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { IconButton } from '@/components/common/IconButton';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -36,14 +36,16 @@ const REPORT_REASONS = [
 
 const uploadImages = async (files: File[]): Promise<string[]> => {
   try {
-    // 여러 장의 이미지를 병렬로 업로드
     const uploadPromises = files.map(async (file) => {
       const formData = new FormData();
-      formData.append('image', file); // 명세서에 적힌 키값 'image'
+      formData.append('image', file);
 
-      const response = await api.post('/api/images/upload', formData);
+      const response = await api.post('/api/images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-      // 명세서 응답 구조: data.imageUrl
       return response.data.data.imageUrl;
     });
 
@@ -61,9 +63,15 @@ export default function ReportPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 변수 세팅
-  const reportedUserId = location.state?.reportedUserId || 123;
+  const reportedUserId = location.state?.reportedUserId;
   const currentExchangeId = location.state?.exchangeId || null;
+
+  useEffect(() => {
+    if (!reportedUserId) {
+      alert('잘못된 접근입니다. 신고 대상을 찾을 수 없습니다.');
+      navigate(-1); // 💡 요렇게 숫자 -1만 딱 남겨주세요!
+    }
+  }, [reportedUserId, navigate]);
 
   // 상태 관리
   const [selectedReason, setSelectedReason] = useState<string>('');
@@ -94,6 +102,8 @@ export default function ReportPage() {
 
   // API 제출 핸들러
   const handleSubmit = async () => {
+    if (!reportedUserId) return; // 안전장치 한 번 더!
+
     try {
       const uploadedUrls = await uploadImages(images);
 
@@ -101,7 +111,6 @@ export default function ReportPage() {
         reportedUserId,
         reason: selectedReason,
         imageUrls: uploadedUrls,
-        // exchangeId가 0이나 null이 아닌 유효한 값일 때만 객체에 쏙 집어넣습니다. (선택사항 처리)
         ...(currentExchangeId ? { exchangeId: currentExchangeId } : {}),
       };
 
