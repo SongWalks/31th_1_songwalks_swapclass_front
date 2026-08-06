@@ -35,13 +35,18 @@ export default function HomePage() {
   const rejectMutation = useRejectMutation();
 
   useEffect(() => {
+    if (isLoading || !sensorRef.current) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => setIsScrolled(!entry.isIntersecting),
       { threshold: 0 },
     );
-    if (sensorRef.current) observer.observe(sensorRef.current);
+
+    // 센서 감시 시작
+    observer.observe(sensorRef.current);
+
     return () => observer.disconnect();
-  }, []);
+  }, [isLoading]);
 
   if (isLoading) {
     return (
