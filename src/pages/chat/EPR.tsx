@@ -13,23 +13,24 @@ interface ExchangeRoom {
   myCourseName: string;
   counterpartCourseName: string;
   scheduledAt: string | null; // 교환 시간이 확정되면 채워짐
-  timerExpiresAt: string | null;
+  createdAt: string;
   lastMessageAt: string | null; // 메시지 존재 여부로 무응답 타임아웃 무효화 판단용
   remainingMinutes: number | null;
   isRead: boolean;
 }
 
+const ROOM_TIMEOUT_MS = 30 * 60 * 1000;
+
 // 메시지가 한 번도 없었고(lastMessageAt === null), 타이머까지 지난 경우에만 '무응답 만료'로 판단
 // 교환 시간이 이미 확정된 방(scheduledAt 존재)은 무응답 타이머 대상에서 제외한다.
 const isExpired = (
-  timerExpiresAt: string | null,
+  createdAt: string,
   lastMessageAt: string | null,
   scheduledAt: string | null,
 ) => {
   if (scheduledAt) return false;
-  if (!timerExpiresAt) return false;
   if (lastMessageAt) return false; // 메시지가 오갔다면 무응답 타임아웃 자체가 무효
-  return new Date(timerExpiresAt).getTime() <= Date.now();
+  return new Date(createdAt).getTime() + ROOM_TIMEOUT_MS <= Date.now();
 };
 
 const formatRemaining = (min: number | null) => {
@@ -40,9 +41,8 @@ const formatRemaining = (min: number | null) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
-const calcRemainingMinutes = (timerExpiresAt: string | null): number | null => {
-  if (!timerExpiresAt) return null;
-  const remainMs = new Date(timerExpiresAt).getTime() - Date.now();
+const calcRemainingMinutes = (createdAt: string): number | null => {
+  const remainMs = new Date(createdAt).getTime() + ROOM_TIMEOUT_MS - Date.now();
   return Math.max(0, Math.floor(remainMs / 60000));
 };
 
@@ -50,7 +50,9 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 교환 시간 확정 뱃지용 포맷 (예: "8/6(목) 오후 3:00")
 const formatScheduled = (iso: string) => {
+  console.log('[ERP 디버그] 원본 iso:', iso);
   const date = new Date(iso);
+  console.log('[ERP 디버그] new Date(iso):', date.toString());
   const dateParts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Seoul',
     month: 'numeric',
@@ -92,18 +94,14 @@ export default function ExchangeRoomListPage() {
             myCourseName: room.myCourseName,
             counterpartCourseName: room.partnerCourseName,
             scheduledAt: room.scheduledAt,
-            timerExpiresAt: room.timerExpiresAt,
+            createdAt: room.createdAt,
             lastMessageAt: room.lastMessageAt,
-            remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+            remainingMinutes: calcRemainingMinutes(room.createdAt),
             isRead: false,
           }))
           .filter(
             (room) =>
-              !isExpired(
-                room.timerExpiresAt,
-                room.lastMessageAt,
-                room.scheduledAt,
-              ),
+              !isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
           )
           .sort((a, b) => b.id - a.id); // 생성 최신순 (roomId 큰 값이 상단)
 
@@ -142,15 +140,11 @@ export default function ExchangeRoomListPage() {
         prev
           .filter(
             (room) =>
-              !isExpired(
-                room.timerExpiresAt,
-                room.lastMessageAt,
-                room.scheduledAt,
-              ),
+              !isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
           )
           .map((room) => ({
             ...room,
-            remainingMinutes: calcRemainingMinutes(room.timerExpiresAt),
+            remainingMinutes: calcRemainingMinutes(room.createdAt),
           })),
       );
     }, 30_000);
