@@ -41,12 +41,7 @@ const uploadImages = async (files: File[]): Promise<string[]> => {
       const formData = new FormData();
       formData.append('image', file); // 명세서에 적힌 키값 'image'
 
-      // 백엔드의 실제 이미지 업로드 엔드포인트로 변경해주세요 (예: /api/upload)
-      const response = await api.post('/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/api/images/upload', formData);
 
       // 명세서 응답 구조: data.imageUrl
       return response.data.data.imageUrl;
