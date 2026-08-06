@@ -119,17 +119,32 @@ const GUIDE_STEPS = [
   },
 ];
 
+// ===== KST 유틸 =====
+const KST_OFFSET_HOURS = 9; // 한국은 DST 없음
+
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('ko-KR', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Seoul',
   });
 
 const formatScheduledDate = (iso: string) => {
-  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  }).formatToParts(new Date(iso));
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
   const days = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+  const weekdayIndex = new Date(
+    new Date(iso).toLocaleString('en-US', { timeZone: 'Asia/Seoul' }),
+  ).getDay();
+
+  return `${get('month')}월 ${get('day')}일 (${days[weekdayIndex]})`;
 };
 
 export default function ChatRoomPage() {
@@ -182,6 +197,10 @@ export default function ChatRoomPage() {
         expiresAt: qr.expiresAt,
       });
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate('/login');
+        return;
+      }
       setApiError(
         err instanceof ApiError
           ? err.message
@@ -296,7 +315,10 @@ export default function ChatRoomPage() {
         ),
       );
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
         navigate('/login');
         return;
       }
@@ -363,14 +385,16 @@ export default function ChatRoomPage() {
         let hour = Number(hh);
         if (ampm === '오후' && hour !== 12) hour += 12;
         if (ampm === '오전' && hour === 12) hour = 0;
-        const iso = new Date(
+
+        // 파싱된 값은 KST 기준 벽시계 시간이므로, UTC 인스턴트로 만들 때 9시간을 빼줘야 함
+        const utcMs = Date.UTC(
           now.getFullYear(),
           Number(mm) - 1,
           Number(dd),
-          hour,
+          hour - KST_OFFSET_HOURS,
           Number(min),
-        ).toISOString();
-        setScheduledAt(iso);
+        );
+        setScheduledAt(new Date(utcMs).toISOString());
       }
     }
   };
@@ -568,12 +592,14 @@ export default function ChatRoomPage() {
   };
 
   const handleGoSchedule = () => {
+    if (isTerminated || isCompleted) return;
     setIsMenuOpen(false);
     navigate(`/chat/${roomId}/schedule`, { state: { exchangeId } });
   };
 
   // 거래 파기: 라우트 이동 없이 오버레이 카드로 처리한다 (페이지 교체 시 과목명 등 state가 유실되는 문제 방지).
   const handleGoTerminate = () => {
+    if (isTerminated) return;
     setIsMenuOpen(false);
     setIsTerminateOpen(true);
   };
@@ -653,13 +679,15 @@ export default function ChatRoomPage() {
           ))}
         </ul>
 
-        <button
-          type="button"
-          onClick={handleShowGuide}
-          className="w-full py-2.5 border-[0.70px] border-[#D1B422] rounded-xl bg-[#FCEFAF] text-[#D1B422] text-sm font-semibold"
-        >
-          캡쳐 인증 방법 확인하기
-        </button>
+        {!isTerminated && (
+          <button
+            type="button"
+            onClick={handleShowGuide}
+            className="w-full py-2.5 border-[0.70px] border-[#D1B422] rounded-xl bg-[#FCEFAF] text-[#D1B422] text-sm font-semibold"
+          >
+            캡쳐 인증 방법 확인하기
+          </button>
+        )}
       </div>
     );
 
@@ -676,6 +704,7 @@ export default function ChatRoomPage() {
 
   // ============ GUIDE ============
   const handleShowGuide = () => {
+    if (isTerminated) return;
     setCardInsertIndex(messages.length);
     setShowPreviousChat(false);
     setLocalFlowStep('GUIDE');
@@ -891,7 +920,7 @@ export default function ChatRoomPage() {
             {myCourseName.replace(' ', '')} 교환 준비방이 생성되었습니다.
           </p>
 
-          {!scheduledAt && (
+          {!scheduledAt && !isTerminated && (
             <div className="mx-4 bg-yellow-light border-[0.70px] border-[#D1B422] rounded-lg px-4 py-8 flex flex-col items-center text-center gap-5">
               <p className="text-sm font-bold text-[#194059BF] leading-relaxed">
                 강의를 교환할 시간을 정해
