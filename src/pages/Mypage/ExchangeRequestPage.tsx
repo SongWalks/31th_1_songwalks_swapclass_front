@@ -101,11 +101,6 @@ const ExchangeRequestPage = () => {
     unranked: false,
   });
 
-  // 💡 컴포넌트가 처음 뜰 때, 이전 화면에서 넘어온 location.state가 남아있으면 지우기 위한
-  // effect. location.state를 그냥 의존성 배열에 넣으면 무한 루프에 빠질 수 있어서
-  // (navigate(..., {state:{}})로 지운 뒤에도 {}는 truthy라 가드가 안 걸러지고, {} 자체가
-  // "새로운 값"이라 effect가 계속 재실행됨), ref로 "이미 한 번 지웠는지" 기억해뒀다가
-  // 그 다음부터는 location.state가 다시 바뀌어도 즉시 멈추게 해서 루프를 끊음.
   const hasClearedLocationStateRef = useRef(false);
   useEffect(() => {
     if (hasClearedLocationStateRef.current) return;
@@ -359,7 +354,7 @@ const ExchangeRequestPage = () => {
                                 className="p-5 flex flex-col relative cursor-pointer hover:bg-neutral-50/80 transition-colors"
                               >
                                 <div className="flex items-center justify-between mb-3">
-                                  <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                                  <span className="text-black text-xl font-medium leading-5 tracking-wide">
                                     {req.counterpartPost?.discardCourse?.name}
                                   </span>
                                   <div className="flex items-center gap-2 ">
@@ -389,7 +384,7 @@ const ExchangeRequestPage = () => {
                                         <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
                                           {idx + 1}
                                         </div>
-                                        <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                                        <span className="text-black/70 text-sm font-light leading-5 tracking-wide">
                                           {item.course?.name}
                                         </span>
                                       </div>
@@ -433,7 +428,7 @@ const ExchangeRequestPage = () => {
           </div>
         ) : (
           /* --- [보낸 요청] 탭 내용 --- */
-          <div className="flex-1 flex flex-col px-5 pt-6">
+          <div className="flex-1 flex flex-col px-6 pt-6">
             {!isSentProposalActive ? (
               /* 1. 보낸 요청 데이터가 없을 때 (비어있을 때) */
               <div className="flex-1 flex flex-col items-center justify-center py-24 text-center">
@@ -466,7 +461,7 @@ const ExchangeRequestPage = () => {
                 className="w-full flex flex-col px-1 relative cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-black text-lg font-medium leading-5 tracking-wide">
+                  <span className="text-black text-xl font-medium leading-5 tracking-wide">
                     {sentProposal.counterpartPost?.discardCourse?.name}
                   </span>
                   {(() => {
@@ -507,7 +502,7 @@ const ExchangeRequestPage = () => {
                         <div className="w-3.5 h-3.5 bg-blue-100 rounded-full flex items-center justify-center text-[8px] text-black/60 font-light shrink-0">
                           {idx + 1}
                         </div>
-                        <span className="text-black/70 text-xs font-light leading-5 tracking-wide">
+                        <span className="text-black/70 text-sm font-light leading-5 tracking-wide">
                           {item.course?.name}
                         </span>
                       </div>
