@@ -114,7 +114,11 @@ async function request<T>(
         : undefined,
   });
 
-  if (res.status === 401 && !_retried && tokens?.refreshToken) {
+  if (
+    (res.status === 401 || res.status === 403) &&
+    !_retried &&
+    tokens?.refreshToken
+  ) {
     const newAccessToken = await refreshAccessToken();
     if (newAccessToken) {
       return request<T>(path, { ...options, _retried: true });

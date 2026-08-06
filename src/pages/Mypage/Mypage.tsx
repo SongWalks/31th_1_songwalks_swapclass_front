@@ -27,6 +27,8 @@ import {
 } from '@/api/mypage/mypageApi';
 import axiosInstance from '@/api/axiosInstance';
 import { clearTokens } from '@/store/tokenStorage';
+// 💡 웹푸시 구독/해제 (실제 브라우저 알림 권한 + 서비스워커 등록은 여기서 트리거됨)
+import { subscribeToPush, unsubscribeFromPush } from '@/api/alert/push';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -153,11 +155,25 @@ const MyPage = () => {
   }, []);
 
   // 2. 알림 설정 토글 API 연동
+  // 💡 서버 플래그(notificationEnabled)만 바꾸는 게 아니라, 실제 브라우저 푸시 구독/해제까지
+  // 같이 처리해야 함. 켤 때는 구독이 먼저 성공해야 서버 플래그를 true로 저장하는 의미가 있음
+  // (구독 없이 플래그만 true면 서버는 보낼 수 있다고 착각하지만 실제로는 못 감).
   const handleToggleNotification = async () => {
     const nextState = !isAlertOn;
     // UI 즉각 반영 (Optimistic Update)
     setIsAlertOn(nextState);
     try {
+      if (nextState) {
+        const pushResult = await subscribeToPush();
+        if (!pushResult.success) {
+          setIsAlertOn(false);
+          // pushResult.reason: 'denied' | 'unsupported' | 'no-sw' 등으로 토스트 분기 가능
+          return;
+        }
+      } else {
+        await unsubscribeFromPush();
+      }
+
       const res = await updateNotification(nextState);
       if (!res.success) {
         // 실패 시 원래 상태로 복구
