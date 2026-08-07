@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import clockIcon from '@/assets/icons/clock.svg';
 import { NotificationBell } from '@/components/common/NotificationBell';
 import { chatRoomApi } from '@/api/chat/chatRoomApi';
+import { exchangeApi } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 import { getTokens } from '../../store/tokenStorage';
 
 interface ExchangeRoom {
   id: number;
+  exchangeId: number;
   myCourseName: string;
   counterpartCourseName: string;
   scheduledAt: string | null; // 교환 시간이 확정되면 채워짐
@@ -81,6 +83,19 @@ export default function ExchangeRoomListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // 이미 파기 요청을 보낸 exchangeId는 재요청하지 않도록 추적
+  const canceledRef = useRef<Set<number>>(new Set());
+
+  const autoCancelExpired = (room: ExchangeRoom) => {
+    if (canceledRef.current.has(room.exchangeId)) return;
+    canceledRef.current.add(room.exchangeId);
+    // 무응답 30분 경과 자동 파기 — 사용자가 직접 고르는 사유가 아니라 시스템 트리거용으로
+    // 예약된 NO_CONTACT를 사용
+    exchangeApi.cancel(room.exchangeId, 'NO_CONTACT').catch(() => {
+      canceledRef.current.delete(room.exchangeId); // 실패하면 다음 tick에 재시도
+    });
+  };
+
   useEffect(() => {
     let ignore = false;
 
@@ -88,24 +103,36 @@ export default function ExchangeRoomListPage() {
       setIsLoading(true);
       try {
         const data = await chatRoomApi.getRoomList();
-        const mapped: ExchangeRoom[] = data
-          .map((room) => ({
-            id: room.roomId,
-            myCourseName: room.myCourseName,
-            counterpartCourseName: room.partnerCourseName,
-            scheduledAt: room.scheduledAt,
-            createdAt: room.createdAt,
-            lastMessageAt: room.lastMessageAt,
-            remainingMinutes: calcRemainingMinutes(room.createdAt),
-            isRead: false,
-          }))
+        const mapped: ExchangeRoom[] = data.map((room) => ({
+          id: room.roomId,
+          exchangeId: room.exchangeId,
+          myCourseName: room.myCourseName,
+          counterpartCourseName: room.partnerCourseName,
+          scheduledAt: room.scheduledAt,
+          createdAt: room.createdAt,
+          lastMessageAt: room.lastMessageAt,
+          remainingMinutes: calcRemainingMinutes(room.createdAt),
+          isRead: false,
+        }));
+
+        mapped
+          .filter((room) =>
+            isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
+          )
+          .forEach(autoCancelExpired);
+
+        const visible = mapped
           .filter(
             (room) =>
               !isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
           )
-          .sort((a, b) => b.id - a.id); // 생성 최신순 (roomId 큰 값이 상단)
+          .sort(
+            (a, b) =>
+              new Date(b.lastMessageAt ?? b.createdAt).getTime() -
+              new Date(a.lastMessageAt ?? a.createdAt).getTime(),
+          ); // 기본은 생성순, 새 메시지가 오면 최상단으로
 
-        if (!ignore) setRooms(mapped);
+        if (!ignore) setRooms(visible);
       } catch (err) {
         if (
           err instanceof ApiError &&
@@ -136,8 +163,14 @@ export default function ExchangeRoomListPage() {
   // 30초마다 만료된 방을 목록에서 제거 + 남은시간 갱신
   useEffect(() => {
     const timer = setInterval(() => {
-      setRooms((prev) =>
+      setRooms((prev) => {
         prev
+          .filter((room) =>
+            isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
+          )
+          .forEach(autoCancelExpired);
+
+        return prev
           .filter(
             (room) =>
               !isExpired(room.createdAt, room.lastMessageAt, room.scheduledAt),
@@ -145,8 +178,13 @@ export default function ExchangeRoomListPage() {
           .map((room) => ({
             ...room,
             remainingMinutes: calcRemainingMinutes(room.createdAt),
-          })),
-      );
+          }))
+          .sort(
+            (a, b) =>
+              new Date(b.lastMessageAt ?? b.createdAt).getTime() -
+              new Date(a.lastMessageAt ?? a.createdAt).getTime(),
+          );
+      });
     }, 30_000);
     return () => clearInterval(timer);
   }, []);
@@ -191,9 +229,9 @@ export default function ExchangeRoomListPage() {
             onClick={() => handleRoomClick(room)}
             className="flex items-center justify-between gap-3 px-5 py-5 text-left border-b border-gray-300"
           >
-            <div className="flex items-start gap-4 min-w-0">
+            <div className="flex items-center gap-4 min-w-0">
               {!room.isRead && (
-                <span className="w-2 h-2 rounded-full bg-brand-lightBlue flex-shrink-0 mt-1.5" />
+                <span className="w-2 h-2 rounded-full bg-brand-lightBlue flex-shrink-0" />
               )}
               <div className="min-w-0">
                 <p className="text-base font-bold text-gray-900 truncate">
@@ -216,12 +254,12 @@ export default function ExchangeRoomListPage() {
                     {formatScheduled(room.scheduledAt)}
                   </span>
                 </>
-              ) : (
+              ) : !room.lastMessageAt ? (
                 <>
                   <img src={clockIcon} alt="" className="w-3.5 h-3.5" />
                   <span>{formatRemaining(room.remainingMinutes)}</span>
                 </>
-              )}
+              ) : null}
             </div>
           </button>
         ))}
