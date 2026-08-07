@@ -4,6 +4,7 @@ import Button from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { IconButton } from '@/components/common/IconButton';
+import Header from '@/components/layout/Header';
 import { ICONS } from '@/constants/icons';
 import eyeIcon from '@/assets/icons/eye.svg';
 import {
@@ -91,9 +92,9 @@ export default function FindPasswordPage() {
       setCodeError('');
     } catch (err) {
       setEmailError(
-        err.status === 404
+        err?.status === 404
           ? '가입되지 않은 이메일입니다.'
-          : err.message || '인증코드 발송에 실패했습니다.',
+          : err?.message || '인증코드 발송에 실패했습니다.',
       );
     } finally {
       setIsSending(false);
@@ -108,13 +109,12 @@ export default function FindPasswordPage() {
       await verifyEmailCode(email, code);
       setStep('password');
     } catch (err) {
-      setCodeError(err.message || '잘못된 입력값입니다.');
+      setCodeError(err?.message || '잘못된 입력값입니다.');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  // 실시간 검증: 입력할 때마다 바로 체크 (버튼 눌러야만 검사되던 문제 수정)
   const handlePasswordChange = (value) => {
     setPassword(value);
     if (value.length === 0) {
@@ -167,7 +167,7 @@ export default function FindPasswordPage() {
       });
       setShowCompleteModal(true);
     } catch (err) {
-      setResetError(err.message || '비밀번호 변경에 실패했습니다.');
+      setResetError(err?.message || '비밀번호 변경에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -184,30 +184,32 @@ export default function FindPasswordPage() {
     !!confirmError;
 
   return (
-    <div className="w-full h-full flex items-center justify-center overflow-y-auto px-4 py-6">
-      <div className="relative w-full max-w-[402px] bg-[#FBFBFB]">
-        <div className="pt-6 pb-1 opacity-60">
-          <IconButton icon={ICONS.BACK} onClick={handleBack} />
-        </div>
+    <div className="relative w-full h-full bg-[#FBFBFB] flex flex-col overflow-hidden">
+      {/* 뒤로가기 헤더 고정 */}
+      <div className="[&>header]:!border-none flex-shrink-0">
+        <Header
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title={<div className="h-10" />}
+          rightNode={<div className="w-10 h-10" />}
+        />
+      </div>
 
+      {/* ── 약간 올려준 수직 중앙 덩어리 ── */}
+      <div className="my-auto w-full pt-2 pb-16">
         {step === 'email' ? (
-          <div className="flex flex-col px-5 pt-14">
-            <h1 className="text-2xl font-bold font-['Paperozi'] leading-9 tracking-wide text-cyan-900">
-              비밀번호 찾기
-            </h1>
-            <p className="mt-2 text-lg font-semibold font-['Pretendard'] leading-normal tracking-wide text-slate-500">
-              인증번호를 확인하여 비밀번호를 변경합니다.
-            </p>
+          <>
+            <div className="px-6">
+              <h1 className="text-2xl font-bold font-['Paperlogy'] leading-9 tracking-wide text-cyan-900 mb-[3px]">
+                비밀번호 찾기
+              </h1>
+              <p className="text-lg font-semibold font-['Pretendard'] leading-5 tracking-wide text-slate-500 mb-8">
+                인증번호를 확인하여 비밀번호를 변경합니다.
+              </p>
+            </div>
 
-            <label
-              className={`mt-12 text-base font-medium font-['Pretendard'] leading-5 tracking-wide ${
-                emailError ? 'text-rose-500' : 'text-slate-500'
-              }`}
-            >
-              이메일
-            </label>
-            <div className="mt-2">
+            <div className="px-6 flex flex-col gap-6">
               <Input
+                label="이메일"
                 type="email"
                 placeholder="abc1234@sookmyung.ac.kr"
                 value={email}
@@ -239,128 +241,111 @@ export default function FindPasswordPage() {
                   </button>
                 }
               />
-            </div>
 
-            <label className="mt-6 text-base font-medium font-['Pretendard'] leading-5 tracking-wide text-slate-500">
-              인증번호 입력
-            </label>
-            <div className="mt-2">
-              <Input
-                type="text"
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  if (codeError) setCodeError('');
-                }}
-                disabled={!isCodeSent || secondsLeft === 0}
-                isError={!!codeError}
-                errorMessage={codeError}
-                className={isCodeSent ? '!border-brand-lightBlue' : ''}
-                rightNode={
-                  isCodeSent ? (
-                    <span className="w-20 h-7 flex items-center justify-center rounded-xl border-[0.70px] border-brand-lightBlue bg-brand-soft text-xs font-normal font-['Pretendard'] leading-5 tracking-wide text-gray-700">
-                      {formatTime(secondsLeft)}
-                    </span>
-                  ) : null
-                }
-              />
-            </div>
+              <div>
+                <Input
+                  label="인증번호 입력"
+                  type="text"
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    if (codeError) setCodeError('');
+                  }}
+                  disabled={!isCodeSent || secondsLeft === 0}
+                  isError={!!codeError}
+                  errorMessage={codeError}
+                  className={isCodeSent ? '!border-brand-lightBlue' : ''}
+                  rightNode={
+                    isCodeSent ? (
+                      <span className="w-20 h-7 flex items-center justify-center rounded-xl border-[0.70px] border-brand-lightBlue bg-brand-soft text-xs font-normal font-['Pretendard'] leading-5 tracking-wide text-gray-700">
+                        {formatTime(secondsLeft)}
+                      </span>
+                    ) : null
+                  }
+                />
+                {isCodeSent && !codeError && (
+                  <p className="mt-1 ml-1 text-sm font-normal font-['Pretendard'] leading-5 tracking-wide text-brand-blue">
+                    메일이 발송되었습니다
+                  </p>
+                )}
+              </div>
 
-            {isCodeSent && !codeError && (
-              <p className="mt-1 ml-1 text-sm font-normal font-['Pretendard'] leading-5 tracking-wide text-brand-blue">
-                메일이 발송되었습니다
-              </p>
-            )}
-
-            <div className="mt-14">
-              <Button variant="primary" size="lg" onClick={handleVerifyCode}>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={handleVerifyCode}
+                className="mt-4"
+              >
                 {isVerifying ? '확인 중...' : '인증하기'}
               </Button>
             </div>
-          </div>
+          </>
         ) : (
-          <div className="flex flex-col px-5 pt-14">
-            <h1 className="text-2xl font-bold font-['Paperozi'] leading-9 tracking-wide text-cyan-900">
-              비밀번호 재설정
-            </h1>
-            <p className="mt-2 text-lg font-semibold font-['Pretendard'] leading-normal tracking-wide text-slate-500">
-              새로운 비밀번호로 재설정합니다
-            </p>
-
-            {resetError && (
-              <p className="mt-4 text-xs text-point-red bg-point-red/5 border border-point-red/30 rounded-lg px-3 py-2">
-                {resetError}
+          <>
+            <div className="px-6">
+              <h1 className="text-2xl font-bold font-['Paperlogy'] leading-9 tracking-wide text-cyan-900 mb-[3px]">
+                비밀번호 재설정
+              </h1>
+              <p className="text-lg font-semibold font-['Pretendard'] leading-5 tracking-wide text-slate-500 mb-8">
+                새로운 비밀번호로 재설정합니다
               </p>
-            )}
+            </div>
 
-            <label
-              className={`mt-6 text-base font-medium font-['Pretendard'] leading-5 tracking-wide ${
-                passwordError ? 'text-point-red' : 'text-slate-500'
-              }`}
-            >
-              새 비밀번호
-            </label>
-            <div className="mt-2 [&>div]:!gap-0 [&_span]:!-mt-0.2">
+            <div className="px-6 flex flex-col gap-6">
+              {resetError && (
+                <p className="text-xs text-point-red bg-point-red/5 border border-point-red/30 rounded-lg px-3 py-2">
+                  {resetError}
+                </p>
+              )}
+
               <Input
+                label="새 비밀번호"
                 type={showPw ? 'text' : 'password'}
                 placeholder="영문, 숫자, 특수문자 포함 8~12자 비밀번호"
                 value={password}
                 onChange={(e) => handlePasswordChange(e.target.value)}
                 isError={!!passwordError}
                 errorMessage={passwordError}
-                className={`placeholder:text-neutral-400 placeholder:text-s placeholder:font-light ${
-                  passwordError ? '' : 'border-zinc-400'
-                }`}
                 rightNode={
                   <button
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
-                    className="w-6 h-6"
+                    className="w-6 h-6 flex items-center justify-center cursor-pointer"
                   >
-                    <img src={eyeIcon} alt="" className="w-10 h-6" />
+                    <img src={eyeIcon} alt="" className="w-6 h-6" />
                   </button>
                 }
               />
-            </div>
 
-            <label
-              className={`mt-6 text-base font-medium font-['Pretendard'] leading-5 tracking-wide ${
-                confirmError ? 'text-point-red' : 'text-slate-500'
-              }`}
-            >
-              비밀번호 확인
-            </label>
-            <div className="mt-2">
               <Input
+                label="비밀번호 확인"
                 type={showPwConfirm ? 'text' : 'password'}
                 value={passwordConfirm}
                 onChange={(e) => handlePasswordConfirmChange(e.target.value)}
                 isError={!!confirmError}
                 errorMessage={confirmError}
-                className={confirmError ? '' : 'border-zinc-400'}
                 rightNode={
                   <button
                     type="button"
                     onClick={() => setShowPwConfirm((v) => !v)}
-                    className="w-6 h-6"
+                    className="w-6 h-6 flex items-center justify-center cursor-pointer"
                   >
-                    <img src={eyeIcon} alt="" className="w-10 h-6" />
+                    <img src={eyeIcon} alt="" className="w-6 h-6" />
                   </button>
                 }
               />
-            </div>
 
-            <div className="mt-14 pb-10">
               <Button
                 variant="primary"
                 size="lg"
                 disabled={isResetDisabled}
                 onClick={handleResetPassword}
+                className="mt-4"
               >
                 {isSubmitting ? '변경 중...' : '비밀번호 변경'}
               </Button>
             </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -368,7 +353,7 @@ export default function FindPasswordPage() {
         isOpen={showCompleteModal}
         onClose={() => setShowCompleteModal(false)}
         title={
-          <div className="mt-10 text-base font-medium font-['Paperozi']">
+          <div className="w-72 text-center justify-center text-cyan-900 text-sm font-medium font-['Pretendard'] leading-4 tracking-wide">
             비밀번호가 변경되었습니다.
           </div>
         }
@@ -382,7 +367,7 @@ export default function FindPasswordPage() {
           </Button>
         }
       >
-        <div className="h-2" />
+        <div className="h-1" />
       </Modal>
     </div>
   );
