@@ -98,9 +98,8 @@ const PostWritePage: React.FC = () => {
     sessionStorage.removeItem('courseSearchTarget');
   }, []);
 
-  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 1개 이상
-  const canSubmit =
-    !!discardCourse && wantedCourses.some((course) => course !== null);
+  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 1순위 필수
+  const canSubmit = !!discardCourse && wantedCourses[0] !== null;
 
   const handleSelectDiscardCourse = () => {
     // 💡 지금까지의 전체 선택 상태 + 어느 슬롯을 채울지 sessionStorage에 저장해두고 이동
