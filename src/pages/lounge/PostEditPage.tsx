@@ -95,14 +95,6 @@ const PostEditForm = ({ postId, initialData }: PostEditFormProps) => {
 
           {initialData.course ? (
             <div className="relative w-full p-5 border border-gray-300 rounded-xl bg-brand-bg flex flex-col gap-3">
-              {/* 닫기 버튼 */}
-              <button
-                type="button"
-                className="absolute top-4 right-4 text-gray-400 p-1 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                <Icon icon="ph:x" className="text-[20px]" />
-              </button>
-
               {/* 과목명 */}
               <div className="text-[16px] font-bold text-gray-800 pr-6">
                 {initialData.course.name || initialData.courseName}
