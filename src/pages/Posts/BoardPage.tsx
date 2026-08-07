@@ -139,7 +139,7 @@ const BoardPage = () => {
         } else {
           // 필터 없음: 전체 게시판 (dept 검색 + 페이지네이션)
           const response = await axiosInstance.get('/api/posts', {
-            params: { dept: dept || undefined, page: 0, size: 20 },
+            params: { keyword: dept || undefined, page: 0, size: 20 },
           });
           rawPosts = response.data?.data?.content || [];
         }
@@ -272,7 +272,7 @@ const BoardPage = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="학과명을 입력해주세요"
+              placeholder="과목명을 입력해주세요"
               className="flex-1 bg-transparent border-none outline-none text-sm text-black placeholder-stone-300"
             />
             <Icon
