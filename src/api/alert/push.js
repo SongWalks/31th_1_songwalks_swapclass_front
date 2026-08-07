@@ -4,11 +4,7 @@ import { getTokens } from '@/store/tokenStorage';
 import { emitForegroundMessage } from '@/api/alert/msts';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
-// 👇 이건 Firebase Console > 프로젝트 설정 > Cloud Messaging > 웹 푸시 인증서에서 발급받은 VAPID 키
-//    (기존 raw Web Push용 VAPID_PUBLIC_KEY와는 다른 값입니다 — 헷갈리지 않게 새 env 변수로 분리 권장)
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY ?? '';
-
-// 👇 deviceType 값은 백엔드에 확정 값 확인 필요 (예: 'WEB' 등)
 const DEVICE_TYPE = 'WEB';
 
 export const registerServiceWorker = async () => {
@@ -24,6 +20,7 @@ export const registerServiceWorker = async () => {
   }
 };
 
+// 푸시 알림 구독 (로그인 시 / 알림 ON 시)
 export const subscribeToPush = async () => {
   if (!('Notification' in window)) {
     return { success: false, reason: 'unsupported' };
@@ -41,6 +38,7 @@ export const subscribeToPush = async () => {
 
   let fcmToken;
   try {
+    // 기존 토큰이 있으면 재사용하고, 없으면 새로 발급받음
     fcmToken = await getToken(messaging, {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration,
@@ -52,6 +50,7 @@ export const subscribeToPush = async () => {
 
   if (!fcmToken) return { success: false, reason: 'no-token' };
 
+  // 서버에 토큰 등록 (서버는 동일 토큰 들어오면 덮어쓰기/재사용 처리)
   const token = getTokens()?.accessToken;
   const res = await fetch(`${API_BASE}/api/notifications/subscriptions`, {
     method: 'POST',
@@ -65,7 +64,6 @@ export const subscribeToPush = async () => {
     }),
   });
 
-  // 포그라운드(탭이 열려있을 때) 수신 리스너도 등록해두는 걸 권장
   onMessage(messaging, (payload) => {
     console.log('포그라운드 메시지 수신:', payload);
     const { title, body } = payload.notification || {};
@@ -75,27 +73,43 @@ export const subscribeToPush = async () => {
   return { success: res.ok, fcmToken };
 };
 
+// 푸시 알림 해제 (로그아웃 시 / 회원탈퇴 시 / 알림 OFF 시)
 export const unsubscribeFromPush = async () => {
+  const registration =
+    (await navigator.serviceWorker.getRegistration('/fm-sw.js')) ||
+    (await registerServiceWorker());
+
   let fcmToken;
   try {
-    fcmToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+    fcmToken = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      ...(registration ? { serviceWorkerRegistration: registration } : {}),
+    });
   } catch {
-    return { success: true }; // 이미 토큰이 없으면 해제할 것도 없음
+    return { success: true };
   }
   if (!fcmToken) return { success: true };
 
-  await deleteToken(messaging);
-
   const token = getTokens()?.accessToken;
-  const res = await fetch(
-    `${API_BASE}/api/notifications/subscriptions/${fcmToken}`,
-    {
+
+  // 1. 서버 DB에서 해당 토큰 삭제
+  try {
+    await fetch(`${API_BASE}/api/notifications/subscriptions/${fcmToken}`, {
       method: 'DELETE',
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-    },
-  );
+    });
+  } catch (err) {
+    console.warn('서버 토큰 삭제 실패:', err);
+  }
 
-  return { success: res.ok };
+  // 2. Firebase SDK 클라이언트 토큰 삭제
+  try {
+    await deleteToken(messaging);
+  } catch (err) {
+    console.warn('Firebase 토큰 삭제 실패:', err);
+  }
+
+  return { success: true };
 };

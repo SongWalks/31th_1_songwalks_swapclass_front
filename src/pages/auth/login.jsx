@@ -61,21 +61,29 @@ export default function LoginPage() {
 
       saveTokens(data, autoLogin, trimmedEmail);
 
-      if (Notification?.permission === 'granted') {
-        subscribeToPush().catch((err) =>
-          console.error('FCM 토큰 재등록 실패:', err),
-        );
-      }
-
       login({
         id: decodeUserId(data.accessToken),
         email: trimmedEmail,
       });
 
+      // 💡 [수정 1] await를 붙여 푸시 구독(네트워크 요청)이 끝날 때까지 기다립니다.
+      // 💡 [수정 2] 'denied'(거부)가 아닌 경우(granted 또는 default) 모두 실행되도록 처리합니다.
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission !== 'denied') {
+          try {
+            await subscribeToPush(); // POST /api/notifications/subscriptions 요청 대기
+          } catch (pushErr) {
+            console.error('FCM 토큰 재등록 실패:', pushErr);
+          }
+        }
+      }
+
       setBanner({
         type: 'success',
         message: `로그인에 성공했습니다. ${autoLogin ? '자동 로그인이 설정됨' : ''}`,
       });
+
+      // 💡 네트워크 요청 완결 후 메인 페이지 이동
       window.location.href = '/';
     } catch (err) {
       if (err instanceof ApiError) {

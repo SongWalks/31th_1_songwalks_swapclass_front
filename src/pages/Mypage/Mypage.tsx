@@ -185,7 +185,7 @@ const MyPage = () => {
     }
   };
 
-  // 💡 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
+  // 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
   const handleWithdrawError = (error: unknown) => {
     console.error('회원 탈퇴 실패:', error);
     const axiosError = error as AxiosError<{ message?: string }>;
@@ -193,7 +193,12 @@ const MyPage = () => {
     alert(serverMessage || '회원 탈퇴 처리 중 오류가 발생했습니다.');
   };
 
-  const finishWithdraw = () => {
+  const finishWithdraw = async () => {
+    try {
+      await unsubscribeFromPush(); // DELETE 요청 완료까지 대기
+    } catch (error) {
+      console.error('푸시 구독 해제 실패:', error);
+    }
     alert('회원 탈퇴가 정상적으로 처리되었습니다.');
     clearTokens();
     window.location.href = '/';
@@ -206,7 +211,7 @@ const MyPage = () => {
     try {
       const res = await deleteAccount();
       if (res.success) {
-        finishWithdraw();
+        await finishWithdraw();
       }
     } catch (error) {
       handleWithdrawError(error);
@@ -233,7 +238,7 @@ const MyPage = () => {
 
       const res = await deleteAccount();
       if (res.success) {
-        finishWithdraw();
+        await finishWithdraw();
       }
     } catch (error) {
       handleWithdrawError(error);
@@ -244,10 +249,15 @@ const MyPage = () => {
   };
 
   // 로그아웃 처리
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
+      try {
+        await unsubscribeFromPush(); // DELETE 요청 완료까지 대기
+      } catch (error) {
+        console.error('푸시 구독 해제 실패:', error);
+      }
       clearTokens();
-      window.location.href = '/';
+      window.location.href = '/'; // 이후 페이지 이동
     }
   };
 
@@ -298,7 +308,7 @@ const MyPage = () => {
         <img
           src={graduationIcon}
           alt="졸업요건 과목 등록"
-          className="w-[18px] h-[15px]"
+          className="w-[22px] h-[22px]"
         />
       ),
       title: '졸업요건 과목 등록',
@@ -319,7 +329,11 @@ const MyPage = () => {
     },
     {
       icon: (
-        <img src={bookmarkIcon} alt="북마크 목록" className="w-[11px] h-4" />
+        <img
+          src={bookmarkIcon}
+          alt="북마크 목록"
+          className="w-[22[x] h-[22px]"
+        />
       ),
       title: '북마크 목록',
       description: '관심있는 라운지 게시글 모아보기',
@@ -473,7 +487,7 @@ const MyPage = () => {
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
                       fill="none"
-                      className="size-5.5 text-brand-lightBlue"
+                      className="w-[22px] h-[22px] text-brand-lightBlue"
                     >
                       <path
                         d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9zm-4.27 13a2 2 0 0 1-3.46 0"
