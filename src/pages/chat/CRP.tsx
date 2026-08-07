@@ -268,7 +268,9 @@ export default function ChatRoomPage() {
     : (localFlowStep ??
       (exchangeStatus === 'DISPUTE'
         ? 'DISPUTE'
-        : STATUS_TO_FLOW_STEP[roomStatus]) ??
+        : exchangeStatus === 'COMPLETED'
+          ? 'CHAT'
+          : STATUS_TO_FLOW_STEP[roomStatus]) ??
       'CHAT');
 
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
