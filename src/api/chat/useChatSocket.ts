@@ -1,6 +1,3 @@
-// src/hooks/useChatSocket.ts
-// 연결: SockJS(https://.../ws) → 내부적으로 wss 업그레이드, 발행: /app/chat/{roomId}/send, 구독: /topic/chat/{roomId}
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -10,28 +7,37 @@ import type { ChatMessageDto } from '@/api/chat/chatRoomApi';
 
 const SOCKJS_URL = API_BASE ? `${API_BASE}/ws` : `${window.location.origin}/ws`;
 
+interface RoomEventDto {
+  type: string;
+  seconds?: number;
+  [key: string]: unknown;
+}
+
 interface UseChatSocketOptions {
   roomId: string;
   onMessage: (message: ChatMessageDto) => void;
+  onRoomEvent?: (event: RoomEventDto) => void;
   enabled?: boolean;
 }
 
 export function useChatSocket({
   roomId,
   onMessage,
+  onRoomEvent,
   enabled = true,
 }: UseChatSocketOptions) {
   const clientRef = useRef<Client | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const onMessageRef = useRef(onMessage);
+  const onRoomEventRef = useRef(onRoomEvent);
   onMessageRef.current = onMessage;
+  onRoomEventRef.current = onRoomEvent;
 
   useEffect(() => {
     if (!enabled || !roomId) return;
 
     const client = new Client({
       webSocketFactory: () => new SockJS(SOCKJS_URL),
-      // ⚠️ 재연결 시에도 매번 최신 토큰을 읽어야 access token 재발급 이후에도 정상 연결된다.
       beforeConnect: () => {
         const latest = getTokens();
         client.connectHeaders = latest?.accessToken
@@ -46,8 +52,18 @@ export function useChatSocket({
             const body: ChatMessageDto = JSON.parse(frame.body);
             onMessageRef.current(body);
           } catch (err) {
-            // TODO: 파싱 실패 시 에러 로깅/모니터링 연동
             console.error('채팅 메시지 파싱 실패', err);
+          }
+        });
+
+        client.subscribe(`/topic/chat-rooms/${roomId}`, (frame: IMessage) => {
+          try {
+            const body: RoomEventDto = JSON.parse(frame.body);
+            if (onRoomEventRef.current) {
+              onRoomEventRef.current(body);
+            }
+          } catch (err) {
+            console.error('방 이벤트 파싱 실패', err);
           }
         });
       },
