@@ -33,25 +33,33 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
     });
   };
 
-  const calculateDDay = (seconds?: number) => {
-    if (seconds === undefined || seconds <= 0) return 'D-Day';
-    const days = Math.ceil(seconds / (24 * 3600));
-    return `D-${days}`;
+  const calculateDDay = (isoString?: string) => {
+    if (!isoString) return 'D-Day';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 오늘 밤 12시(자정)로 기준점 통일
+
+    const targetDate = new Date(isoString);
+    targetDate.setHours(0, 0, 0, 0); // 약속일 밤 12시(자정)로 기준점 통일
+
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24); // 정확한 일(Day) 차이 계산
+
+    if (diffDays <= 0) return 'D-Day';
+    return `D-${diffDays}`;
   };
 
-  const dDayText = calculateDDay(heroBanner?.remainSeconds);
+  const dDayText = calculateDDay(heroBanner?.scheduledAt);
   const formattedTime = formatTime(heroBanner?.scheduledAt);
   const courseName = heroBanner?.partnerCourse?.name || '과목명 로딩중';
 
-  const hasAppointment = heroBanner != null && heroBanner.remainSeconds > 0;
+  const hasAppointment = !!heroBanner;
 
   const handleButtonClick = () => {
     if (!hasAppointment) {
       navigate('/board');
     } else {
-      // TODO: 데이터에 chatRoomId가 있다면 특정 채팅방으로 바로 이동하게 할 수도 있습니다.
-      // 예: navigate(`/chat/${heroBanner.chatRoomId}`);
-      navigate('/chat');
+      navigate(`/chat/${heroBanner.chatRoomId}`);
     }
   };
 
@@ -96,12 +104,14 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
 
         {/* active */}
         {state === 'active' && (
-          <>
-            {/* 💡 약속이 있을 때만 디데이 뱃지 표시 */}
+          <div className="relative mt-2">
+            {' '}
+            {/* 💡 기준점이 되도록 relative 추가 */}
+            {/* 💡 약속이 있을 때만 디데이 뱃지 표시 (absolute로 띄움) */}
             {hasAppointment && (
               <span
-                className="inline-block px-3 py-0.5 border border-brand-lightBlue
-                text-brand-lightBlue rounded-full text-[11px] font-bold w-fit mb-6
+                className="absolute bottom-full left-0 mb-4 inline-block px-3 py-0.5 border border-brand-lightBlue
+                text-brand-lightBlue rounded-full text-[11px] font-bold w-fit
                 bg-white/60"
               >
                 {dDayText}
@@ -117,7 +127,7 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
               <br />
               안전하게 교환해보세요
             </p>
-          </>
+          </div>
         )}
 
         {/* alert */}
@@ -134,7 +144,8 @@ export const HomeHero = ({ state, heroBanner }: HomeHeroProps) => {
               {formattedTime}
             </h1>
             <p className="text-gray-700 mt-3 text-light-14 leading-relaxed">
-              내일{' '}
+              {/* 💡 dDayText가 'D-Day'면 '오늘', 아니면 '내일'로 렌더링! */}
+              {dDayText === 'D-Day' ? '오늘' : '내일'}{' '}
               <strong className="text-[#0467A7] text-medium-15">
                 {courseName}
               </strong>

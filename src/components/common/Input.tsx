@@ -21,15 +21,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       errorMessage,
       variant = 'default',
       className = '',
+      id,
       ...props
     },
     ref,
   ) => {
+    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+
     return (
       <div className="w-full flex flex-col gap-1">
         {/* 💡 새로 추가된 라벨 영역 */}
         {label && (
-          <label className="text-sm font-medium text-gray-900 mb-1">
+          <label
+            htmlFor={inputId}
+            className="text-sm font-medium text-gray-900 mb-1"
+          >
             {label}
           </label>
         )}
@@ -45,6 +51,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
           {/* 2. 실제 input 태그 */}
           <input
+            id={inputId}
             ref={ref}
             className={`
               w-full text-sm text-gray-900 transition-colors duration-200
