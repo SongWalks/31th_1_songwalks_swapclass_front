@@ -28,11 +28,15 @@ export default function HomePage() {
     icon: ICONS.CHECK,
   });
 
-  const { data: homeData, isLoading, isError } = useHomeQuery();
+  const { data: homeData, isLoading, isError, refetch } = useHomeQuery();
 
   const proposeMutation = useProposeMutation();
   const acceptMutation = useAcceptMutation();
   const rejectMutation = useRejectMutation();
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   useEffect(() => {
     if (isLoading || !sensorRef.current) return;

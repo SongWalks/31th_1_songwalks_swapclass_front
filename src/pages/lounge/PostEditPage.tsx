@@ -89,15 +89,47 @@ const PostEditForm = ({ postId, initialData }: PostEditFormProps) => {
 
         {/* 섹션 2: 과목 태그 */}
         <section className="space-y-3 opacity-60 pointer-events-none">
-          <h3 className="text-brand-lightBlue text-bold-16">과목 태그</h3>
-          <div className="relative w-full p-5 border border-gray-300 rounded-xl bg-brand-bg flex flex-col gap-3">
-            <button className="absolute top-4 right-4 text-gray-400">
-              <Icon icon="ph:x" className="text-[20px]" />
-            </button>
-            <div className="text-[16px] font-bold text-gray-800 pr-6">
-              {initialData.courseName || '과목명 없음'}
+          <h3 className="text-brand-lightBlue font-bold text-[16px]">
+            과목 태그
+          </h3>
+
+          {initialData.course ? (
+            <div className="relative w-full p-5 border border-gray-300 rounded-xl bg-brand-bg flex flex-col gap-3">
+              {/* 과목명 */}
+              <div className="text-[16px] font-bold text-gray-800 pr-6">
+                {initialData.course.name || initialData.courseName}
+              </div>
+
+              {/* 교수 및 시간 정보 */}
+              <div className="flex flex-col gap-3 w-full">
+                <div className="text-[13px] text-gray-500 flex flex-col gap-0.5">
+                  <span>교수 : {initialData.course.professor}</span>
+                  <span>시간 : {initialData.course.classTime}</span>
+                </div>
+
+                {/* 학과 및 이수구분 뱃지 */}
+                <div className="flex gap-2 shrink-0">
+                  {initialData.course.department && (
+                    <span className="px-3 py-1 bg-[#E2F0F9] text-brand-lightBlue text-[12px] font-medium rounded-md w-fit">
+                      {initialData.course.department}
+                    </span>
+                  )}
+                  {initialData.course.courseType && (
+                    <span className="px-3 py-1 bg-[#E2F0F9] text-brand-lightBlue text-[12px] font-medium rounded-md w-fit">
+                      {initialData.course.courseType}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-full h-[144px] border-2 border-dashed border-gray-400 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-600 bg-white">
+              <Icon icon="ph:magnifying-glass-light" className="text-[28px]" />
+              <span className="text-[14px] font-medium">
+                과목 정보가 없습니다
+              </span>
+            </div>
+          )}
         </section>
 
         {/* 섹션 3: 제목 및 내용 입력 */}

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/common/Textarea';
 import { ICONS } from '@/constants/icons';
 import Button from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
-import { useWriteStore } from '@/store/useWriteStore';
+import { useWriteStore } from '@/store/lounge/useWriteStore';
 import { createPost } from '@/api/lounge/lounge';
 import type { CreatePostRequest } from '@/types/lounge/lounge';
 import { NotificationBell } from '@/components/common/NotificationBell';
