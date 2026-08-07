@@ -40,6 +40,7 @@ import HomePage from '@/pages/home/HomePage';
 
 export const router = createBrowserRouter([
   {
+    path: '/',
     element: <RootLayout />,
     children: [
       {
@@ -50,7 +51,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/alert', element: <AlertPage /> },
           { path: '/chat', element: <EPRPage /> },
-          { path: '/', element: <HomePage /> },
+          { index: true, element: <HomePage /> },
           {
             //나중에 다 머지한 뒤에 라우터 수정
             path: 'my/exchange-recommend',
