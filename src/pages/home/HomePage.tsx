@@ -119,7 +119,6 @@ export default function HomePage() {
       },
     );
   };
-
   // 수락하기 핸들러 (React Query 적용)
   const handleAccept = (proposalId: number) => {
     if (acceptMutation.isPending) return;
