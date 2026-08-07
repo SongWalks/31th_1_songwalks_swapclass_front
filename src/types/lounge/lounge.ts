@@ -35,11 +35,28 @@ export interface CommentType {
   createdAt: string;
 }
 
+export interface CourseInfo {
+  courseId: number;
+  name: string;
+  professor: string;
+  classTime: string;
+  courseType: string;
+  department: string;
+  category: string;
+  area: string;
+  isGraduationReq: boolean;
+  myGraduationCourse: boolean;
+  code: string;
+  section: string;
+  credits: string;
+}
+
 export interface PostDetailData {
   id: number;
   type: 'TIP' | 'CLOSURE';
   courseId: number;
   courseName: string;
+  course: CourseInfo;
   title: string;
   content: string;
   authorId: number;

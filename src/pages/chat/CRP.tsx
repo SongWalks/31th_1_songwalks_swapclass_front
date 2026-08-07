@@ -243,6 +243,7 @@ export default function ChatRoomPage() {
   const [messages, setMessages] = useState<ChatMessageDto[]>([]);
   const [isLoadingRoom, setIsLoadingRoom] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [partnerId, setPartnerId] = useState<number | null>(null);
 
   //const [scheduledAt, setScheduledAt] = useState<string | null>(
   //  navCourses?.scheduledAt ?? null,
@@ -322,7 +323,10 @@ export default function ChatRoomPage() {
       try {
         const list = await chatRoomApi.getRoomList();
         const found = list.find((r) => String(r.roomId) === String(roomId));
-        if (found) setExchangeStatus(found.exchangeStatus);
+        if (found) {
+          setExchangeStatus(found.exchangeStatus);
+          setPartnerId(found.partnerId);
+        }
       } catch {
         // 보완 조회 실패는 조용히 무시
       }
@@ -644,7 +648,18 @@ export default function ChatRoomPage() {
 
   const handleReport = () => {
     setIsMenuOpen(false);
-    navigate('/report');
+
+    if (!partnerId) {
+      alert('상대방 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    navigate('/report', {
+      state: {
+        reportedUserId: partnerId,
+        exchangeId: exchangeId,
+      },
+    });
   };
 
   const renderMessages = (msgs: ChatMessageDto[] = messages) =>
