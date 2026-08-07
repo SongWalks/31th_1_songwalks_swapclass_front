@@ -27,9 +27,6 @@ interface RestoredForm {
   wantedCourses: (CourseSelection | null)[];
 }
 
-// 💡 sessionStorage에서 "작성 중이던 전체 상태" + "방금 검색에서 고른 과목"을 읽어서 합침.
-// useState의 초기값 계산 함수로 쓰이므로, 렌더링 중(첫 마운트 시)에 딱 한 번만 동기적으로
-// 호출됨 — useEffect 안에서 setState를 부르는 게 아니라서 set-state-in-effect 대상이 아님.
 const readRestoredForm = (): RestoredForm => {
   let restoredDiscard: CourseSelection | null = null;
   let restoredWanted: (CourseSelection | null)[] = [null, null, null];
@@ -101,9 +98,8 @@ const PostWritePage: React.FC = () => {
     sessionStorage.removeItem('courseSearchTarget');
   }, []);
 
-  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 3개 전부
-  const canSubmit =
-    !!discardCourse && wantedCourses.every((course) => course !== null);
+  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 1순위 필수
+  const canSubmit = !!discardCourse && wantedCourses[0] !== null;
 
   const handleSelectDiscardCourse = () => {
     // 💡 지금까지의 전체 선택 상태 + 어느 슬롯을 채울지 sessionStorage에 저장해두고 이동

@@ -178,7 +178,8 @@ const PostEditPage: React.FC = () => {
     });
   };
 
-  const canSubmit = wantedCourses.some((course) => course !== null);
+  // 💡 등록하기 버튼 활성화 조건: 버릴 과목 1개 + 원하는 과목 1순위 필수
+  const canSubmit = wantedCourses[0] !== null;
 
   // TODO: PATCH /api/posts/{postId} 실제 요청 스키마 확인되면 그에 맞춰 수정
   const submitMutation = useMutation({

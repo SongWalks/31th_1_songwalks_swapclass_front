@@ -78,12 +78,24 @@ export default function HomePage() {
   const receivedRequests = receivedProposals;
 
   // 상태(state) 직접 계산 로직
-  let state: 'empty' | 'active' | 'alert' = 'active';
+  let state: 'empty' | 'active' | 'alert';
 
-  if (recommendedMatches.length === 0) {
-    state = 'empty'; // 추천 게시글이 없으면 empty
-  } else if (heroBanner && heroBanner.remainSeconds > 0) {
-    state = 'alert'; // 남은 시간이 있으면 alert (내일 교환)
+  if (heroBanner) {
+    // ✅ 초가 아니라 '날짜'를 기준으로 차이를 계산합니다.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const targetDate = new Date(heroBanner.scheduledAt);
+    targetDate.setHours(0, 0, 0, 0);
+
+    const diffDays =
+      (targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+
+    // 디데이가 2일 이상(내일 모레) 남았으면 'active', 오늘이나 내일이면 'alert'
+    state = diffDays >= 2 ? 'active' : 'alert';
+  } else {
+    // 예정된 약속이 없음 (null 반환됨)
+    state = recommendedMatches.length === 0 ? 'empty' : 'active';
   }
 
   // 토스트 띄우기 헬퍼 함수
@@ -148,7 +160,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
+    <div className="relative w-full min-h-screen pb-10 flex flex-col bg-white overflow-x-hidden shadow-2xl">
       {/* 화면 맨 위 투명 센서 */}
       <div
         ref={sensorRef}
@@ -188,7 +200,7 @@ export default function HomePage() {
 
       {/* 본문 콘텐츠 영역 */}
       <div className="relative z-10 flex flex-col bg-transparent w-full">
-        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50">
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-50">
           <HomeHeader isScrolled={isScrolled} />
         </div>
 
