@@ -308,7 +308,7 @@ const MyPage = () => {
         <img
           src={graduationIcon}
           alt="졸업요건 과목 등록"
-          className="w-[18px] h-[15px]"
+          className="w-[22px] h-[22px]"
         />
       ),
       title: '졸업요건 과목 등록',
@@ -329,7 +329,11 @@ const MyPage = () => {
     },
     {
       icon: (
-        <img src={bookmarkIcon} alt="북마크 목록" className="w-[11px] h-4" />
+        <img
+          src={bookmarkIcon}
+          alt="북마크 목록"
+          className="w-[22[x] h-[22px]"
+        />
       ),
       title: '북마크 목록',
       description: '관심있는 라운지 게시글 모아보기',
@@ -483,7 +487,7 @@ const MyPage = () => {
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
                       fill="none"
-                      className="size-5.5 text-brand-lightBlue"
+                      className="w-[22px] h-[22px] text-brand-lightBlue"
                     >
                       <path
                         d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9zm-4.27 13a2 2 0 0 1-3.46 0"
