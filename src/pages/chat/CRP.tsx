@@ -184,8 +184,6 @@ export default function ChatRoomPage() {
   const handleEnterVerify = async () => {
     setCardInsertIndex(messages.length);
     setShowPreviousChat(false);
-    setLocalFlowStep(null);
-    setVerifyStep('INTRO');
     setMyVerified(false);
     if (!exchangeId) return;
     try {
@@ -193,7 +191,7 @@ export default function ChatRoomPage() {
         setApiError('인증 가능 시간이 지났습니다.');
         return;
       }
-      // QR 발급은 서버가 VERIFYING 상태일 때만 허용하므로, 발급 전에 최신 상태를 한 번 확인한다.
+
       const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
       setRoomStatus(roomData.room.status);
       if (
@@ -205,30 +203,17 @@ export default function ChatRoomPage() {
         );
         return;
       }
-      // 캐시에 아직 유효한 QR이 있으면 재사용하고, 없을 때만 새로 발급한다.
-      // (채팅방을 나갔다 들어올 때마다 QR/타이머가 리셋되는 문제 방지)
-      const cached = readCachedQr(exchangeId);
-      if (cached) {
-        setQrImageUrl(cached.qrImageUrl);
-        setQrExpiresAt(cached.expiresAt);
-        return;
-      }
-      const qr = await exchangeApi.createQr(exchangeId);
-      setQrImageUrl(qr.qrImageUrl);
-      setQrExpiresAt(qr.expiresAt);
-      writeCachedQr(exchangeId, {
-        qrImageUrl: qr.qrImageUrl,
-        expiresAt: qr.expiresAt,
-      });
+      // QR 발급/캐시 복구는 아래 "새로고침/재진입 시 QR 복구" useEffect가 전담한다.
+      // 여기서 직접 createQr을 부르면 그 effect와 동시에 발급되어 QR이 중복 생성된다.
+      setVerifyStep('INTRO');
+      setLocalFlowStep(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         navigate('/login');
         return;
       }
       setApiError(
-        err instanceof ApiError
-          ? err.message
-          : 'QR 코드를 발급받지 못했습니다.',
+        err instanceof ApiError ? err.message : '인증을 시작하지 못했습니다.',
       );
     }
   };
@@ -309,7 +294,6 @@ export default function ChatRoomPage() {
   // ----- VERIFY 관련 상태 -----
   const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
   const [verifySecondsLeft, setVerifySecondsLeft] = useState(0);
   const [isCaptureFailModalOpen, setIsCaptureFailModalOpen] = useState(false);
   const [isCounterpartConfirmedChecked, setIsCounterpartConfirmedChecked] =
@@ -580,8 +564,9 @@ export default function ChatRoomPage() {
 
     const cached = readCachedQr(exchangeId);
     if (cached) {
+      // sessionStorage(외부 저장소)에서 복원하는 의도된 동기 setState
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQrImageUrl(cached.qrImageUrl);
-      setQrExpiresAt(cached.expiresAt);
       return;
     }
 
@@ -591,7 +576,6 @@ export default function ChatRoomPage() {
         const qr = await exchangeApi.createQr(exchangeId);
         if (ignore) return;
         setQrImageUrl(qr.qrImageUrl);
-        setQrExpiresAt(qr.expiresAt);
         writeCachedQr(exchangeId, {
           qrImageUrl: qr.qrImageUrl,
           expiresAt: qr.expiresAt,
@@ -764,20 +748,26 @@ export default function ChatRoomPage() {
     setLocalFlowStep('GUIDE');
   };
 
-  // 서버가 내려준 expiresAt 기준으로 남은 시간 계산 (로컬 타이머가 아니라 서버 시각과 동기화)
   useEffect(() => {
-    if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO' || !qrExpiresAt) return;
+    if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO' || !scheduledAt) return;
+    const deadline = new Date(scheduledAt).getTime();
+    const timerRef: { current: ReturnType<typeof setInterval> | null } = {
+      current: null,
+    };
     const tick = () => {
-      const remain = Math.max(
-        0,
-        Math.floor((new Date(qrExpiresAt).getTime() - Date.now()) / 1000),
-      );
+      const remain = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
       setVerifySecondsLeft(remain);
+      if (remain <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setApiError('인증 가능 시간이 지났습니다.');
+      }
     };
     tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [flowStep, verifyStep, qrExpiresAt]);
+    timerRef.current = setInterval(tick, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [flowStep, verifyStep, scheduledAt]);
 
   const formatVerifyTimer = (sec: number) => {
     const m = Math.floor(sec / 60);

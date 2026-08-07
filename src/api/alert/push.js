@@ -1,14 +1,15 @@
-// src/api/push.js
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '';
-// 👆 VAPID 공개키는 백엔드가 발급해줘야 해요. .env에 VITE_VAPID_PUBLIC_KEY=... 로 넣어두세요.
+import { getToken, deleteToken, onMessage } from 'firebase/messaging';
+import { messaging } from '@/firebase';
+import { getTokens } from '@/store/tokenStorage';
+import { emitForegroundMessage } from '@/api/alert/msts';
 
-const urlBase64ToUint8Array = (base64String) => {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-};
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+// 👇 이건 Firebase Console > 프로젝트 설정 > Cloud Messaging > 웹 푸시 인증서에서 발급받은 VAPID 키
+//    (기존 raw Web Push용 VAPID_PUBLIC_KEY와는 다른 값입니다 — 헷갈리지 않게 새 env 변수로 분리 권장)
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY ?? '';
+
+// 👇 deviceType 값은 백엔드에 확정 값 확인 필요 (예: 'WEB' 등)
+const DEVICE_TYPE = 'WEB';
 
 export const registerServiceWorker = async () => {
   if (!('serviceWorker' in navigator)) {
@@ -16,8 +17,7 @@ export const registerServiceWorker = async () => {
     return null;
   }
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js');
-    return registration;
+    return await navigator.serviceWorker.register('/fm-sw.js');
   } catch (err) {
     console.error('Service Worker 등록 실패:', err);
     return null;
@@ -35,49 +35,67 @@ export const subscribeToPush = async () => {
   }
 
   const registration =
-    (await navigator.serviceWorker.getRegistration()) ||
+    (await navigator.serviceWorker.getRegistration('/fm-sw.js')) ||
     (await registerServiceWorker());
   if (!registration) return { success: false, reason: 'no-sw' };
 
-  const existing = await registration.pushManager.getSubscription();
-  const subscription =
-    existing ||
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-    }));
+  let fcmToken;
+  try {
+    fcmToken = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration,
+    });
+  } catch (err) {
+    console.error('FCM 토큰 발급 실패:', err);
+    return { success: false, reason: 'token-failed' };
+  }
 
-  const subJson = subscription.toJSON();
+  if (!fcmToken) return { success: false, reason: 'no-token' };
 
-  // 서버에 구독 정보 등록 (API 문서의 "펌푸시 구독 등록" 엔드포인트)
-  const res = await fetch(`${API_BASE}/api/notifications/push-subscription`, {
+  const token = getTokens()?.accessToken;
+  const res = await fetch(`${API_BASE}/api/notifications/subscriptions`, {
     method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({
-      endpoint: subJson.endpoint,
-      p256dh: subJson.keys?.p256dh,
-      auth: subJson.keys?.auth,
+      fcmToken,
+      deviceType: DEVICE_TYPE,
     }),
   });
 
-  return { success: res.ok, subscription };
+  // 포그라운드(탭이 열려있을 때) 수신 리스너도 등록해두는 걸 권장
+  onMessage(messaging, (payload) => {
+    console.log('포그라운드 메시지 수신:', payload);
+    const { title, body } = payload.notification || {};
+    emitForegroundMessage(title || '알림', body || '');
+  });
+
+  return { success: res.ok, fcmToken };
 };
 
 export const unsubscribeFromPush = async () => {
-  const registration = await navigator.serviceWorker.getRegistration();
-  const subscription = await registration?.pushManager.getSubscription();
-  if (!subscription) return { success: true };
+  let fcmToken;
+  try {
+    fcmToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+  } catch {
+    return { success: true }; // 이미 토큰이 없으면 해제할 것도 없음
+  }
+  if (!fcmToken) return { success: true };
 
-  const endpoint = subscription.endpoint;
-  await subscription.unsubscribe();
+  await deleteToken(messaging);
 
-  const res = await fetch(`${API_BASE}/api/notifications/push-subscription`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint }),
-  });
+  const token = getTokens()?.accessToken;
+  const res = await fetch(
+    `${API_BASE}/api/notifications/subscriptions/${fcmToken}`,
+    {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  );
 
   return { success: res.ok };
 };
