@@ -185,7 +185,7 @@ const MyPage = () => {
     }
   };
 
-  // 💡 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
+  // 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
   const handleWithdrawError = (error: unknown) => {
     console.error('회원 탈퇴 실패:', error);
     const axiosError = error as AxiosError<{ message?: string }>;
@@ -193,7 +193,12 @@ const MyPage = () => {
     alert(serverMessage || '회원 탈퇴 처리 중 오류가 발생했습니다.');
   };
 
-  const finishWithdraw = () => {
+  const finishWithdraw = async () => {
+    try {
+      await unsubscribeFromPush(); // DELETE 요청 완료까지 대기
+    } catch (error) {
+      console.error('푸시 구독 해제 실패:', error);
+    }
     alert('회원 탈퇴가 정상적으로 처리되었습니다.');
     clearTokens();
     window.location.href = '/';
@@ -206,7 +211,7 @@ const MyPage = () => {
     try {
       const res = await deleteAccount();
       if (res.success) {
-        finishWithdraw();
+        await finishWithdraw();
       }
     } catch (error) {
       handleWithdrawError(error);
@@ -233,7 +238,7 @@ const MyPage = () => {
 
       const res = await deleteAccount();
       if (res.success) {
-        finishWithdraw();
+        await finishWithdraw();
       }
     } catch (error) {
       handleWithdrawError(error);
@@ -244,10 +249,15 @@ const MyPage = () => {
   };
 
   // 로그아웃 처리
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
+      try {
+        await unsubscribeFromPush(); // DELETE 요청 완료까지 대기
+      } catch (error) {
+        console.error('푸시 구독 해제 실패:', error);
+      }
       clearTokens();
-      window.location.href = '/';
+      window.location.href = '/'; // 이후 페이지 이동
     }
   };
 
