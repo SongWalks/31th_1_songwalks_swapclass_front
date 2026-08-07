@@ -87,8 +87,6 @@ const SpecificPostsPage: React.FC = () => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showNoPostModal, setShowNoPostModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  // 💡 헤더 "..." 아이콘 눌렀을 때 뜨는 수정하기/삭제하기 드롭다운 메뉴
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const hasHandledJustProposedRef = useRef(false);
   useEffect(() => {
@@ -280,12 +278,6 @@ const SpecificPostsPage: React.FC = () => {
                 게시글 상세
               </div>
             }
-            rightNode={
-              <IconButton
-                icon={ICONS.MORE_VERTICAL}
-                className="text-black/40"
-              />
-            }
           />
         </div>
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
@@ -319,40 +311,6 @@ const SpecificPostsPage: React.FC = () => {
           title={
             <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2">
               게시글 상세
-            </div>
-          }
-          rightNode={
-            <div className="relative">
-              <IconButton
-                icon={ICONS.MORE_VERTICAL}
-                className="text-black/40"
-                onClick={() => {
-                  if (!post.mine) return;
-                  setShowMoreMenu((prev) => !prev);
-                }}
-              />
-              {showMoreMenu && post.mine && (
-                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg border border-gray-200 shadow-lg z-50 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      handleEditPost();
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-sm text-zinc-900 hover:bg-gray-50 transition-colors"
-                  >
-                    수정하기
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      handleDeletePost();
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-sm text-rose-500 hover:bg-gray-50 transition-colors"
-                  >
-                    삭제하기
-                  </button>
-                </div>
-              )}
             </div>
           }
         />
