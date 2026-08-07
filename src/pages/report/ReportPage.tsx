@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ICONS } from '@/constants/icons';
 import Header from '@/components/layout/Header';
 import Button from '@/components/common/Button';
+import { NotificationBell } from '@/components/common/NotificationBell';
 import api from '@/api/axiosInstance'; // 백엔드 API 연결
 
 // ==========================================
@@ -130,11 +131,7 @@ export default function ReportPage() {
       <Header
         leftNode={<IconButton icon={ICONS.BACK} onClick={() => navigate(-1)} />}
         title="신고"
-        rightNode={
-          <div className="relative">
-            <IconButton icon={ICONS.BELL} />
-          </div>
-        }
+        rightNode={<NotificationBell />}
       />
 
       <main className="flex-1 overflow-y-auto px-5 pt-4 pb-4">
