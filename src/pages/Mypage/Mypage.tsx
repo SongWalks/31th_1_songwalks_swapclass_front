@@ -185,7 +185,7 @@ const MyPage = () => {
     }
   };
 
-  // 💡 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
+  // 공통 에러 처리: 서버가 준 실제 메시지를 보여줌 (예: "진행 중인 교환이 있어서..." 등)
   const handleWithdrawError = (error: unknown) => {
     console.error('회원 탈퇴 실패:', error);
     const axiosError = error as AxiosError<{ message?: string }>;
