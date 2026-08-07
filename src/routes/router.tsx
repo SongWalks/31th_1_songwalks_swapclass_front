@@ -93,7 +93,6 @@ export const router = createBrowserRouter([
               { path: 'modify', element: <GraduationAddPage /> },
             ],
           },
-          { path: '/lounge', element: <LoungePage /> },
           {
             path: '/proposal/:proposalId',
             element: <ExchangeRequestSpecific />,
