@@ -4,7 +4,7 @@ import { Icon } from '@iconify/react';
 import Header from '@/components/layout/Header';
 import clockIcon from '@/assets/icons/clock.svg';
 import { NotificationBell } from '@/components/common/NotificationBell';
-import { chatRoomApi } from '@/api/chat/chatRoomApi';
+import { chatRoomApi, type ExchangeStatus } from '@/api/chat/chatRoomApi';
 import { exchangeApi } from '@/api/chat/exchangeApi';
 import { ApiError } from '@/api/chat/apiClient';
 import { getTokens } from '../../store/tokenStorage';
@@ -12,6 +12,7 @@ import { getTokens } from '../../store/tokenStorage';
 interface ExchangeRoom {
   id: number;
   exchangeId: number;
+  exchangeStatus: ExchangeStatus;
   myCourseName: string;
   counterpartCourseName: string;
   scheduledAt: string | null; // 교환 시간이 확정되면 채워짐
@@ -87,6 +88,7 @@ export default function ExchangeRoomListPage() {
   const canceledRef = useRef<Set<number>>(new Set());
 
   const autoCancelExpired = (room: ExchangeRoom) => {
+    if (room.exchangeStatus !== 'IN_PROGRESS') return;
     if (canceledRef.current.has(room.exchangeId)) return;
     canceledRef.current.add(room.exchangeId);
     // 무응답 30분 경과 자동 파기 — 사용자가 직접 고르는 사유가 아니라 시스템 트리거용으로
@@ -106,6 +108,7 @@ export default function ExchangeRoomListPage() {
         const mapped: ExchangeRoom[] = data.map((room) => ({
           id: room.roomId,
           exchangeId: room.exchangeId,
+          exchangeStatus: room.exchangeStatus,
           myCourseName: room.myCourseName,
           counterpartCourseName: room.partnerCourseName,
           scheduledAt: room.scheduledAt,

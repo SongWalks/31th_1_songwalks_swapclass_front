@@ -70,6 +70,34 @@ const clearCachedQr = (exchangeId: number) => {
   }
 };
 
+// ===== 내가 제출한 교환 결과 캐시 (재진입/새로고침 시 rollback 방지) =====
+// 서버의 exchangeStatus는 양측 모두 응답해야 최종 확정되므로, 내가 이미 SUCCESS/FAIL을
+// 제출한 뒤에도 재진입 시 서버가 아직 IN_PROGRESS를 내려줄 수 있다. applyExchangeStatus의
+// 다운그레이드 가드는 같은 세션에서만 유효하므로(리마운트되면 state가 null로 초기화됨),
+// 내가 제출한 결과를 별도로 캐시해 복원한다.
+const RESULT_CACHE_PREFIX = 'exchange_result_';
+const getResultCacheKey = (id: number) => `${RESULT_CACHE_PREFIX}${id}`;
+
+const readCachedResult = (exchangeId: number): ExchangeStatus | null => {
+  try {
+    return (
+      (sessionStorage.getItem(
+        getResultCacheKey(exchangeId),
+      ) as ExchangeStatus | null) ?? null
+    );
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedResult = (exchangeId: number, status: ExchangeStatus) => {
+  try {
+    sessionStorage.setItem(getResultCacheKey(exchangeId), status);
+  } catch {
+    // ignore
+  }
+};
+
 type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
 type VerifySubStep =
   | 'INTRO'
@@ -170,6 +198,19 @@ export default function ChatRoomPage() {
   const [exchangeStatus, setExchangeStatus] = useState<ExchangeStatus | null>(
     null,
   );
+  const applyExchangeStatus = (next: ExchangeStatus) => {
+    setExchangeStatus((prev) => {
+      // 내가 이미 결과를 제출해서 COMPLETED/DISPUTE로 확정한 화면인데,
+      // 상대방 미제출로 인한 stale IN_PROGRESS 응답이 그걸 되돌리면 안 됨
+      if (
+        (prev === 'COMPLETED' || prev === 'DISPUTE') &&
+        next === 'IN_PROGRESS'
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const { roomId = '' } = useParams();
@@ -260,6 +301,7 @@ export default function ChatRoomPage() {
 
   const isCompleted = exchangeStatus === 'COMPLETED';
   const isTerminated = exchangeStatus === 'CANCELED';
+  const isDisputed = exchangeStatus === 'DISPUTE';
 
   // ===== 화면 전환 로컬 상태 =====
   const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null);
@@ -315,6 +357,7 @@ export default function ChatRoomPage() {
   // ----- DISPUTE 관련 상태 -----
   const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
   const [disputeStep, setDisputeStep] = useState<DisputeSubStep>('CAPTURE');
+  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
 
   // ============ 채팅방/교환 정보 최초 로딩 ============
   const loadRoom = async () => {
@@ -326,8 +369,9 @@ export default function ChatRoomPage() {
         const list = await chatRoomApi.getRoomList();
         const found = list.find((r) => String(r.roomId) === String(roomId));
         if (found) {
-          setExchangeStatus(found.exchangeStatus);
+          applyExchangeStatus(found.exchangeStatus);
           setPartnerId(found.partnerId);
+          setScheduledAt((prev) => found.scheduledAt ?? prev);
         }
       } catch {
         // 보완 조회 실패는 조용히 무시
@@ -364,6 +408,15 @@ export default function ChatRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  // ============ 내가 제출한 결과 복원 (재진입 시 rollback 방지) ============
+  useEffect(() => {
+    if (!exchangeId) return;
+    const cached = readCachedResult(exchangeId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (cached) applyExchangeStatus(cached);
+     
+  }, [exchangeId]);
+
   // ============ 과목명 / 확정시간 보완 조회 ============
   // ⚠️ 채팅방 상세 조회(getRoom) 응답에 과목명·확정시간 필드가 없어(스웨거 확인 완료)
   //    새로고침 등으로 location.state가 없을 때 목록 API에서 동일 roomId를 찾아 보완한다.
@@ -394,6 +447,19 @@ export default function ChatRoomPage() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  // ============ CHAT 단계 실시간 동기화 폴링 ============
+  // 상대방의 교환시간 확정/거래 파기에 대한 전용 STOMP 이벤트가 없어(파기는 시스템 메시지도
+  // 없을 수 있음) 새로고침 없이 반영되도록 CHAT 단계에서만 짧게 폴링한다.
+  useEffect(() => {
+    if (flowStep !== 'CHAT' || isTerminated || isCompleted || isDisputed)
+      return;
+    const timer = setInterval(() => {
+      void loadRoom();
+    }, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowStep, isTerminated, isCompleted, isDisputed, roomId]);
 
   // ============ 실시간 채팅 (STOMP / SockJS) ============
   const handleIncomingMessage = (message: ChatMessageDto) => {
@@ -643,7 +709,7 @@ export default function ChatRoomPage() {
 
   // 거래 파기: 라우트 이동 없이 오버레이 카드로 처리한다 (페이지 교체 시 과목명 등 state가 유실되는 문제 방지).
   const handleGoTerminate = () => {
-    if (isTerminated) return;
+    if (isTerminated || isCompleted || isDisputed) return;
     setIsMenuOpen(false);
     setIsTerminateOpen(true);
   };
@@ -861,12 +927,18 @@ export default function ChatRoomPage() {
   }, [flowStep, countdownPhase, countdownSecondsLeft]);
 
   const handleExchangeResult = async (result: 'SUCCESS' | 'FAIL') => {
-    if (!exchangeId) return;
+    if (!exchangeId || isSubmittingResult) return;
+    setIsSubmittingResult(true);
     try {
-      const res = await exchangeApi.submitResult(exchangeId, result);
-      setExchangeStatus(res.exchangeStatus as ExchangeStatus); // COMPLETED 또는 DISPUTE, 즉시 확정
+      await exchangeApi.submitResult(exchangeId, result);
+      // 상대방이 아직 제출 전이면 백엔드가 IN_PROGRESS(대기중)를 돌려주지만,
+      // 내 화면은 상대방 진행상황과 무관하게 "내가 고른 결과"를 그대로 반영한다.
+      const myStatus: ExchangeStatus =
+        result === 'SUCCESS' ? 'COMPLETED' : 'DISPUTE';
+      applyExchangeStatus(myStatus);
+      writeCachedResult(exchangeId, myStatus);
       setLocalFlowStep(null);
-      if (res.exchangeStatus === 'DISPUTE') {
+      if (result === 'FAIL') {
         setCardInsertIndex(messages.length);
         setShowPreviousChat(false);
         setDisputeStep('CAPTURE');
@@ -877,6 +949,8 @@ export default function ChatRoomPage() {
           ? err.message
           : '교환 결과를 전달하지 못했습니다.',
       );
+    } finally {
+      setIsSubmittingResult(false);
     }
   };
 
@@ -949,7 +1023,7 @@ export default function ChatRoomPage() {
             onClick={() => setIsMenuOpen(false)}
           />
           <div className="absolute top-[84px] right-4 z-40 w-56 bg-white rounded-xl border border-gray-100 py-2">
-            {!isTerminated && !isCompleted && (
+            {!isTerminated && !isCompleted && !isDisputed && (
               <button
                 type="button"
                 onClick={handleGoTerminate}
