@@ -11,14 +11,13 @@ import { Badge } from '@/components/common/Badge';
 import { Input } from '@/components/common/Input';
 import { CourseCard } from '@/components/common/CourseCard';
 import { Dropdown } from '@/components/common/Dropdown';
-import { useLounge } from '../../store/lounge/useLounge';
 import { ICONS } from '@/constants/icons';
 import { IconButton } from '@/components/common/IconButton';
 
 export const CourseSearchPage = () => {
   const navigate = useNavigate();
 
-  const { searchQuery, setSearchQuery } = useLounge();
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 백엔드 API 요청 지연(디바운스)을 위한 상태 추가
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
