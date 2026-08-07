@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { loginRequest, ApiError } from '@/api/auth/authApi';
 import { saveTokens, decodeUserId } from '@/store/tokenStorage';
 import { useAuthStore } from '@/store/useAuthStore';
+import { subscribeToPush } from '@/api/alert/push';
 import lockIcon from '../../assets/icons/lock.svg';
 import joinIcon from '../../assets/icons/join.svg';
 import checkIcon from '../../assets/icons/check.svg';
@@ -59,6 +60,12 @@ export default function LoginPage() {
       const { data } = await loginRequest({ email: trimmedEmail, password });
 
       saveTokens(data, autoLogin, trimmedEmail);
+
+      if (Notification?.permission === 'granted') {
+        subscribeToPush().catch((err) =>
+          console.error('FCM 토큰 재등록 실패:', err),
+        );
+      }
 
       login({
         id: decodeUserId(data.accessToken),

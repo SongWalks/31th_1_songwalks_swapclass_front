@@ -25,6 +25,7 @@ messaging.onBackgroundMessage((payload) => {
     body: body || '',
     icon: '/icons/icon-192.png',
     data: { url: '/alert' },
+    requireInteraction: true,
   });
 });
 
