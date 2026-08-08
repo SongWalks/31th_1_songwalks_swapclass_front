@@ -210,7 +210,7 @@ export default function ExchangeRoomListPage() {
   return (
     <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden font-['Pretendard'] h-full flex flex-col">
       <div>
-        <Header title="교환준비방" rightNode={<NotificationBell />} />
+        <Header title="교환 채팅방" rightNode={<NotificationBell />} />
       </div>
 
       <div className="flex flex-col overflow-y-auto flex-1 min-h-0">

@@ -10,6 +10,15 @@ import { ICONS } from '@/constants/icons';
 import sendIcon from '@/assets/icons/send.svg';
 import disputeIcon from '@/assets/icons/dispute.svg';
 
+// 이미지 import
+import img1 from '@/assets/images/1.png';
+import img2 from '@/assets/images/2.png';
+import img3 from '@/assets/images/3.png';
+import img4 from '@/assets/images/4.png';
+import img5 from '@/assets/images/5.png';
+import img6 from '@/assets/images/6.png';
+import img7 from '@/assets/images/7.png';
+
 import {
   chatRoomApi,
   type ChatMessageDto,
@@ -135,36 +144,43 @@ const GUIDE_STEPS = [
     title: '1. 수강신청 내역 페이지를 열어주세요.',
     desc: '학교 수강신청 시스템에서 현재 신청한 강의 목록이 보이는 화면을 준비해주세요.',
     caption: '실제 수강신청 페이지 예시 · 강의 목록이 표시된 상태',
+    image: img1,
   },
   {
     title: '2. 인증 QR 코드가 보이도록 화면을 배치해주세요.',
     desc: '수강신청 내역과 인증 QR 코드가 한 화면에 함께 보이도록 창 크기를 조정해주세요.',
     caption: '왼쪽: 학교 수강신청 페이지 · 오른쪽: 서비스의 인증 QR 코드',
+    image: img2,
   },
   {
     title: '3. [인증 시작] 버튼을 눌러주세요.',
     desc: '버튼을 누르면 화면 공유 창이 나타납니다.',
     caption: '"인증 시작" 버튼이 강조된 화면',
+    image: img3,
   },
   {
     title: '4. 전체 화면을 선택해주세요.',
     desc: '화면 공유 창에서 "전체 화면"을 선택한 후 [공유] 버튼을 눌러주세요.',
     caption: '브라우저의 화면 공유 선택 창 · "전체 화면" 선택 부분 강조 표시',
+    image: img4,
   },
   {
     title: '5. 자동 인증이 진행됩니다.',
     desc: '공유가 시작되면 시스템이 현재 화면을 자동으로 촬영하여 인증을 진행합니다.\n※ 촬영 후 화면 공유는 자동으로 종료됩니다.',
     caption: '"인증 진행 중..." 로딩 화면',
+    image: img5,
   },
   {
     title: '6. 촬영된 이미지를 확인해주세요.',
     desc: '촬영된 이미지에서 교환하려는 강의가 정상적으로 보이는지 확인해주세요.',
     caption: '실제 촬영된 결과 예시 · 강의 목록과 QR 코드가 함께 보이는 화면',
+    image: img6,
   },
   {
     title: '7. 인증 완료',
     desc: '인증이 완료되면 다음 단계로 이동할 수 있습니다.',
     caption: '"인증이 완료되었습니다" 완료 화면 · "카운트다운 시작" 버튼',
+    image: img7,
   },
 ];
 
@@ -345,32 +361,6 @@ export default function ChatRoomPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [flowStep, disputeStep]);
-
-  // ============ VERIFY 수동 진입 처리 ============
-  const handleEnterVerify = useCallback(async () => {
-    setCardInsertIndex(messages.length);
-    setShowPreviousChat(false);
-    if (!exchangeId) return;
-    try {
-      if (isVerifyWindowExpired(scheduledAt)) {
-        setApiError('인증 가능 시간이 지났습니다.');
-        return;
-      }
-
-      const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
-      setRoomStatus(roomData.room.status);
-      setVerifyStep('INTRO');
-      setLocalFlowStep('VERIFY');
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        navigate('/login');
-        return;
-      }
-      setApiError(
-        err instanceof ApiError ? err.message : '인증을 시작하지 못했습니다.',
-      );
-    }
-  }, [exchangeId, messages.length, navigate, roomId, scheduledAt]);
 
   // ============ 채팅방/교환 정보 최초 로딩 ============
   const loadRoom = useCallback(async () => {
@@ -670,10 +660,6 @@ export default function ChatRoomPage() {
     if (e.key === 'Enter' && !isComposingRef.current && e.keyCode !== 229) {
       handleSend();
     }
-  };
-
-  const handleConfirmGuideAndEnterVerify = () => {
-    void handleEnterVerify();
   };
 
   const handleGoSchedule = () => {
@@ -1161,8 +1147,12 @@ export default function ChatRoomPage() {
 
                 {i === 5 ? (
                   <div className="pointer-events-none opacity-80 bg-white border border-gray-200 rounded-lg px-4 py-4 flex flex-col gap-3">
-                    <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-                      <Icon icon="mdi:image-outline" className="text-[28px]" />
+                    <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                      <img
+                        src={step.image}
+                        alt={step.title}
+                        className="w-full h-auto object-cover rounded-lg"
+                      />
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-700">
                       <input type="checkbox" checked readOnly />
@@ -1179,8 +1169,12 @@ export default function ChatRoomPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-                    <Icon icon="mdi:image-outline" className="text-[28px]" />
+                  <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                    <img
+                      src={step.image}
+                      alt={step.title}
+                      className="w-full h-auto object-cover rounded-lg"
+                    />
                   </div>
                 )}
 
@@ -1191,12 +1185,13 @@ export default function ChatRoomPage() {
             ))}
           </div>
 
+          {/* 가이드 하단 버튼 수정 영역 */}
           <button
             type="button"
-            onClick={handleConfirmGuideAndEnterVerify}
+            onClick={() => setLocalFlowStep(null)}
             className="mx-4 mt-2 py-2.5 rounded-md bg-yellow-main border-[0.50px] border-[#D1B422] text-[#D1B422] text-sm font-semibold"
           >
-            확인했어요, 인증 시작하기
+            확인했어요
           </button>
 
           {messages.slice(cardInsertIndex).length > 0 && (
