@@ -152,7 +152,7 @@ const LikeListPage = () => {
       </div>
 
       {/* 3. 리스트 영역 */}
-      <div className="flex-1 px-5 pt-2">
+      <div className="flex-1 px-8 pt-2">
         {isLoading ? (
           <div className="flex justify-center items-center h-40 text-neutral-400 text-sm">
             목록을 불러오는 중입니다...
@@ -206,7 +206,7 @@ const LikeListPage = () => {
                   {/* 상단: 버리는 과목명 + 하트 아이콘 */}
                   <div className="flex items-start justify-between mb-3">
                     <h3
-                      className={`text-lg font-medium leading-5 tracking-wide transition-colors ${titleColor}`}
+                      className={`text-xl font-medium leading-5 tracking-wide transition-colors ${titleColor}`}
                     >
                       {post.discardCourse?.name}
                     </h3>
@@ -239,7 +239,7 @@ const LikeListPage = () => {
                           {item.priority}
                         </div>
                         <span
-                          className={`text-xs font-light leading-5 tracking-wide transition-colors ${subTextColor}`}
+                          className={`text-sm font-light leading-5 tracking-wide transition-colors ${subTextColor}`}
                         >
                           {item.course?.name}
                         </span>
