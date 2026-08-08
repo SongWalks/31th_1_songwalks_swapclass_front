@@ -568,7 +568,7 @@ export default function ChatRoomPage() {
           setVerifyStep('CONFIRM_COUNTERPART');
         }
       } catch {
-        // 무시
+        // ignore
       }
     }, 4000);
     return () => clearInterval(timer);
