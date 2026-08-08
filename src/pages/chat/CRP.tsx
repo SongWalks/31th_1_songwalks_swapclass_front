@@ -379,7 +379,7 @@ export default function ChatRoomPage() {
       setExchangeId(data.room.exchangeId);
       setDisputeStep(readCachedDisputeStep(data.room.exchangeId));
       setRoomStatus(data.room.status);
-      // 서버 방 상태가 COUNTDOWN인 경우 로컬 흐름 상태도 강제 동기화
+
       if (data.room.status === 'COUNTDOWN') {
         setLocalFlowStep('COUNTDOWN');
       }
@@ -514,7 +514,6 @@ export default function ChatRoomPage() {
 
   const handleRoomEvent = useCallback(
     (event: { type: string; seconds?: number }) => {
-      // verifyStep 클로저 이슈 방지 및 대기 중(COUNTDOWN_WAITING) 상태 검증
       setVerifyStep((currentStep) => {
         if (currentStep === 'COUNTDOWN_WAITING') {
           setRoomStatus('COUNTDOWN');
