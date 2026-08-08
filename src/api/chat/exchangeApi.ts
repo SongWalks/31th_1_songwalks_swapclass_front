@@ -1,6 +1,6 @@
 // src/api/exchangeApi.ts
 
-import { apiPost, apiPostForm } from '@/api/chat/apiClient';
+import { apiGet, apiPost, apiPostForm } from '@/api/chat/apiClient';
 
 // 백엔드 CancelRequest.reason이 String -> enum으로 변경됨에 따라 세부 사유별 값으로 교체
 export type CancelReason =
@@ -33,6 +33,23 @@ export interface QrResponse {
 export interface CaptureResponse {
   qrValid: boolean;
   status: string; // 'PASSED' | 'FAILED'
+  message: string;
+  counterpartImageUrl?: string;
+}
+
+export interface CounterpartCaptureResponse {
+  imageUrl: string | null;
+}
+
+export interface CountdownReadyData {
+  status: 'WAITING' | 'COUNTDOWN_STARTED';
+  message?: string;
+  countdownEndsAt?: string; // ISO-8601 문자열 (양쪽 다 눌렀을 때만 내려옴)
+}
+
+export interface CountdownReadyResponse {
+  success: boolean;
+  data: CountdownReadyData;
   message: string;
 }
 
@@ -70,4 +87,16 @@ export const exchangeApi = {
       formData,
     );
   },
+
+  // 6) 상대방 캡처 이미지 조회
+  getCounterpartCapture: (exchangeId: number | string) =>
+    apiGet<CounterpartCaptureResponse>(
+      `/api/exchanges/${exchangeId}/verifications/counterpart-capture`,
+    ),
+
+  // 7) 카운트다운 시작 준비 신호 전송 (양쪽 수신 확인용)
+  readyCountdown: (exchangeId: number | string) =>
+    apiPost<CountdownReadyResponse>(
+      `/api/exchanges/${exchangeId}/countdown/ready`,
+    ),
 };
