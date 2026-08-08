@@ -57,7 +57,7 @@ const writeCachedQr = (exchangeId: number, qr: CachedQr) => {
   try {
     sessionStorage.setItem(getQrCacheKey(exchangeId), JSON.stringify(qr));
   } catch {
-    // ignore
+    /* ignore */
   }
 };
 
@@ -65,7 +65,7 @@ const clearCachedQr = (exchangeId: number) => {
   try {
     sessionStorage.removeItem(getQrCacheKey(exchangeId));
   } catch {
-    // ignore
+    /* ignore */
   }
 };
 
@@ -90,7 +90,31 @@ const writeCachedResult = (exchangeId: number, status: ExchangeStatus) => {
   try {
     sessionStorage.setItem(getResultCacheKey(exchangeId), status);
   } catch {
-    // ignore
+    /* ignore */
+  }
+};
+
+// ===== 분쟁 단계 캐시 유틸 =====
+const DISPUTE_STEP_PREFIX = 'dispute_step_';
+const getDisputeStepCacheKey = (id: number) => `${DISPUTE_STEP_PREFIX}${id}`;
+
+type DisputeSubStep = 'CAPTURE' | 'SUBMITTED';
+
+const readCachedDisputeStep = (exchangeId: number | null): DisputeSubStep => {
+  if (!exchangeId) return 'CAPTURE';
+  try {
+    const saved = sessionStorage.getItem(getDisputeStepCacheKey(exchangeId));
+    return saved === 'SUBMITTED' ? 'SUBMITTED' : 'CAPTURE';
+  } catch {
+    return 'CAPTURE';
+  }
+};
+
+const writeCachedDisputeStep = (exchangeId: number, step: DisputeSubStep) => {
+  try {
+    sessionStorage.setItem(getDisputeStepCacheKey(exchangeId), step);
+  } catch {
+    /* ignore */
   }
 };
 
@@ -100,17 +124,9 @@ type VerifySubStep =
   | 'CAPTURING'
   | 'WAITING_COUNTERPART'
   | 'CONFIRM_COUNTERPART'
-  | 'READY';
+  | 'READY_TO_COUNTDOWN'
+  | 'COUNTDOWN_WAITING';
 type CountdownPhase = 'COUNTING' | 'RESULT_SELECT';
-type DisputeSubStep = 'CAPTURE' | 'SUBMITTED';
-
-const STATUS_TO_FLOW_STEP: Record<string, FlowStep> = {
-  CHATTING: 'CHAT',
-  SCHEDULED: 'CHAT',
-  VERIFYING: 'VERIFY',
-  COUNTDOWN: 'COUNTDOWN',
-  DONE: 'CHAT',
-};
 
 const CHAT_INPUT_UNLOCKED_STEPS: FlowStep[] = ['CHAT', 'GUIDE'];
 
@@ -200,7 +216,6 @@ export default function ChatRoomPage() {
   // ===== 서버 연동 상태 =====
   const [exchangeId, setExchangeId] = useState<number | null>(null);
 
-  // 캐시된 결과로 초기 state 지정하여 Effect 내 setState 방지
   const [exchangeStatus, setExchangeStatus] = useState<ExchangeStatus | null>(
     () => readCachedResult(exchangeId),
   );
@@ -208,7 +223,7 @@ export default function ChatRoomPage() {
   const applyExchangeStatus = useCallback((next: ExchangeStatus) => {
     setExchangeStatus((prev) => {
       if (
-        (prev === 'COMPLETED' || prev === 'DISPUTE') &&
+        (prev === 'COMPLETED' || prev === 'DISPUTE' || prev === 'CANCELED') &&
         next === 'IN_PROGRESS'
       ) {
         return prev;
@@ -231,8 +246,9 @@ export default function ChatRoomPage() {
   const myCourseName = courseNames?.my ?? '알 수 없음';
   const counterpartCourseName = courseNames?.counterpart ?? '알 수 없음';
 
-  const CURRENT_USER_ID =
-    Number(decodeUserId(getTokens()?.accessToken ?? '')) || null;
+  const accessToken = getTokens()?.accessToken;
+  const decodedId = accessToken ? decodeUserId(accessToken) : null;
+  const CURRENT_USER_ID = decodedId ? Number(decodedId) : null;
 
   const [roomStatus, setRoomStatus] = useState<string>('CHATTING');
   const [messages, setMessages] = useState<ChatMessageDto[]>([]);
@@ -256,15 +272,19 @@ export default function ChatRoomPage() {
 
   // ===== 화면 전환 로컬 상태 =====
   const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null);
+
   const flowStep: FlowStep = isTerminated
     ? 'CHAT'
-    : (localFlowStep ??
-      (exchangeStatus === 'DISPUTE'
-        ? 'DISPUTE'
-        : exchangeStatus === 'COMPLETED'
-          ? 'CHAT'
-          : STATUS_TO_FLOW_STEP[roomStatus]) ??
-      'CHAT');
+    : isDisputed
+      ? 'DISPUTE'
+      : isCompleted
+        ? 'CHAT'
+        : (localFlowStep ??
+          (roomStatus === 'COUNTDOWN'
+            ? 'COUNTDOWN'
+            : roomStatus === 'VERIFYING'
+              ? 'VERIFY'
+              : 'CHAT'));
 
   const [cardInsertIndex, setCardInsertIndex] = useState(0);
   const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
@@ -286,14 +306,14 @@ export default function ChatRoomPage() {
   // ----- VERIFY 관련 상태 -----
   const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [counterpartImageUrl, setCounterpartImageUrl] = useState<string | null>(
+    null,
+  );
   const [verifySecondsLeft, setVerifySecondsLeft] = useState(0);
   const [isCaptureFailModalOpen, setIsCaptureFailModalOpen] = useState(false);
   const [isCounterpartConfirmedChecked, setIsCounterpartConfirmedChecked] =
     useState(false);
-  const [myVerified, setMyVerified] = useState(false);
-
-  // ----- 5분 전 자동 인증 진입 -----
-  const [verifyWindowReached, setVerifyWindowReached] = useState(false);
+  const [isMyCountdownReady, setIsMyCountdownReady] = useState(false);
 
   // ----- COUNTDOWN 관련 상태 -----
   const [countdownPhase, setCountdownPhase] =
@@ -303,15 +323,33 @@ export default function ChatRoomPage() {
 
   // ----- DISPUTE 관련 상태 -----
   const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
-  const [disputeStep, setDisputeStep] = useState<DisputeSubStep>('CAPTURE');
+  const [disputeStep, setDisputeStep] = useState<DisputeSubStep>(() =>
+    readCachedDisputeStep(exchangeId),
+  );
+
   const [isSubmittingResult, setIsSubmittingResult] = useState(false);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
-  // ============ VERIFY 진입 처리 ============
+  // DISPUTE 5분 타이머
+  const [disputeSecondsLeft, setDisputeSecondsLeft] = useState(300);
+  useEffect(() => {
+    if (flowStep !== 'DISPUTE' || disputeStep !== 'CAPTURE') return;
+    const timer = setInterval(() => {
+      setDisputeSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [flowStep, disputeStep]);
+
+  // ============ VERIFY 수동 진입 처리 ============
   const handleEnterVerify = useCallback(async () => {
     setCardInsertIndex(messages.length);
     setShowPreviousChat(false);
-    setMyVerified(false);
     if (!exchangeId) return;
     try {
       if (isVerifyWindowExpired(scheduledAt)) {
@@ -321,17 +359,8 @@ export default function ChatRoomPage() {
 
       const roomData = await chatRoomApi.getRoom(roomId, { size: 1 });
       setRoomStatus(roomData.room.status);
-      if (
-        roomData.room.status !== 'VERIFYING' &&
-        roomData.room.status !== 'READY'
-      ) {
-        setApiError(
-          '아직 인증을 시작할 수 없는 상태입니다. 잠시 후 다시 시도해주세요.',
-        );
-        return;
-      }
       setVerifyStep('INTRO');
-      setLocalFlowStep(null);
+      setLocalFlowStep('VERIFY');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         navigate('/login');
@@ -348,7 +377,18 @@ export default function ChatRoomPage() {
     try {
       const data = await chatRoomApi.getRoom(roomId, { size: 50 });
       setExchangeId(data.room.exchangeId);
+      setDisputeStep(readCachedDisputeStep(data.room.exchangeId));
       setRoomStatus(data.room.status);
+
+      if (data.room.status === 'COUNTDOWN') {
+        setLocalFlowStep('COUNTDOWN');
+      }
+
+      const cached = readCachedResult(data.room.exchangeId);
+      if (cached) {
+        applyExchangeStatus(cached);
+      }
+
       try {
         const list = await chatRoomApi.getRoomList();
         const found = list.find((r) => String(r.roomId) === String(roomId));
@@ -358,8 +398,9 @@ export default function ChatRoomPage() {
           setScheduledAt((prev) => found.scheduledAt ?? prev);
         }
       } catch {
-        // 보완 조회 실패는 무시
+        /* ignore */
       }
+
       setMessages(
         [...data.messages].sort(
           (a, b) =>
@@ -384,7 +425,6 @@ export default function ChatRoomPage() {
     }
   }, [applyExchangeStatus, navigate, roomId]);
 
-  // 비동기 함수 호출로 useEffect 내 동기 setState 방지
   useEffect(() => {
     let ignore = false;
     const fetchInitialData = async () => {
@@ -429,7 +469,7 @@ export default function ChatRoomPage() {
     return () => clearInterval(timer);
   }, [flowStep, isTerminated, isCompleted, isDisputed, loadRoom]);
 
-  // ============ 실시간 채팅 (STOMP / SockJS) ============
+  // ============ 실시간 채팅 및 소켓 이벤트 ============
   const handleIncomingMessage = useCallback(
     (message: ChatMessageDto) => {
       setMessages((prev) => [...prev, message]);
@@ -447,14 +487,25 @@ export default function ChatRoomPage() {
           if (ampm === '오후' && hour !== 12) hour += 12;
           if (ampm === '오전' && hour === 12) hour = 0;
 
-          const utcMs = Date.UTC(
-            now.getFullYear(),
-            Number(mm) - 1,
-            Number(dd),
-            hour - KST_OFFSET_HOURS,
-            Number(min),
-          );
-          setScheduledAt(new Date(utcMs).toISOString());
+          const monthIdx = Number(mm) - 1;
+          const dayNum = Number(dd);
+          const minNum = Number(min);
+
+          if (
+            !isNaN(monthIdx) &&
+            !isNaN(dayNum) &&
+            !isNaN(hour) &&
+            !isNaN(minNum)
+          ) {
+            const utcMs = Date.UTC(
+              now.getFullYear(),
+              monthIdx,
+              dayNum,
+              hour - KST_OFFSET_HOURS,
+              minNum,
+            );
+            setScheduledAt(new Date(utcMs).toISOString());
+          }
         }
       }
     },
@@ -463,16 +514,17 @@ export default function ChatRoomPage() {
 
   const handleRoomEvent = useCallback(
     (event: { type: string; seconds?: number }) => {
-      void loadRoom();
-
-      if (event.type === 'COUNTDOWN_START') {
-        setRoomStatus('COUNTDOWN');
-        setLocalFlowStep('COUNTDOWN');
-        setCountdownPhase('COUNTING');
-        setCountdownSecondsLeft(event.seconds ?? COUNTDOWN_START);
-      }
+      setVerifyStep((currentStep) => {
+        if (currentStep === 'COUNTDOWN_WAITING') {
+          setRoomStatus('COUNTDOWN');
+          setLocalFlowStep('COUNTDOWN');
+          setCountdownPhase('COUNTING');
+          setCountdownSecondsLeft(event.seconds ?? COUNTDOWN_START);
+        }
+        return currentStep;
+      });
     },
-    [loadRoom],
+    [],
   );
 
   const { sendMessage } = useChatSocket({
@@ -511,82 +563,52 @@ export default function ChatRoomPage() {
     scheduleInsertIndex,
   ]);
 
-  // ============ 5분 전 자동 인증 진입 트리거 ============
+  // ============ 1. 5분 전 자동 인증 진입 ============
   useEffect(() => {
-    if (!scheduledAt || isTerminated || isCompleted || flowStep !== 'CHAT') {
+    if (
+      !scheduledAt ||
+      isTerminated ||
+      isCompleted ||
+      isDisputed ||
+      flowStep !== 'CHAT'
+    ) {
       return;
     }
-    const triggerAt = new Date(scheduledAt).getTime() - VERIFY_LEAD_MS;
+    const deadline = new Date(scheduledAt).getTime();
+    const triggerAt = deadline - VERIFY_LEAD_MS;
+
     const check = () => {
-      if (Date.now() >= triggerAt) {
-        setVerifyWindowReached(true);
+      const now = Date.now();
+      if (now >= triggerAt && now <= deadline + VERIFY_WINDOW_MS) {
+        setCardInsertIndex(messages.length);
+        setShowPreviousChat(false);
+        setLocalFlowStep('VERIFY');
+        setVerifyStep('INTRO');
       }
     };
+
     check();
     const interval = setInterval(check, 1000);
     return () => clearInterval(interval);
-  }, [scheduledAt, flowStep, isTerminated, isCompleted]);
+  }, [
+    scheduledAt,
+    flowStep,
+    isTerminated,
+    isCompleted,
+    isDisputed,
+    messages.length,
+  ]);
 
+  // VERIFY 및 DISPUTE 단계 QR 이미지 조회
   useEffect(() => {
-    if (!verifyWindowReached || flowStep !== 'CHAT') return;
-    let cancelled = false;
-
-    const tryEnter = async () => {
-      try {
-        const data = await chatRoomApi.getRoom(roomId, { size: 1 });
-        if (cancelled) return;
-        setRoomStatus(data.room.status);
-        if (data.room.status === 'VERIFYING' || data.room.status === 'READY') {
-          void handleEnterVerify();
-        }
-      } catch {
-        // 무시
-      }
-    };
-
-    void tryEnter();
-    const timer = setInterval(tryEnter, 3000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [verifyWindowReached, flowStep, roomId, handleEnterVerify]);
-
-  // ============ VERIFY: 상대방 인증 완료 감지 ============
-  useEffect(() => {
-    if (
-      flowStep !== 'VERIFY' ||
-      !myVerified ||
-      verifyStep !== 'WAITING_COUNTERPART'
-    )
-      return;
-    const timer = setInterval(async () => {
-      try {
-        const data = await chatRoomApi.getRoom(roomId, { size: 1 });
-        setRoomStatus(data.room.status);
-        if (data.room.status !== 'VERIFYING') {
-          setVerifyStep('CONFIRM_COUNTERPART');
-        }
-      } catch {
-        // 무시
-      }
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [flowStep, myVerified, verifyStep, roomId]);
-
-  // ============ VERIFY: 새로고침/재진입 시 QR 복구 ============
-  useEffect(() => {
-    if (
-      flowStep !== 'VERIFY' ||
-      verifyStep !== 'INTRO' ||
-      qrImageUrl ||
-      !exchangeId
-    )
-      return;
+    const needQr =
+      (flowStep === 'VERIFY' && verifyStep === 'INTRO') ||
+      (flowStep === 'DISPUTE' && disputeStep === 'CAPTURE');
+    if (!needQr || qrImageUrl || !exchangeId) return;
 
     let ignore = false;
     const fetchQr = async () => {
-      if (isVerifyWindowExpired(scheduledAt)) {
+      if (flowStep === 'VERIFY' && isVerifyWindowExpired(scheduledAt)) {
         if (!ignore) {
           setApiError('인증 가능 시간이 지났습니다.');
           clearCachedQr(exchangeId);
@@ -613,7 +635,7 @@ export default function ChatRoomPage() {
         setApiError(
           err instanceof ApiError
             ? err.message
-            : 'QR 코드를 재발급받지 못했습니다.',
+            : 'QR 코드를 발급받지 못했습니다.',
         );
       }
     };
@@ -623,7 +645,7 @@ export default function ChatRoomPage() {
     return () => {
       ignore = true;
     };
-  }, [flowStep, verifyStep, qrImageUrl, exchangeId, scheduledAt]);
+  }, [flowStep, verifyStep, disputeStep, qrImageUrl, exchangeId, scheduledAt]);
 
   const handleBack = () => {
     if (isTerminated) {
@@ -835,14 +857,20 @@ export default function ChatRoomPage() {
     try {
       const blob = await captureScreen();
       if (!blob) throw new Error('화면 캡처에 실패했습니다.');
+
       const result = await exchangeApi.uploadCapture(exchangeId, blob);
       if (!result.qrValid || result.status !== 'PASSED') {
         setIsCaptureFailModalOpen(true);
         setVerifyStep('INTRO');
         return;
       }
-      setMyVerified(true);
-      setVerifyStep('WAITING_COUNTERPART');
+
+      if (result.counterpartImageUrl) {
+        setCounterpartImageUrl(result.counterpartImageUrl);
+        setVerifyStep('CONFIRM_COUNTERPART');
+      } else {
+        setVerifyStep('WAITING_COUNTERPART');
+      }
       clearCachedQr(exchangeId);
     } catch (err) {
       setIsCaptureFailModalOpen(true);
@@ -851,9 +879,45 @@ export default function ChatRoomPage() {
     }
   };
 
-  const handleConfirmCounterpart = () => setVerifyStep('READY');
+  // 상대방 캡처 Polling
+  useEffect(() => {
+    if (
+      flowStep !== 'VERIFY' ||
+      verifyStep !== 'WAITING_COUNTERPART' ||
+      !exchangeId
+    )
+      return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await exchangeApi.getCounterpartCapture(exchangeId);
+        if (res?.imageUrl) {
+          setCounterpartImageUrl(res.imageUrl);
+          setVerifyStep('CONFIRM_COUNTERPART');
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [flowStep, verifyStep, exchangeId]);
 
-  // ============ COUNTDOWN ============
+  const handleConfirmCounterpart = () => {
+    if (!isCounterpartConfirmedChecked) return;
+    setVerifyStep('READY_TO_COUNTDOWN');
+  };
+
+  const handleStartCountdownBtn = async () => {
+    if (!exchangeId || !isMyCountdownReady) return;
+    try {
+      setVerifyStep('COUNTDOWN_WAITING');
+      await exchangeApi.readyCountdown(exchangeId);
+    } catch {
+      setVerifyStep('READY_TO_COUNTDOWN');
+      setApiError('카운트다운 준비 신호를 전송하지 못했습니다.');
+    }
+  };
+
+  // ============ COUNTDOWN 10초 타이머 ============
   useEffect(() => {
     if (flowStep !== 'COUNTDOWN' || countdownPhase !== 'COUNTING') return;
 
@@ -876,15 +940,19 @@ export default function ChatRoomPage() {
     setIsSubmittingResult(true);
     try {
       await exchangeApi.submitResult(exchangeId, result);
-      const myStatus: ExchangeStatus =
-        result === 'SUCCESS' ? 'COMPLETED' : 'DISPUTE';
-      applyExchangeStatus(myStatus);
-      writeCachedResult(exchangeId, myStatus);
-      setLocalFlowStep(null);
-      if (result === 'FAIL') {
+
+      if (result === 'SUCCESS') {
+        applyExchangeStatus('COMPLETED');
+        writeCachedResult(exchangeId, 'COMPLETED');
+        setLocalFlowStep(null);
+      } else {
+        applyExchangeStatus('DISPUTE');
+        writeCachedResult(exchangeId, 'DISPUTE');
+        setLocalFlowStep('DISPUTE');
+        setDisputeStep('CAPTURE');
         setCardInsertIndex(messages.length);
         setShowPreviousChat(false);
-        setDisputeStep('CAPTURE');
+        setQrImageUrl(null);
       }
     } catch (err) {
       setApiError(
@@ -905,7 +973,9 @@ export default function ChatRoomPage() {
       const blob = await captureScreen();
       if (!blob) throw new Error('화면 캡처에 실패했습니다.');
       await exchangeApi.uploadCapture(exchangeId, blob);
+
       setDisputeStep('SUBMITTED');
+      writeCachedDisputeStep(exchangeId, 'SUBMITTED');
     } catch (err) {
       setApiError(
         err instanceof ApiError
@@ -1170,6 +1240,7 @@ export default function ChatRoomPage() {
               </>
             )}
 
+            {/* Step 1: 5분 전 알림 + QR 코드 인증 */}
             {(verifyStep === 'INTRO' || verifyStep === 'CAPTURING') && (
               <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
                 <div className="flex items-center gap-2">
@@ -1240,6 +1311,7 @@ export default function ChatRoomPage() {
               </div>
             )}
 
+            {/* Step 2: 내 인증 완료 -> 상대방 인증 대기 */}
             {verifyStep === 'WAITING_COUNTERPART' && (
               <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-8 flex flex-col items-center gap-3 text-center">
                 <Icon
@@ -1255,6 +1327,7 @@ export default function ChatRoomPage() {
               </div>
             )}
 
+            {/* Step 3: 상대방 캡처 이미지 확인 단계 */}
             {verifyStep === 'CONFIRM_COUNTERPART' && (
               <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
                 <div className="flex items-center gap-2">
@@ -1268,21 +1341,25 @@ export default function ChatRoomPage() {
                     교환 대상 강의 확인
                   </p>
                 </div>
-                <div className="bg-white rounded-xl h-32 flex flex-col items-center justify-center gap-1 text-gray-400">
-                  <Icon icon="mdi:monitor" className="text-[36px]" />
-                  <span className="text-sm">상대방의 공유 화면</span>
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-200 min-h-[160px] flex items-center justify-center">
+                  {counterpartImageUrl ? (
+                    <img
+                      src={counterpartImageUrl}
+                      alt="상대방 캡처 화면"
+                      className="w-full object-contain max-h-56"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-gray-400 py-6">
+                      <Icon icon="mdi:monitor" className="text-[36px]" />
+                      <span className="text-sm">상대방의 공유 화면</span>
+                    </div>
+                  )}
                 </div>
-
-                <p className="text-xs text-[#727272] leading-relaxed">
-                  QR 코드 인증이 완료되었습니다.
-                  <br />
-                  상대방이 보유한 강의 정보를 확인해주세요.
-                </p>
                 <p className="text-xs text-gray-700">
-                  교환을 진행할 준비가 되었다면 아래 버튼을 눌러주세요.
+                  QR 코드 인증이 완료되었습니다. 상대방이 보유한 강의 정보를
+                  확인해주세요.
                 </p>
-
-                <label className="flex items-center gap-2 text-xs text-[#D1B422]">
+                <label className="flex items-center gap-2 text-xs text-[#D1B422] cursor-pointer font-medium">
                   <input
                     type="checkbox"
                     checked={isCounterpartConfirmedChecked}
@@ -1291,9 +1368,8 @@ export default function ChatRoomPage() {
                     }
                     className="accent-[#D1B422]"
                   />
-                  상대방의 강의 정보를 확인했습니다.
+                  상대방의 강의 정보를 확인했습니다
                 </label>
-
                 <Button
                   variant="warning"
                   size="lg"
@@ -1306,26 +1382,50 @@ export default function ChatRoomPage() {
               </div>
             )}
 
-            {verifyStep === 'READY' && (
-              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-8 flex flex-col gap-4 text-center items-center">
+            {/* Step 4: 양측 동시 카운트다운 대기 */}
+            {(verifyStep === 'READY_TO_COUNTDOWN' ||
+              verifyStep === 'COUNTDOWN_WAITING') && (
+              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-[#FFF3B6] flex items-center justify-center">
                     <Icon
                       icon="mdi:check-circle-outline"
-                      className="text-[18px] text-[#D1B422]"
+                      className="text-[20px] text-[#D1B422]"
                     />
                   </span>
                   <p className="text-base font-bold text-gray-700">
                     교환 준비 완료
                   </p>
                 </div>
-
-                <p className="text-xs text-[#727272] leading-relaxed">
-                  양측 인증이 확인되었습니다.
-                  <br />
-                  잠시 후 자동으로 10초 카운트다운이 시작됩니다!
+                <p className="text-xs text-gray-700">
+                  양측이 모두 [카운트다운 시작] 버튼을 누르면 10초 후 강의
+                  교환이 시작됩니다.
                 </p>
-                <div className="w-8 h-8 border-4 border-[#D1B422] border-t-transparent rounded-full animate-spin my-2" />
+                <p className="text-xs text-[#D1B422]">
+                  ※ 카운트다운이 시작되면 취소할 수 없습니다.
+                </p>
+                <label className="flex items-center gap-2 text-xs text-[#D1B422] cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={isMyCountdownReady}
+                    onChange={(e) => setIsMyCountdownReady(e.target.checked)}
+                    className="accent-[#D1B422]"
+                  />
+                  강의를 버리고 잡을 준비가 되었습니다
+                </label>
+                <Button
+                  variant="warning"
+                  size="lg"
+                  disabled={
+                    !isMyCountdownReady || verifyStep === 'COUNTDOWN_WAITING'
+                  }
+                  onClick={handleStartCountdownBtn}
+                  className="!bg-yellow-main !border !border-[#D1B422] !text-[#D1B422]"
+                >
+                  {verifyStep === 'COUNTDOWN_WAITING'
+                    ? '상대방 클릭 대기 중...'
+                    : '카운트다운 시작'}
+                </Button>
               </div>
             )}
 
@@ -1442,14 +1542,20 @@ export default function ChatRoomPage() {
                 불이익이 발생할 수 있습니다.
               </p>
 
-              {qrImageUrl && (
+              {qrImageUrl ? (
                 <div className="flex justify-center py-2">
                   <div className="w-52 h-52 bg-white border border-red-100 rounded-lg flex items-center justify-center overflow-hidden">
                     <img
                       src={qrImageUrl}
-                      alt="인증 QR 코드"
+                      alt="분쟁 인증 QR 코드"
                       className="w-full h-full object-contain"
                     />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-center py-2">
+                  <div className="w-52 h-52 bg-gray-50 border border-red-100 rounded-lg flex items-center justify-center text-xs text-gray-400">
+                    QR 코드를 불러오는 중...
                   </div>
                 </div>
               )}
@@ -1460,7 +1566,9 @@ export default function ChatRoomPage() {
                 disabled={isDisputeSubmitting}
                 onClick={handleStartDisputeCapture}
               >
-                {isDisputeSubmitting ? '확인 중...' : '인증 시작'}
+                {isDisputeSubmitting
+                  ? '확인 중...'
+                  : `인증 시작하기 ${formatVerifyTimer(disputeSecondsLeft)}`}
               </Button>
             </div>
           )}
@@ -1538,7 +1646,7 @@ export default function ChatRoomPage() {
         <Modal isOpen title="교환 시작까지">
           <div className="flex flex-col items-center gap-4 translate-y-6">
             <p
-              className={`text-5xl !font-['Paperozi'] font-extrabold mb-5 ${
+              className={`text-5xl !font-['Paperlogy'] font-extrabold mb-5 ${
                 countdownSecondsLeft <= COUNTDOWN_RED_THRESHOLD
                   ? 'text-point-red'
                   : 'text-black'
@@ -1595,8 +1703,7 @@ export default function ChatRoomPage() {
       {/* 푸터 */}
       {CHAT_INPUT_UNLOCKED_STEPS.includes(flowStep) &&
         !isTerminated &&
-        !isCompleted &&
-        !verifyWindowReached && (
+        !isCompleted && (
           <div className="px-6 py-3 bg-[#fbfbfb]">
             <Input
               variant="pill"
