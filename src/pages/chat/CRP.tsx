@@ -57,7 +57,7 @@ const writeCachedQr = (exchangeId: number, qr: CachedQr) => {
   try {
     sessionStorage.setItem(getQrCacheKey(exchangeId), JSON.stringify(qr));
   } catch {
-    // ignore
+    // ignore*
   }
 };
 
