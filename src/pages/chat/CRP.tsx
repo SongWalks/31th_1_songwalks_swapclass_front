@@ -1,0 +1,1807 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Icon } from '@iconify/react';
+import Header from '@/components/layout/Header';
+import { IconButton } from '@/components/common/IconButton';
+import { Input } from '@/components/common/Input';
+import Button from '@/components/common/Button';
+import { Modal } from '@/components/common/Modal';
+import { ICONS } from '@/constants/icons';
+import sendIcon from '@/assets/icons/send.svg';
+import disputeIcon from '@/assets/icons/dispute.svg';
+
+// 이미지 import
+import img1 from '@/assets/images/1.png';
+import img2 from '@/assets/images/2.png';
+import img3 from '@/assets/images/3.png';
+import img4 from '@/assets/images/4.png';
+import img5 from '@/assets/images/5.png';
+import img6 from '@/assets/images/6.png';
+import img7 from '@/assets/images/7.png';
+
+import {
+  chatRoomApi,
+  type ChatMessageDto,
+  type ExchangeStatus,
+} from '@/api/chat/chatRoomApi';
+import { exchangeApi } from '@/api/chat/exchangeApi';
+import { ApiError } from '@/api/chat/apiClient';
+import { useChatSocket } from '@/api/chat/useChatSocket';
+import { getTokens, decodeUserId } from '../../store/tokenStorage';
+import TerminateDealOverlay from './TDP';
+
+const COUNTDOWN_START = 10;
+const COUNTDOWN_RED_THRESHOLD = 3;
+const VERIFY_LEAD_MS = 5 * 60 * 1000;
+const VERIFY_WINDOW_MS = 5 * 60 * 1000;
+const DISPUTE_WINDOW_MS = 5 * 60 * 1000;
+
+const isVerifyWindowExpired = (scheduledAtIso: string | null): boolean => {
+  if (!scheduledAtIso) return false;
+  return Date.now() > new Date(scheduledAtIso).getTime() + VERIFY_WINDOW_MS;
+};
+
+const ROOM_LIST_PATH = '/chat';
+
+// ===== QR 캐시 유틸 =====
+const QR_CACHE_PREFIX = 'exchange_qr_';
+const getQrCacheKey = (id: number) => `${QR_CACHE_PREFIX}${id}`;
+type CachedQr = { qrImageUrl: string; expiresAt: string };
+
+const readCachedQr = (exchangeId: number): CachedQr | null => {
+  try {
+    const raw = sessionStorage.getItem(getQrCacheKey(exchangeId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedQr;
+    if (new Date(parsed.expiresAt).getTime() <= Date.now()) {
+      sessionStorage.removeItem(getQrCacheKey(exchangeId));
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedQr = (exchangeId: number, qr: CachedQr) => {
+  try {
+    sessionStorage.setItem(getQrCacheKey(exchangeId), JSON.stringify(qr));
+  } catch {
+    /* ignore */
+  }
+};
+
+const clearCachedQr = (exchangeId: number) => {
+  try {
+    sessionStorage.removeItem(getQrCacheKey(exchangeId));
+  } catch {
+    /* ignore */
+  }
+};
+
+// ===== 교환 결과 캐시 유틸 =====
+const RESULT_CACHE_PREFIX = 'exchange_result_';
+const getResultCacheKey = (id: number) => `${RESULT_CACHE_PREFIX}${id}`;
+
+const readCachedResult = (exchangeId: number | null): ExchangeStatus | null => {
+  if (!exchangeId) return null;
+  try {
+    return (
+      (sessionStorage.getItem(
+        getResultCacheKey(exchangeId),
+      ) as ExchangeStatus | null) ?? null
+    );
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedResult = (exchangeId: number, status: ExchangeStatus) => {
+  try {
+    sessionStorage.setItem(getResultCacheKey(exchangeId), status);
+  } catch {
+    /* ignore */
+  }
+};
+
+// ===== 분쟁 단계 캐시 유틸 =====
+const DISPUTE_STEP_PREFIX = 'dispute_step_';
+const getDisputeStepCacheKey = (id: number) => `${DISPUTE_STEP_PREFIX}${id}`;
+
+type DisputeSubStep = 'CAPTURE' | 'SUBMITTED';
+
+const readCachedDisputeStep = (exchangeId: number | null): DisputeSubStep => {
+  if (!exchangeId) return 'CAPTURE';
+  try {
+    const saved = sessionStorage.getItem(getDisputeStepCacheKey(exchangeId));
+    return saved === 'SUBMITTED' ? 'SUBMITTED' : 'CAPTURE';
+  } catch {
+    return 'CAPTURE';
+  }
+};
+
+const writeCachedDisputeStep = (exchangeId: number, step: DisputeSubStep) => {
+  try {
+    sessionStorage.setItem(getDisputeStepCacheKey(exchangeId), step);
+  } catch {
+    /* ignore */
+  }
+};
+
+// ===== 분쟁 시작 시간 캐시 유틸 (타이머 고정용) =====
+const DISPUTE_START_TIME_PREFIX = 'dispute_start_time_';
+const getDisputeStartTimeCacheKey = (id: number) =>
+  `${DISPUTE_START_TIME_PREFIX}${id}`;
+
+const getOrInitDisputeStartTime = (exchangeId: number | null): number => {
+  if (!exchangeId) return Date.now();
+  try {
+    const saved = sessionStorage.getItem(
+      getDisputeStartTimeCacheKey(exchangeId),
+    );
+    if (saved) {
+      return Number(saved);
+    }
+    const now = Date.now();
+    sessionStorage.setItem(
+      getDisputeStartTimeCacheKey(exchangeId),
+      String(now),
+    );
+    return now;
+  } catch {
+    return Date.now();
+  }
+};
+
+type FlowStep = 'CHAT' | 'GUIDE' | 'VERIFY' | 'COUNTDOWN' | 'DISPUTE';
+type VerifySubStep =
+  | 'INTRO'
+  | 'CAPTURING'
+  | 'WAITING_COUNTERPART'
+  | 'CONFIRM_COUNTERPART'
+  | 'READY_TO_COUNTDOWN'
+  | 'COUNTDOWN_WAITING';
+type CountdownPhase = 'COUNTING' | 'RESULT_SELECT';
+
+const CHAT_INPUT_UNLOCKED_STEPS: FlowStep[] = ['CHAT', 'GUIDE'];
+
+const GUIDE_STEPS = [
+  {
+    title: '1. 수강신청 내역 페이지를 열어주세요.',
+    desc: '학교 수강신청 시스템에서 현재 신청한 강의 목록이 보이는 화면을 준비해주세요.',
+    caption: '실제 수강신청 페이지 예시 · 강의 목록이 표시된 상태',
+    image: img1,
+  },
+  {
+    title: '2. 인증 QR 코드가 보이도록 화면을 배치해주세요.',
+    desc: '수강신청 내역과 인증 QR 코드가 한 화면에 함께 보이도록 창 크기를 조정해주세요.',
+    caption: '왼쪽: 학교 수강신청 페이지 · 오른쪽: 서비스의 인증 QR 코드',
+    image: img2,
+  },
+  {
+    title: '3. [인증 시작] 버튼을 눌러주세요.',
+    desc: '버튼을 누르면 화면 공유 창이 나타납니다.',
+    caption: '"인증 시작" 버튼이 강조된 화면',
+    image: img3,
+  },
+  {
+    title: '4. 전체 화면을 선택해주세요.',
+    desc: '화면 공유 창에서 "전체 화면"을 선택한 후 [공유] 버튼을 눌러주세요.',
+    caption: '브라우저의 화면 공유 선택 창 · "전체 화면" 선택 부분 강조 표시',
+    image: img4,
+  },
+  {
+    title: '5. 자동 인증이 진행됩니다.',
+    desc: '공유가 시작되면 시스템이 현재 화면을 자동으로 촬영하여 인증을 진행합니다.\n※ 촬영 후 화면 공유는 자동으로 종료됩니다.',
+    caption: '"인증 진행 중..." 로딩 화면',
+    image: img5,
+  },
+  {
+    title: '6. 촬영된 이미지를 확인해주세요.',
+    desc: '촬영된 이미지에서 교환하려는 강의가 정상적으로 보이는지 확인해주세요.',
+    caption: '실제 촬영된 결과 예시 · 강의 목록과 QR 코드가 함께 보이는 화면',
+    image: img6,
+  },
+  {
+    title: '7. 인증 완료',
+    desc: '인증이 완료되면 다음 단계로 이동할 수 있습니다.',
+    caption: '"인증이 완료되었습니다" 완료 화면 · "카운트다운 시작" 버튼',
+    image: img7,
+  },
+];
+
+const KST_OFFSET_HOURS = 9;
+
+const getForcedScheduledAt = (): string | null => {
+  const params = new URLSearchParams(window.location.search);
+  const min = params.get('forceScheduledInMin');
+  if (!min) return null;
+  return new Date(Date.now() + Number(min) * 60 * 1000).toISOString();
+};
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('ko-KR', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Seoul',
+  });
+
+const formatScheduledDate = (iso: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  }).formatToParts(new Date(iso));
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const weekdayIndex = new Date(
+    new Date(iso).toLocaleString('en-US', { timeZone: 'Asia/Seoul' }),
+  ).getDay();
+
+  return `${get('month')}월 ${get('day')}일 (${days[weekdayIndex]})`;
+};
+
+export default function ChatRoomPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { roomId = '' } = useParams();
+
+  const navCourses = location.state as {
+    myCourseName?: string;
+    counterpartCourseName?: string;
+    scheduledAt?: string;
+  } | null;
+
+  // ===== 서버 연동 상태 =====
+  const [exchangeId, setExchangeId] = useState<number | null>(null);
+
+  const [exchangeStatus, setExchangeStatus] = useState<ExchangeStatus | null>(
+    () => readCachedResult(exchangeId),
+  );
+
+  const applyExchangeStatus = useCallback((next: ExchangeStatus) => {
+    setExchangeStatus((prev) => {
+      if (
+        (prev === 'COMPLETED' || prev === 'DISPUTE' || prev === 'CANCELED') &&
+        next === 'IN_PROGRESS'
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const [courseNames, setCourseNames] = useState<{
+    my: string;
+    counterpart: string;
+  } | null>(
+    navCourses?.myCourseName && navCourses?.counterpartCourseName
+      ? {
+          my: navCourses.myCourseName,
+          counterpart: navCourses.counterpartCourseName,
+        }
+      : null,
+  );
+  const myCourseName = courseNames?.my ?? '알 수 없음';
+  const counterpartCourseName = courseNames?.counterpart ?? '알 수 없음';
+
+  const accessToken = getTokens()?.accessToken;
+  const decodedId = accessToken ? decodeUserId(accessToken) : null;
+  const CURRENT_USER_ID = decodedId ? Number(decodedId) : null;
+
+  const [roomStatus, setRoomStatus] = useState<string>('CHATTING');
+  const [messages, setMessages] = useState<ChatMessageDto[]>([]);
+  const [isLoadingRoom, setIsLoadingRoom] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [partnerId, setPartnerId] = useState<number | null>(null);
+
+  const [scheduledAt, setScheduledAt] = useState<string | null>(
+    getForcedScheduledAt() ?? navCourses?.scheduledAt ?? null,
+  );
+
+  const [inputValue, setInputValue] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTerminateOpen, setIsTerminateOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
+
+  const isCompleted = exchangeStatus === 'COMPLETED';
+  const isTerminated = exchangeStatus === 'CANCELED';
+  const isDisputed = exchangeStatus === 'DISPUTE';
+
+  // ===== 화면 전환 로컬 상태 =====
+  const [localFlowStep, setLocalFlowStep] = useState<FlowStep | null>(null);
+
+  const flowStep: FlowStep = isTerminated
+    ? 'CHAT'
+    : isDisputed
+      ? 'DISPUTE'
+      : isCompleted
+        ? 'CHAT'
+        : (localFlowStep ??
+          (roomStatus === 'COUNTDOWN'
+            ? 'COUNTDOWN'
+            : roomStatus === 'VERIFYING'
+              ? 'VERIFY'
+              : 'CHAT'));
+
+  const [cardInsertIndex, setCardInsertIndex] = useState(0);
+  const [scheduleInsertIndex, setScheduleInsertIndex] = useState(0);
+  const prevScheduledAtRef = useRef(scheduledAt);
+  const [showPreviousChat, setShowPreviousChat] = useState(false);
+
+  const prevFlowStepForCardRef = useRef<FlowStep>(flowStep);
+  useEffect(() => {
+    const prev = prevFlowStepForCardRef.current;
+    const enteringHiddenHistoryStep =
+      flowStep === 'VERIFY' || flowStep === 'DISPUTE';
+
+    // VERIFY/DISPUTE 단계에 진입해 있거나 방금 진입했을 때 cardInsertIndex를 현재 메시지 길이로 고정
+    if (
+      enteringHiddenHistoryStep &&
+      (prev !== flowStep || cardInsertIndex === 0)
+    ) {
+      setCardInsertIndex(messages.length);
+      setShowPreviousChat(false);
+    }
+    prevFlowStepForCardRef.current = flowStep;
+  }, [flowStep, messages.length, cardInsertIndex]);
+
+  // ----- VERIFY 관련 상태 -----
+  const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [counterpartImageUrl, setCounterpartImageUrl] = useState<string | null>(
+    null,
+  );
+  const [verifySecondsLeft, setVerifySecondsLeft] = useState(0);
+  const [isCaptureFailModalOpen, setIsCaptureFailModalOpen] = useState(false);
+  const [isCounterpartConfirmedChecked, setIsCounterpartConfirmedChecked] =
+    useState(false);
+  const [isMyCountdownReady, setIsMyCountdownReady] = useState(false);
+
+  // ----- COUNTDOWN 관련 상태 -----
+  const [countdownPhase, setCountdownPhase] =
+    useState<CountdownPhase>('COUNTING');
+  const [countdownSecondsLeft, setCountdownSecondsLeft] =
+    useState(COUNTDOWN_START);
+
+  // ----- DISPUTE 관련 상태 -----
+  const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
+  const [disputeStep, setDisputeStep] = useState<DisputeSubStep>(() =>
+    readCachedDisputeStep(exchangeId),
+  );
+
+  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // DISPUTE 5분 타이머
+  // DISPUTE 5분 고정 타이머 로직 (세션 기반)
+  const [disputeSecondsLeft, setDisputeSecondsLeft] = useState<number>(300);
+
+  useEffect(() => {
+    if (flowStep !== 'DISPUTE' || disputeStep !== 'CAPTURE') return;
+
+    const startTime = getOrInitDisputeStartTime(exchangeId);
+    const deadline = startTime + DISPUTE_WINDOW_MS;
+
+    const tick = () => {
+      const remain = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      setDisputeSecondsLeft(remain);
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [flowStep, disputeStep, exchangeId]);
+
+  // ============ 채팅방/교환 정보 최초 로딩 ============
+  const loadRoom = useCallback(async () => {
+    try {
+      const data = await chatRoomApi.getRoom(roomId, { size: 50 });
+      setExchangeId(data.room.exchangeId);
+      setDisputeStep(readCachedDisputeStep(data.room.exchangeId));
+      setRoomStatus(data.room.status);
+
+      if (data.room.status === 'COUNTDOWN') {
+        setLocalFlowStep('COUNTDOWN');
+      }
+
+      const cached = readCachedResult(data.room.exchangeId);
+      if (cached) {
+        applyExchangeStatus(cached);
+      }
+
+      try {
+        const list = await chatRoomApi.getRoomList();
+        const found = list.find((r) => String(r.roomId) === String(roomId));
+        if (found) {
+          applyExchangeStatus(found.exchangeStatus);
+          setPartnerId(found.partnerId);
+          setScheduledAt((prev) => found.scheduledAt ?? prev);
+        }
+      } catch {
+        /* ignore */
+      }
+
+      setMessages(
+        [...data.messages].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ),
+      );
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
+        navigate('/login');
+        return;
+      }
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '채팅방 정보를 불러오지 못했습니다.',
+      );
+    } finally {
+      setIsLoadingRoom(false);
+    }
+  }, [applyExchangeStatus, navigate, roomId]);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchInitialData = async () => {
+      if (!ignore) {
+        await loadRoom();
+      }
+    };
+    void fetchInitialData();
+    return () => {
+      ignore = true;
+    };
+  }, [loadRoom]);
+
+  // ============ 과목명 / 확정시간 보완 조회 ============
+  useEffect(() => {
+    if (courseNames && scheduledAt) return;
+    chatRoomApi
+      .getRoomList()
+      .then((list) => {
+        const found = list.find((r) => String(r.roomId) === String(roomId));
+        if (!found) return;
+        setCourseNames((prev) =>
+          prev
+            ? prev
+            : {
+                my: found.myCourseName,
+                counterpart: found.partnerCourseName,
+              },
+        );
+        setScheduledAt((prev) => prev ?? found.scheduledAt ?? null);
+      })
+      .catch(() => {});
+  }, [courseNames, roomId, scheduledAt]);
+
+  // ============ CHAT 단계 실시간 동기화 폴링 ============
+  useEffect(() => {
+    if (flowStep !== 'CHAT' || isTerminated || isCompleted || isDisputed)
+      return;
+    const timer = setInterval(() => {
+      void loadRoom();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [flowStep, isTerminated, isCompleted, isDisputed, loadRoom]);
+
+  // ============ 실시간 채팅 및 소켓 이벤트 ============
+  const handleIncomingMessage = useCallback(
+    (message: ChatMessageDto) => {
+      setMessages((prev) => [...prev, message]);
+
+      if (message.type === 'SYSTEM') {
+        void loadRoom();
+
+        const match = message.content.match(
+          /(\d{1,2})월\s*(\d{1,2})일.*?(오전|오후)\s*(\d{1,2}):(\d{2})/,
+        );
+        if (match) {
+          const [, mm, dd, ampm, hh, min] = match;
+          const now = new Date();
+          let hour = Number(hh);
+          if (ampm === '오후' && hour !== 12) hour += 12;
+          if (ampm === '오전' && hour === 12) hour = 0;
+
+          const monthIdx = Number(mm) - 1;
+          const dayNum = Number(dd);
+          const minNum = Number(min);
+
+          if (
+            !isNaN(monthIdx) &&
+            !isNaN(dayNum) &&
+            !isNaN(hour) &&
+            !isNaN(minNum)
+          ) {
+            const utcMs = Date.UTC(
+              now.getFullYear(),
+              monthIdx,
+              dayNum,
+              hour - KST_OFFSET_HOURS,
+              minNum,
+            );
+            setScheduledAt(new Date(utcMs).toISOString());
+          }
+        }
+      }
+    },
+    [loadRoom],
+  );
+
+  const handleRoomEvent = useCallback(
+    (event: { type: string; seconds?: number }) => {
+      setVerifyStep((currentStep) => {
+        if (currentStep === 'COUNTDOWN_WAITING') {
+          setRoomStatus('COUNTDOWN');
+          setLocalFlowStep('COUNTDOWN');
+          setCountdownPhase('COUNTING');
+          setCountdownSecondsLeft(event.seconds ?? COUNTDOWN_START);
+        }
+        return currentStep;
+      });
+    },
+    [],
+  );
+
+  const { sendMessage } = useChatSocket({
+    roomId,
+    onMessage: handleIncomingMessage,
+    onRoomEvent: handleRoomEvent,
+    enabled: !isLoadingRoom,
+  });
+
+  useEffect(() => {
+    if (!prevScheduledAtRef.current && scheduledAt) {
+      setScheduleInsertIndex(messages.length);
+    }
+    prevScheduledAtRef.current = scheduledAt;
+  }, [scheduledAt, messages.length]);
+
+  const prevFlowStepRef = useRef(flowStep);
+  useEffect(() => {
+    const justEnteredGuide =
+      flowStep === 'GUIDE' && prevFlowStepRef.current !== 'GUIDE';
+    if (justEnteredGuide) {
+      scrollRef.current?.scrollTo({ top: 0 });
+    } else {
+      scrollRef.current?.scrollTo({ top: scrollRef.current?.scrollHeight });
+    }
+    prevFlowStepRef.current = flowStep;
+  }, [
+    messages,
+    scheduledAt,
+    flowStep,
+    verifyStep,
+    disputeStep,
+    countdownPhase,
+    cardInsertIndex,
+    showPreviousChat,
+    scheduleInsertIndex,
+  ]);
+
+  // ============ 1. 5분 전 자동 인증 진입 ============
+  useEffect(() => {
+    if (
+      !scheduledAt ||
+      isTerminated ||
+      isCompleted ||
+      isDisputed ||
+      flowStep !== 'CHAT'
+    ) {
+      return;
+    }
+    const deadline = new Date(scheduledAt).getTime();
+    const triggerAt = deadline - VERIFY_LEAD_MS;
+
+    const check = () => {
+      const now = Date.now();
+      if (now >= triggerAt && now <= deadline + VERIFY_WINDOW_MS) {
+        setCardInsertIndex(messages.length);
+        setShowPreviousChat(false);
+        setLocalFlowStep('VERIFY');
+        setVerifyStep('INTRO');
+      }
+    };
+
+    check();
+    const interval = setInterval(check, 1000);
+    return () => clearInterval(interval);
+  }, [
+    scheduledAt,
+    flowStep,
+    isTerminated,
+    isCompleted,
+    isDisputed,
+    messages.length,
+  ]);
+
+  // VERIFY 및 DISPUTE 단계 QR 이미지 조회
+  useEffect(() => {
+    const needQr =
+      (flowStep === 'VERIFY' && verifyStep === 'INTRO') ||
+      (flowStep === 'DISPUTE' && disputeStep === 'CAPTURE');
+    if (!needQr || qrImageUrl || !exchangeId) return;
+
+    let ignore = false;
+    const fetchQr = async () => {
+      if (flowStep === 'VERIFY' && isVerifyWindowExpired(scheduledAt)) {
+        if (!ignore) {
+          setApiError('인증 가능 시간이 지났습니다.');
+          clearCachedQr(exchangeId);
+        }
+        return;
+      }
+
+      const cached = readCachedQr(exchangeId);
+      if (cached) {
+        if (!ignore) setQrImageUrl(cached.qrImageUrl);
+        return;
+      }
+
+      try {
+        const qr = await exchangeApi.createQr(exchangeId);
+        if (ignore) return;
+        setQrImageUrl(qr.qrImageUrl);
+        writeCachedQr(exchangeId, {
+          qrImageUrl: qr.qrImageUrl,
+          expiresAt: qr.expiresAt,
+        });
+      } catch (err) {
+        if (ignore) return;
+        setApiError(
+          err instanceof ApiError
+            ? err.message
+            : 'QR 코드를 발급받지 못했습니다.',
+        );
+      }
+    };
+
+    void fetchQr();
+
+    return () => {
+      ignore = true;
+    };
+  }, [flowStep, verifyStep, disputeStep, qrImageUrl, exchangeId, scheduledAt]);
+
+  const handleBack = () => {
+    if (isTerminated) {
+      navigate(ROOM_LIST_PATH, { replace: true });
+      return;
+    }
+    navigate(-1);
+  };
+
+  const handleSend = () => {
+    const content = inputValue.trim();
+    if (!content) return;
+    const ok = sendMessage(content);
+    if (ok) {
+      setInputValue('');
+      return;
+    }
+    setApiError('채팅 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isComposingRef.current && e.keyCode !== 229) {
+      handleSend();
+    }
+  };
+
+  const handleGoSchedule = () => {
+    if (isTerminated || isCompleted) return;
+    setIsMenuOpen(false);
+    navigate(`/chat/${roomId}/schedule`, { state: { exchangeId } });
+  };
+
+  const handleGoTerminate = () => {
+    if (isTerminated || isCompleted || isDisputed || isSubmittingCancel) return;
+    setIsMenuOpen(false);
+    setIsTerminateOpen(true);
+  };
+
+  const handleReport = () => {
+    setIsMenuOpen(false);
+
+    if (!partnerId) {
+      alert('상대방 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    navigate('/report', {
+      state: {
+        reportedUserId: partnerId,
+        exchangeId: exchangeId,
+      },
+    });
+  };
+
+  const renderMessages = (msgs: ChatMessageDto[] = messages) =>
+    msgs.map((msg) => {
+      const isMine = msg.senderId === CURRENT_USER_ID;
+      const timeNode = (
+        <span className="text-[10px] text-gray-400 flex-shrink-0">
+          {formatTime(msg.createdAt)}
+        </span>
+      );
+      return (
+        <div
+          key={msg.id}
+          className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
+        >
+          {isMine && timeNode}
+          <div
+            className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
+              isMine
+                ? 'bg-brand-lightBlue text-white rounded-br-sm'
+                : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+            }`}
+          >
+            {msg.content}
+          </div>
+          {!isMine && timeNode}
+        </div>
+      );
+    });
+
+  const renderScheduledBox = () =>
+    scheduledAt && (
+      <div className="mx-4 mt-7 bg-yellow-light border-[0.70px] border-[#D1B422] rounded-lg px-4 py-8 flex flex-col gap-5">
+        <div className="flex items-center gap-2">
+          <span className="w-12 h-12 rounded-full border border-[#D1B422] bg-[#FFF3B6] flex items-center justify-center flex-shrink-0">
+            <Icon
+              icon="mdi:calendar-check-outline"
+              className="text-[30px] text-[#D1B422]"
+            />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-[#D1B422]">
+              교환 시간 확정
+            </p>
+            <p className="text-sm font-bold text-gray-700">
+              날짜 : {formatScheduledDate(scheduledAt)}
+            </p>
+            <p className="text-sm font-bold text-gray-700">
+              시간 : {formatTime(scheduledAt)}
+            </p>
+          </div>
+        </div>
+
+        <ul className="flex flex-col gap-1.5">
+          {[
+            '교환 5분 전 강의 보유 인증이 진행됩니다.',
+            'PC에서 수강신청(내역) 페이지를 미리 열어주세요.',
+            '모바일 인증은 지원되지 않습니다.',
+          ].map((text) => (
+            <li
+              key={text}
+              className="flex items-start gap-1.5 text-xs text-gray-700"
+            >
+              <Icon
+                icon="mdi:check-circle-outline"
+                className="text-[14px] bg-[#FFF3B6] rounded-full text-[#D1B422] mt-0.5 flex-shrink-0"
+              />
+              {text}
+            </li>
+          ))}
+        </ul>
+
+        {!isTerminated && (
+          <button
+            type="button"
+            onClick={handleShowGuide}
+            className="w-full py-2.5 border-[0.70px] border-[#D1B422] rounded-xl bg-[#FCEFAF] text-[#D1B422] text-sm font-semibold"
+          >
+            캡쳐 인증 방법 확인하기
+          </button>
+        )}
+      </div>
+    );
+
+  const renderPreviousChatHistory = (uptoIndex: number) => {
+    const boxIndex = Math.min(scheduleInsertIndex, uptoIndex);
+    return (
+      <>
+        {renderMessages(messages.slice(0, boxIndex))}
+        {boxIndex === scheduleInsertIndex && renderScheduledBox()}
+        {renderMessages(messages.slice(boxIndex, uptoIndex))}
+      </>
+    );
+  };
+
+  // ============ GUIDE ============
+  const handleShowGuide = () => {
+    if (isTerminated) return;
+    setCardInsertIndex(messages.length);
+    setShowPreviousChat(false);
+    setLocalFlowStep('GUIDE');
+  };
+
+  useEffect(() => {
+    if (flowStep !== 'VERIFY' || verifyStep !== 'INTRO' || !scheduledAt) return;
+    const deadline = new Date(scheduledAt).getTime();
+    const timerRef: { current: ReturnType<typeof setInterval> | null } = {
+      current: null,
+    };
+    const tick = () => {
+      const remain = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      setVerifySecondsLeft(remain);
+      if (remain <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setApiError('인증 가능 시간이 지났습니다.');
+      }
+    };
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [flowStep, verifyStep, scheduledAt]);
+
+  const formatVerifyTimer = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const captureScreen = async (): Promise<Blob | null> => {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+    });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, 'image/png'),
+    );
+    stream.getTracks().forEach((track) => track.stop());
+    return blob;
+  };
+
+  const handleStartCapture = async () => {
+    if (!exchangeId) return;
+    setVerifyStep('CAPTURING');
+    try {
+      const blob = await captureScreen();
+      if (!blob) throw new Error('화면 캡처에 실패했습니다.');
+
+      const result = await exchangeApi.uploadCapture(exchangeId, blob);
+
+      // 💡 검증 실패 시
+      if (!result.qrValid || result.status !== 'PASSED') {
+        setIsCaptureFailModalOpen(true);
+        setVerifyStep('INTRO');
+        // 실패 시 이전 QR 상태 제거 및 재발급 유도
+        setQrImageUrl(null);
+        clearCachedQr(exchangeId);
+        return;
+      }
+
+      // 💡 검증 성공 시
+      setQrImageUrl(null);
+      clearCachedQr(exchangeId);
+
+      if (result.counterpartImageUrl) {
+        setCounterpartImageUrl(result.counterpartImageUrl);
+        setVerifyStep('CONFIRM_COUNTERPART');
+      } else {
+        setVerifyStep('WAITING_COUNTERPART');
+      }
+    } catch (err) {
+      setIsCaptureFailModalOpen(true);
+      setVerifyStep('INTRO');
+      setQrImageUrl(null);
+      clearCachedQr(exchangeId);
+      setApiError(err instanceof ApiError ? err.message : null);
+    }
+  };
+
+  // 상대방 캡처 Polling
+  useEffect(() => {
+    if (
+      flowStep !== 'VERIFY' ||
+      verifyStep !== 'WAITING_COUNTERPART' ||
+      !exchangeId
+    )
+      return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await exchangeApi.getCounterpartCapture(exchangeId);
+        if (res?.imageUrl) {
+          setCounterpartImageUrl(res.imageUrl);
+          setVerifyStep('CONFIRM_COUNTERPART');
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [flowStep, verifyStep, exchangeId]);
+
+  const handleConfirmCounterpart = () => {
+    if (!isCounterpartConfirmedChecked) return;
+    setVerifyStep('READY_TO_COUNTDOWN');
+  };
+
+  const handleStartCountdownBtn = async () => {
+    if (!exchangeId || !isMyCountdownReady) return;
+    try {
+      setVerifyStep('COUNTDOWN_WAITING');
+      await exchangeApi.readyCountdown(exchangeId);
+    } catch {
+      setVerifyStep('READY_TO_COUNTDOWN');
+      setApiError('카운트다운 준비 신호를 전송하지 못했습니다.');
+    }
+  };
+
+  // ============ COUNTDOWN 10초 타이머 ============
+  useEffect(() => {
+    if (flowStep !== 'COUNTDOWN' || countdownPhase !== 'COUNTING') return;
+
+    const timer = setInterval(() => {
+      setCountdownSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setCountdownPhase('RESULT_SELECT');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [flowStep, countdownPhase]);
+
+  const handleExchangeResult = async (result: 'SUCCESS' | 'FAIL') => {
+    if (!exchangeId || isSubmittingResult) return;
+    setIsSubmittingResult(true);
+    try {
+      await exchangeApi.submitResult(exchangeId, result);
+
+      if (result === 'SUCCESS') {
+        applyExchangeStatus('COMPLETED');
+        writeCachedResult(exchangeId, 'COMPLETED');
+        setLocalFlowStep(null);
+      } else {
+        applyExchangeStatus('DISPUTE');
+        writeCachedResult(exchangeId, 'DISPUTE');
+        setLocalFlowStep('DISPUTE');
+        setDisputeStep('CAPTURE');
+        setCardInsertIndex(messages.length);
+        setShowPreviousChat(false);
+        setQrImageUrl(null);
+      }
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '교환 결과를 전달하지 못했습니다.',
+      );
+    } finally {
+      setIsSubmittingResult(false);
+    }
+  };
+
+  // ============ DISPUTE ============
+  const handleStartDisputeCapture = async () => {
+    if (!exchangeId) return;
+    setIsDisputeSubmitting(true);
+    try {
+      const blob = await captureScreen();
+      if (!blob) throw new Error('화면 캡처에 실패했습니다.');
+      await exchangeApi.uploadCapture(exchangeId, blob);
+
+      setDisputeStep('SUBMITTED');
+      writeCachedDisputeStep(exchangeId, 'SUBMITTED');
+    } catch (err) {
+      setApiError(
+        err instanceof ApiError
+          ? err.message
+          : '인증 제출에 실패했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsDisputeSubmitting(false);
+    }
+  };
+
+  const handleConfirmDisputeSubmitted = () => {
+    setLocalFlowStep(null);
+    if (exchangeId) clearCachedQr(exchangeId);
+    void loadRoom();
+  };
+
+  if (isLoadingRoom) {
+    return (
+      <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden h-full flex items-center justify-center text-sm text-gray-400">
+        불러오는 중...
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative bg-[#fbfbfb] mx-auto overflow-hidden h-full flex flex-col">
+      {/* 헤더 */}
+      <div>
+        <Header
+          leftNode={<IconButton icon={ICONS.BACK} onClick={handleBack} />}
+          title={
+            <div className="flex flex-col items-start leading-tight mt-1">
+              <span className="text-xl text-semibold-18 text-gray-900 leading-5">
+                {myCourseName}
+              </span>
+              <span className="text-xs text-[#727272] font-light mt-1">
+                ↔ {counterpartCourseName}
+              </span>
+            </div>
+          }
+          rightNode={
+            <IconButton
+              icon={ICONS.MENU}
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+            />
+          }
+        />
+      </div>
+
+      {/* 햄버거 메뉴 */}
+      {isMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-30"
+            onClick={() => setIsMenuOpen(false)}
+          />
+          <div className="absolute top-[84px] right-4 z-40 w-56 bg-white rounded-xl border border-gray-100 py-2">
+            {!isTerminated && !isCompleted && !isDisputed && (
+              <button
+                type="button"
+                onClick={handleGoTerminate}
+                disabled={isSubmittingCancel}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Icon icon="mdi:alert-circle-outline" className="text-[18px]" />
+                거래 파기하기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleReport}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Icon icon="mdi:alert-outline" className="text-[18px]" />
+              신고하기
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* CHAT 화면 */}
+      {flowStep === 'CHAT' && (
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4 bg-[#fbfbfb]"
+        >
+          <p className="text-center text-xs text-[#727272] font-light font-['Pretendard'] mt-2 mb-2">
+            {myCourseName.replace(' ', '')} 교환 준비방이 생성되었습니다.
+          </p>
+
+          {!scheduledAt && !isTerminated && (
+            <div className="mx-4 bg-yellow-light border-[0.70px] border-[#D1B422] rounded-lg px-4 py-8 flex flex-col items-center text-center gap-5">
+              <p className="text-sm font-bold text-[#194059BF] leading-relaxed">
+                강의를 교환할 시간을 정해
+                <br />
+                교환 시간 결정 버튼을 눌러 확정해주세요.
+              </p>
+              <p className="text-xs text-gray-700">
+                다른 학우들이 수강 정정을
+                <br />
+                활발히 하지 않는 새벽 시간대를 추천해요.
+              </p>
+              <button
+                type="button"
+                onClick={handleGoSchedule}
+                className="w-3/4 py-2.5 rounded-md bg-yellow-main border-[0.50px] border-[#D1B422] text-[#D1B422] text-sm font-semibold"
+              >
+                교환시간 결정하기
+              </button>
+            </div>
+          )}
+
+          {renderMessages(messages.slice(0, scheduleInsertIndex))}
+
+          {renderScheduledBox()}
+
+          {renderMessages(messages.slice(scheduleInsertIndex))}
+
+          {isTerminated && (
+            <div className="mx-4 mt-4 flex flex-col items-center gap-2 text-center">
+              <p className="text-sm font-bold text-gray-700">
+                거래가 파기되었습니다.
+              </p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                파기 사유는 관리자에게 전달되었습니다.
+                <br />
+                검토 후 귀책 여부에 따라 페널티가 부여됩니다.
+              </p>
+            </div>
+          )}
+
+          {isCompleted && (
+            <div className="mx-4 mt-4 flex flex-col items-center gap-2 text-center">
+              <p className="text-sm font-bold text-gray-700">
+                교환이 완료되었습니다.
+              </p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                강의 교환이 정상적으로 마무리되었습니다.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GUIDE 화면 */}
+      {flowStep === 'GUIDE' && (
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-5 py-6 flex flex-col gap-6 bg-[#fbfbfb] font-['Pretendard']"
+        >
+          <div className="mx-4 flex flex-col gap-2">
+            <h1 className="text-lg font-bold text-gray-900">
+              강의 보유 인증 안내
+            </h1>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              안전한 강의 교환을 위해 본인이 실제로 해당 강의를 보유하고 있는지
+              확인하는 절차를 진행합니다.
+            </p>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              인증은 교환 예정 시간 5분 전부터 가능합니다.
+            </p>
+            <p className="text-xs text-point-red leading-relaxed">
+              인증 시작 후 5분 이내에 절차를 완료하지 않으면 거래가 자동
+              취소되며 페널티가 부여될 수 있습니다. 교환 시간을 반드시 준수해
+              주세요.
+            </p>
+          </div>
+
+          <div className="mx-4 h-px bg-gray-200" />
+
+          <div className="mx-4 flex flex-col gap-6">
+            <h2 className="text-sm font-bold text-gray-900">인증 방법</h2>
+
+            {GUIDE_STEPS.map((step, i) => (
+              <div key={step.title} className="flex flex-col gap-2">
+                <p className="text-sm font-semibold text-gray-900">
+                  {step.title}
+                </p>
+                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">
+                  {step.desc}
+                </p>
+
+                {i === 5 ? (
+                  <div className="pointer-events-none opacity-80 bg-white border border-gray-200 rounded-lg px-4 py-4 flex flex-col gap-3">
+                    <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                      <img
+                        src={step.image}
+                        alt={step.title}
+                        className="w-full h-auto object-cover rounded-lg"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700">
+                      <input type="checkbox" checked readOnly />
+                      촬영된 이미지에 교환하려는 강의가 포함되어 있음을
+                      확인했습니다.
+                    </label>
+                    <div className="flex gap-2">
+                      <button className="flex-1 py-2 rounded-md border border-gray-300 text-xs text-gray-600">
+                        다시 촬영
+                      </button>
+                      <button className="flex-1 py-2 rounded-md bg-yellow-main text-xs text-[#D1B422] font-semibold">
+                        확인 완료
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                    <img
+                      src={step.image}
+                      alt={step.title}
+                      className="w-full h-auto object-cover rounded-lg"
+                    />
+                  </div>
+                )}
+
+                <span className="text-[11px] text-gray-400">
+                  {step.caption}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* 가이드 하단 버튼 수정 영역 */}
+          <button
+            type="button"
+            onClick={() => setLocalFlowStep(null)}
+            className="mx-4 mt-2 py-2.5 rounded-md bg-yellow-main border-[0.50px] border-[#D1B422] text-[#D1B422] text-sm font-semibold"
+          >
+            확인했어요
+          </button>
+
+          {messages.slice(cardInsertIndex).length > 0 && (
+            <div className="mx-4 flex flex-col gap-4 pt-2">
+              {renderMessages(messages.slice(cardInsertIndex))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VERIFY 화면 */}
+      {flowStep === 'VERIFY' && (
+        <>
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4"
+          >
+            {!showPreviousChat && (
+              <button
+                type="button"
+                onClick={() => setShowPreviousChat(true)}
+                className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 py-2"
+              >
+                이전 채팅 보기
+                <Icon icon="mdi:chevron-down" className="text-[14px]" />
+              </button>
+            )}
+            {showPreviousChat && (
+              <>
+                <div className="flex flex-col gap-4 pb-2">
+                  {renderPreviousChatHistory(cardInsertIndex)}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviousChat(false)}
+                  className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 py-2"
+                >
+                  이전 채팅 보기
+                  <Icon icon="mdi:chevron-up" className="text-[14px]" />
+                </button>
+              </>
+            )}
+
+            {/* Step 1: 5분 전 알림 + QR 코드 인증 */}
+            {(verifyStep === 'INTRO' || verifyStep === 'CAPTURING') && (
+              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-[#FFF3B6] flex items-center justify-center">
+                    <Icon
+                      icon="mdi:calendar-check-outline"
+                      className="text-[23px] text-[#D1B422]"
+                    />
+                  </span>
+                  <p className="text-base font-bold text-gray-700">
+                    교환 5분 전! 강의 보유 인증 시작
+                  </p>
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed">
+                  안전한 교환을 위해 현재 해당 강의를 보유하고 있는지
+                  확인합니다. 5분 이내에 진행해주세요.
+                </p>
+
+                <div className="h-px bg-[#EADB93]" />
+
+                <ul className="flex flex-col gap-1.5">
+                  {[
+                    'PC에 수강신청(내역) 페이지를 띄워주세요.',
+                    '[인증 시작] 버튼을 누른 후 화면 공유를 허용해주세요.',
+                    '수강신청(내역) 페이지와 아래 QR 코드가 함께 보이도록 전체 화면을 공유해주세요.',
+                  ].map((text) => (
+                    <li
+                      key={text}
+                      className="flex items-start gap-1.5 text-xs text-gray-700"
+                    >
+                      <Icon
+                        icon="mdi:check-circle-outline"
+                        className="text-[14px] text-[#D1B422] bg-[#FFF3B6] rounded-full mt-0.5 flex-shrink-0"
+                      />
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+
+                <p className="text-[11px] text-[#D1B422]">
+                  ※ 수강신청(내역) 페이지와 QR 코드가 동시에 확인되어야 인증이
+                  완료됩니다.
+                </p>
+
+                {qrImageUrl && (
+                  <div className="flex justify-center py-2">
+                    <div className="w-52 h-52 bg-white border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                      <img
+                        src={qrImageUrl}
+                        alt="인증 QR 코드"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  variant="warning"
+                  size="lg"
+                  disabled={verifyStep === 'CAPTURING'}
+                  onClick={handleStartCapture}
+                  className="!bg-yellow-main !text-[#D1B422] border-[0.70px] border-[#D1B422]"
+                >
+                  {verifyStep === 'CAPTURING'
+                    ? '인증 확인 중...'
+                    : `인증 시작하기 ${formatVerifyTimer(verifySecondsLeft)}`}
+                </Button>
+              </div>
+            )}
+
+            {/* Step 2: 내 인증 완료 -> 상대방 인증 대기 */}
+            {verifyStep === 'WAITING_COUNTERPART' && (
+              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-8 flex flex-col items-center gap-3 text-center">
+                <Icon
+                  icon="mdi:check-circle"
+                  className="text-[32px] text-[#D1B422]"
+                />
+                <p className="text-sm font-bold text-gray-700">
+                  QR 코드 인증이 완료되었습니다.
+                </p>
+                <p className="text-xs text-gray-600">
+                  상대방의 인증을 기다리고 있어요.
+                </p>
+              </div>
+            )}
+
+            {/* Step 3: 상대방 캡처 이미지 확인 단계 */}
+            {verifyStep === 'CONFIRM_COUNTERPART' && (
+              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-[#FFF3B6] flex items-center justify-center">
+                    <Icon
+                      icon="mdi:calendar-check-outline"
+                      className="text-[18px] text-[#D1B422]"
+                    />
+                  </span>
+                  <p className="text-base font-bold text-gray-700">
+                    교환 대상 강의 확인
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-200 min-h-[160px] flex items-center justify-center">
+                  {counterpartImageUrl ? (
+                    <img
+                      src={counterpartImageUrl}
+                      alt="상대방 캡처 화면"
+                      className="w-full object-contain max-h-56"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-gray-400 py-6">
+                      <Icon icon="mdi:monitor" className="text-[36px]" />
+                      <span className="text-sm">상대방의 공유 화면</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-700">
+                  QR 코드 인증이 완료되었습니다. 상대방이 보유한 강의 정보를
+                  확인해주세요.
+                </p>
+                <label className="flex items-center gap-2 text-xs text-[#D1B422] cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={isCounterpartConfirmedChecked}
+                    onChange={(e) =>
+                      setIsCounterpartConfirmedChecked(e.target.checked)
+                    }
+                    className="accent-[#D1B422]"
+                  />
+                  상대방의 강의 정보를 확인했습니다
+                </label>
+                <Button
+                  variant="warning"
+                  size="lg"
+                  disabled={!isCounterpartConfirmedChecked}
+                  onClick={handleConfirmCounterpart}
+                  className="!bg-yellow-main !border !border-[#D1B422] !text-[#D1B422]"
+                >
+                  교환 준비 완료
+                </Button>
+              </div>
+            )}
+
+            {/* Step 4: 양측 동시 카운트다운 대기 */}
+            {(verifyStep === 'READY_TO_COUNTDOWN' ||
+              verifyStep === 'COUNTDOWN_WAITING') && (
+              <div className="mx-4 bg-yellow-light border-[0.7px] border-[#D1B422] rounded-lg px-5 py-6 flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-[#FFF3B6] flex items-center justify-center">
+                    <Icon
+                      icon="mdi:check-circle-outline"
+                      className="text-[20px] text-[#D1B422]"
+                    />
+                  </span>
+                  <p className="text-base font-bold text-gray-700">
+                    교환 준비 완료
+                  </p>
+                </div>
+                <p className="text-xs text-gray-700">
+                  양측이 모두 [카운트다운 시작] 버튼을 누르면 10초 후 강의
+                  교환이 시작됩니다.
+                </p>
+                <p className="text-xs text-[#D1B422]">
+                  ※ 카운트다운이 시작되면 취소할 수 없습니다.
+                </p>
+                <label className="flex items-center gap-2 text-xs text-[#D1B422] cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={isMyCountdownReady}
+                    onChange={(e) => setIsMyCountdownReady(e.target.checked)}
+                    className="accent-[#D1B422]"
+                  />
+                  강의를 버리고 잡을 준비가 되었습니다
+                </label>
+                <Button
+                  variant="warning"
+                  size="lg"
+                  disabled={
+                    !isMyCountdownReady || verifyStep === 'COUNTDOWN_WAITING'
+                  }
+                  onClick={handleStartCountdownBtn}
+                  className="!bg-yellow-main !border !border-[#D1B422] !text-[#D1B422]"
+                >
+                  {verifyStep === 'COUNTDOWN_WAITING'
+                    ? '상대방 클릭 대기 중...'
+                    : '카운트다운 시작'}
+                </Button>
+              </div>
+            )}
+
+            {messages.slice(cardInsertIndex).length > 0 && (
+              <div className="flex flex-col gap-4 pt-2">
+                {renderMessages(messages.slice(cardInsertIndex))}
+              </div>
+            )}
+          </div>
+
+          <Modal
+            isOpen={isCaptureFailModalOpen}
+            onClose={() => setIsCaptureFailModalOpen(false)}
+            icon={
+              <span className="w-10 h-10 rounded-full bg-point-red/10 flex items-center justify-center">
+                <Icon
+                  icon="mdi:alert-circle"
+                  className="text-[28px] text-point-red"
+                />
+              </span>
+            }
+            title="인증에 실패했습니다"
+            footer={
+              <Button
+                variant="danger"
+                size="md"
+                onClick={() => setIsCaptureFailModalOpen(false)}
+              >
+                다시 인증하기
+              </Button>
+            }
+          >
+            {'\n'}인증 QR 코드를 확인할 수 없습니다. {'\n\n'}
+            수강신청(내역) 페이지와 인증 QR 코드가{'\n'}한 화면에 모두 보이도록
+            한 뒤{'\n'}
+            다시 인증을 진행해주세요.
+          </Modal>
+        </>
+      )}
+
+      {/* DISPUTE 화면 */}
+      {flowStep === 'DISPUTE' && (
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-5 py-4"
+        >
+          {!showPreviousChat && (
+            <button
+              type="button"
+              onClick={() => setShowPreviousChat(true)}
+              className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 py-2"
+            >
+              이전 채팅 보기
+              <Icon icon="mdi:chevron-down" className="text-[14px]" />
+            </button>
+          )}
+          {showPreviousChat && (
+            <>
+              <div className="flex flex-col gap-4 pb-2">
+                {renderPreviousChatHistory(cardInsertIndex)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPreviousChat(false)}
+                className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 py-2"
+              >
+                이전 채팅 보기
+                <Icon icon="mdi:chevron-up" className="text-[14px]" />
+              </button>
+            </>
+          )}
+
+          {disputeStep === 'CAPTURE' && (
+            <div className="mx-4 bg-point-red/5 border border-point-red rounded-lg px-5 py-6 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-9 h-9 rounded-full bg-point-red/10 border-[0.70px] border-point-red flex items-center justify-center">
+                  <img src={disputeIcon} alt="" className="w-6 h-6" />
+                </span>
+                <p className="text-base font-bold text-gray-700">
+                  교환 실패로 인한 분쟁 조정 진행
+                </p>
+              </div>
+
+              <p className="text-xs text-gray-700 leading-relaxed">
+                교환 실패로 인해 분쟁 조정 절차가 시작되었습니다. 양측 모두 수강
+                취소 여부를 확인하기 위해 수강 취소 내역 인증을 진행합니다.
+              </p>
+
+              <div className="h-px bg-red-100" />
+
+              <ul className="flex flex-col gap-1.5">
+                {[
+                  'PC에 수강신청(내역) 페이지를 띄워주세요.',
+                  '[인증 시작] 버튼을 누른 후 화면 공유를 허용해주세요.',
+                  '수강신청(내역) 페이지와 아래 QR 코드가 함께 보이도록 전체 화면을 공유해주세요.',
+                ].map((text) => (
+                  <li
+                    key={text}
+                    className="flex items-start gap-1.5 text-xs text-gray-700"
+                  >
+                    <Icon
+                      icon="mdi:check-circle-outline"
+                      className="text-[14px] text-point-red mt-0.5 flex-shrink-0"
+                    />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-[11px] text-point-red font-bold">
+                ※ 수강신청(내역) 페이지와 QR 코드가 동시에 확인되어야 인증이
+                완료됩니다.
+                <br />※ 5분 이내에 인증을 완료하지 않을 경우 거래 결과 판정에
+                불이익이 발생할 수 있습니다.
+              </p>
+
+              {qrImageUrl ? (
+                <div className="flex justify-center py-2">
+                  <div className="w-52 h-52 bg-white border border-red-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img
+                      src={qrImageUrl}
+                      alt="분쟁 인증 QR 코드"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-center py-2">
+                  <div className="w-52 h-52 bg-gray-50 border border-red-100 rounded-lg flex items-center justify-center text-xs text-gray-400">
+                    QR 코드를 불러오는 중...
+                  </div>
+                </div>
+              )}
+
+              <Button
+                variant="danger"
+                size="lg"
+                disabled={isDisputeSubmitting || disputeSecondsLeft <= 0}
+                onClick={handleStartDisputeCapture}
+              >
+                {isDisputeSubmitting
+                  ? '확인 중...'
+                  : disputeSecondsLeft <= 0
+                    ? '인증 시간 만료'
+                    : `인증 시작하기 ${formatVerifyTimer(disputeSecondsLeft)}`}
+              </Button>
+            </div>
+          )}
+
+          {disputeStep === 'SUBMITTED' && (
+            <div className="mx-4 bg-point-red/5 border border-point-red rounded-lg px-5 py-8 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-9 h-9 rounded-full bg-point-red/10 border-[0.70px] border-point-red flex items-center justify-center">
+                  <Icon
+                    icon="mdi:check"
+                    className="text-[22px] text-point-red"
+                  />
+                </span>
+                <p className="text-base font-bold text-gray-700">
+                  인증 제출 완료
+                </p>
+              </div>
+
+              <p className="text-xs text-gray-700 leading-relaxed">
+                분쟁 조정 결과는 양측의 인증을 관리자가 확인한 후 알림을 통해
+                확인할 수 있습니다.
+              </p>
+
+              <div className="h-px bg-red-100" />
+
+              <ul className="flex flex-col gap-2">
+                {[
+                  '양측 모두 정상적으로 수강 취소를 진행한 것으로 확인될 경우, 해당 거래는 사기가 아닌 교환 실패로 처리됩니다.',
+                  '수강신청 결과는 학교 시스템 및 제3자의 신청 상황에 따라 달라질 수 있으며, 이로 인해 발생한 교환 실패에 대해서는 결과를 보장할 수 없습니다.',
+                  '교환 실패로 판정된 경우 양측 모두 페널티 없이 거래가 종료됩니다.',
+                ].map((text) => (
+                  <li
+                    key={text}
+                    className="flex items-start gap-1.5 text-xs text-gray-700"
+                  >
+                    <Icon
+                      icon="mdi:check-circle-outline"
+                      className="text-[14px] text-point-red mt-0.5 flex-shrink-0"
+                    />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+
+              <Button
+                variant="danger"
+                size="lg"
+                onClick={handleConfirmDisputeSubmitted}
+              >
+                확인
+              </Button>
+            </div>
+          )}
+
+          {messages.slice(cardInsertIndex).length > 0 && (
+            <div className="flex flex-col gap-4 pt-2">
+              {renderMessages(messages.slice(cardInsertIndex))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* COUNTDOWN 배경 */}
+      {flowStep === 'COUNTDOWN' && (
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4 bg-[#fbfbfb]"
+        >
+          {renderPreviousChatHistory(messages.length)}
+        </div>
+      )}
+
+      {/* COUNTDOWN 오버레이 */}
+      {flowStep === 'COUNTDOWN' && countdownPhase === 'COUNTING' && (
+        <Modal isOpen title="교환 시작까지">
+          <div className="flex flex-col items-center gap-4 translate-y-6">
+            <p
+              className={`text-5xl !font-['Paperlogy'] font-extrabold mb-5 ${
+                countdownSecondsLeft <= COUNTDOWN_RED_THRESHOLD
+                  ? 'text-point-red'
+                  : 'text-black'
+              }`}
+            >
+              {countdownSecondsLeft}초
+            </p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              상대방도 준비를 완료했습니다.
+              <br />
+              강의를 버리고 잡을 준비를 해주세요.
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {flowStep === 'COUNTDOWN' && countdownPhase === 'RESULT_SELECT' && (
+        <Modal
+          isOpen
+          title={<span className="text-point-red">지금 교환하세요</span>}
+          footer={
+            <div className="w-full flex flex-col gap-2">
+              <Button
+                variant="danger"
+                size="lg"
+                onClick={() => handleExchangeResult('SUCCESS')}
+              >
+                교환성공
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => handleExchangeResult('FAIL')}
+              >
+                교환 실패
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-3 py-1">
+            <div className="text-sm text-gray-700 leading-relaxed text-left">
+              <p>1. 현재 강의를 취소하세요.</p>
+              <p>2. 상대방의 강의를 신청하세요.</p>
+            </div>
+            <p className="text-sm text-left text-gray-700">
+              강의 신청이 완료되면
+              <br />
+              결과에 따라 아래 버튼을 선택해주세요.
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {/* 푸터 */}
+      {CHAT_INPUT_UNLOCKED_STEPS.includes(flowStep) &&
+        !isTerminated &&
+        !isCompleted && (
+          <div className="px-6 py-3 bg-[#fbfbfb]">
+            <Input
+              variant="pill"
+              placeholder="메세지 보내기"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onCompositionStart={() => (isComposingRef.current = true)}
+              onCompositionEnd={() => (isComposingRef.current = false)}
+              onKeyDown={handleKeyDown}
+              rightNode={
+                <button type="button" onClick={handleSend} aria-label="전송">
+                  <img src={sendIcon} alt="" className="w-7 h-7" />
+                </button>
+              }
+            />
+          </div>
+        )}
+
+      {/* 에러 모달 */}
+      <Modal
+        isOpen={!!apiError}
+        onClose={() => setApiError(null)}
+        icon={
+          <span className="w-10 h-10 rounded-full bg-point-red/10 flex items-center justify-center">
+            <Icon
+              icon="mdi:alert-circle"
+              className="text-[28px] text-point-red"
+            />
+          </span>
+        }
+        title="문제가 발생했습니다"
+        footer={
+          <Button variant="danger" size="md" onClick={() => setApiError(null)}>
+            확인
+          </Button>
+        }
+      >
+        {apiError}
+      </Modal>
+
+      {/* 파기 모달 */}
+      {isTerminateOpen && (
+        <TerminateDealOverlay
+          exchangeId={exchangeId}
+          onClose={() => {
+            setIsTerminateOpen(false);
+            setIsSubmittingCancel(false);
+          }}
+          onSuccess={() => {
+            setIsTerminateOpen(false);
+            setIsSubmittingCancel(false);
+            setExchangeStatus('CANCELED');
+            if (exchangeId) clearCachedQr(exchangeId);
+          }}
+        />
+      )}
+    </div>
+  );
+}

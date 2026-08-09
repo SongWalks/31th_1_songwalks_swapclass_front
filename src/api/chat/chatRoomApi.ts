@@ -1,0 +1,65 @@
+// src/api/chatRoomApi.ts
+
+import { apiGet } from '@/api/chat/apiClient';
+
+export type ChatRoomStatus = string; // 백엔드 enum 예: 'CHATTING' | 'VERIFYING' | 'READY' | 'COUNTDOWN' | ...
+
+export interface ChatMessageDto {
+  id: number;
+  senderId: number;
+  content: string;
+  type: 'TEXT' | 'SYSTEM';
+  createdAt: string;
+}
+
+export interface ChatRoomDto {
+  room: {
+    id: number;
+    status: ChatRoomStatus;
+    exchangeId: number;
+  };
+  messages: ChatMessageDto[];
+}
+
+export interface MessagesDto {
+  messages: ChatMessageDto[];
+}
+
+// ===== 채팅방 목록 조회 =====
+export type ScheduleState = 'UNDECIDED' | 'PROPOSED';
+export type ExchangeStatus =
+  'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'DISPUTE';
+
+export interface ChatRoomListItemDto {
+  roomId: number;
+  status: string;
+  exchangeStatus: ExchangeStatus;
+  exchangeId: number;
+  partnerId: number;
+  partnerNickname: string;
+  myCourseName: string;
+  partnerCourseName: string;
+  scheduleState: ScheduleState;
+  scheduledAt: string | null;
+  createdAt: string;
+  lastMessage: string | null;
+  lastMessageType: 'TEXT' | 'SYSTEM' | null;
+  lastMessageAt: string | null;
+}
+
+export const chatRoomApi = {
+  // 채팅방 목록 조회
+  getRoomList: () => apiGet<ChatRoomListItemDto[]>('/api/chat-rooms'),
+
+  // 채팅방 상태 + 메시지 내역 (커서 페이징)
+  getRoom: (
+    roomId: number | string,
+    params?: { before?: string; size?: number },
+  ) => apiGet<ChatRoomDto>(`/api/chat-rooms/${roomId}`, params),
+
+  // 메시지 목록만 조회 (커서 페이징)
+  getMessages: (
+    roomId: number | string,
+    params?: { before?: string; size?: number },
+  ) => apiGet<MessagesDto>(`/api/chat-rooms/${roomId}/messages`, params),
+};

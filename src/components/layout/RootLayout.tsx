@@ -1,12 +1,11 @@
-// 모바일 화면 비율(가운데 정렬, 최대 너비)을 잡아주는 가장 바깥 틀
 import { Outlet } from 'react-router-dom';
 
-function RootLayout() {
+export default function RootLayout() {
   return (
-    <div className="max-w-md mx-auto">
-      <Outlet />
+    <div className="h-[100dvh] bg-gray-200 flex justify-center font-sans text-gray-900">
+      <div className="w-full min-w-[320px] max-w-[500px] h-full bg-[#FBFBFB] shadow-xl relative flex flex-col overflow-hidden">
+        <Outlet />
+      </div>
     </div>
   );
 }
-
-export default RootLayout;
