@@ -34,6 +34,7 @@ const COUNTDOWN_START = 10;
 const COUNTDOWN_RED_THRESHOLD = 3;
 const VERIFY_LEAD_MS = 5 * 60 * 1000;
 const VERIFY_WINDOW_MS = 5 * 60 * 1000;
+const DISPUTE_WINDOW_MS = 5 * 60 * 1000;
 
 const isVerifyWindowExpired = (scheduledAtIso: string | null): boolean => {
   if (!scheduledAtIso) return false;
@@ -124,6 +125,31 @@ const writeCachedDisputeStep = (exchangeId: number, step: DisputeSubStep) => {
     sessionStorage.setItem(getDisputeStepCacheKey(exchangeId), step);
   } catch {
     /* ignore */
+  }
+};
+
+// ===== 분쟁 시작 시간 캐시 유틸 (타이머 고정용) =====
+const DISPUTE_START_TIME_PREFIX = 'dispute_start_time_';
+const getDisputeStartTimeCacheKey = (id: number) =>
+  `${DISPUTE_START_TIME_PREFIX}${id}`;
+
+const getOrInitDisputeStartTime = (exchangeId: number | null): number => {
+  if (!exchangeId) return Date.now();
+  try {
+    const saved = sessionStorage.getItem(
+      getDisputeStartTimeCacheKey(exchangeId),
+    );
+    if (saved) {
+      return Number(saved);
+    }
+    const now = Date.now();
+    sessionStorage.setItem(
+      getDisputeStartTimeCacheKey(exchangeId),
+      String(now),
+    );
+    return now;
+  } catch {
+    return Date.now();
   }
 };
 
@@ -352,20 +378,24 @@ export default function ChatRoomPage() {
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   // DISPUTE 5분 타이머
-  const [disputeSecondsLeft, setDisputeSecondsLeft] = useState(300);
+  // DISPUTE 5분 고정 타이머 로직 (세션 기반)
+  const [disputeSecondsLeft, setDisputeSecondsLeft] = useState<number>(300);
+
   useEffect(() => {
     if (flowStep !== 'DISPUTE' || disputeStep !== 'CAPTURE') return;
-    const timer = setInterval(() => {
-      setDisputeSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+
+    const startTime = getOrInitDisputeStartTime(exchangeId);
+    const deadline = startTime + DISPUTE_WINDOW_MS;
+
+    const tick = () => {
+      const remain = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      setDisputeSecondsLeft(remain);
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [flowStep, disputeStep]);
+  }, [flowStep, disputeStep, exchangeId]);
 
   // ============ 채팅방/교환 정보 최초 로딩 ============
   const loadRoom = useCallback(async () => {
@@ -1573,12 +1603,14 @@ export default function ChatRoomPage() {
               <Button
                 variant="danger"
                 size="lg"
-                disabled={isDisputeSubmitting}
+                disabled={isDisputeSubmitting || disputeSecondsLeft <= 0}
                 onClick={handleStartDisputeCapture}
               >
                 {isDisputeSubmitting
                   ? '확인 중...'
-                  : `인증 시작하기 ${formatVerifyTimer(disputeSecondsLeft)}`}
+                  : disputeSecondsLeft <= 0
+                    ? '인증 시간 만료'
+                    : `인증 시작하기 ${formatVerifyTimer(disputeSecondsLeft)}`}
               </Button>
             </div>
           )}
