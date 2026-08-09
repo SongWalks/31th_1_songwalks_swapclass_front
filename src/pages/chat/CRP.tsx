@@ -311,13 +311,18 @@ export default function ChatRoomPage() {
   useEffect(() => {
     const prev = prevFlowStepForCardRef.current;
     const enteringHiddenHistoryStep =
-      (flowStep === 'VERIFY' || flowStep === 'DISPUTE') && prev !== flowStep;
-    if (enteringHiddenHistoryStep) {
+      flowStep === 'VERIFY' || flowStep === 'DISPUTE';
+
+    // VERIFY/DISPUTE 단계에 진입해 있거나 방금 진입했을 때 cardInsertIndex를 현재 메시지 길이로 고정
+    if (
+      enteringHiddenHistoryStep &&
+      (prev !== flowStep || cardInsertIndex === 0)
+    ) {
       setCardInsertIndex(messages.length);
       setShowPreviousChat(false);
     }
     prevFlowStepForCardRef.current = flowStep;
-  }, [flowStep, messages.length]);
+  }, [flowStep, messages.length, cardInsertIndex]);
 
   // ----- VERIFY 관련 상태 -----
   const [verifyStep, setVerifyStep] = useState<VerifySubStep>('INTRO');
@@ -845,11 +850,20 @@ export default function ChatRoomPage() {
       if (!blob) throw new Error('화면 캡처에 실패했습니다.');
 
       const result = await exchangeApi.uploadCapture(exchangeId, blob);
+
+      // 💡 검증 실패 시
       if (!result.qrValid || result.status !== 'PASSED') {
         setIsCaptureFailModalOpen(true);
         setVerifyStep('INTRO');
+        // 실패 시 이전 QR 상태 제거 및 재발급 유도
+        setQrImageUrl(null);
+        clearCachedQr(exchangeId);
         return;
       }
+
+      // 💡 검증 성공 시
+      setQrImageUrl(null);
+      clearCachedQr(exchangeId);
 
       if (result.counterpartImageUrl) {
         setCounterpartImageUrl(result.counterpartImageUrl);
@@ -857,10 +871,11 @@ export default function ChatRoomPage() {
       } else {
         setVerifyStep('WAITING_COUNTERPART');
       }
-      clearCachedQr(exchangeId);
     } catch (err) {
       setIsCaptureFailModalOpen(true);
       setVerifyStep('INTRO');
+      setQrImageUrl(null);
+      clearCachedQr(exchangeId);
       setApiError(err instanceof ApiError ? err.message : null);
     }
   };
